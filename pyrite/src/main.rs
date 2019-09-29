@@ -19,18 +19,22 @@ fn run_emulator() -> i32 {
 
     let mut gba = Gba::new();
 
-    const ROM_FILE: &str = "roms/tonc/m3_demo.gba";
-    match load_binary(ROM_FILE) {
-        Ok(rom_binary) => {
-            gba.set_rom(rom_binary);
-        },
+    if let Some(rom_file) = std::env::args().nth(1) {
+        match load_binary(&rom_file) {
+            Ok(rom_binary) => {
+                gba.set_rom(rom_binary);
+            },
 
-        Err(err) => {
-            eprintln!("error occurred while loading ROM ({}): {}", ROM_FILE, err);
-            return 1;
+            Err(err) => {
+                eprintln!("error occurred while loading ROM ({}): {}", rom_file, err);
+                return 1;
+            }
         }
+        gba.reset(true);
+    } else {
+        eprintln!("error: must pass a GBA ROM as the first argument");
+        return 1;
     }
-    gba.reset(true);
 
     let mut fps_counter = FPSCounter::new();
     let mut title_buffer = "Pyrite (NO FPS)".to_string();
