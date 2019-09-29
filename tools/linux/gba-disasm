@@ -1,3 +1,8 @@
 #!/usr/bin/env bash
 
-arm-none-eabi-objdump -b binary -m armv4t --adjust-vma=0x08000000 -D $1
+if [ $1 == "-t" ]
+then
+    arm-none-eabi-objdump -b binary -m armv4t -Mforce-thumb --adjust-vma=0x08000000 -D $2
+else
+    arm-none-eabi-objdump -b binary -m armv4t --adjust-vma=0x08000000 -D $1
+fi
