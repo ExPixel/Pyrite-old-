@@ -108,6 +108,10 @@ impl Window {
         return Ok(logical_center);
     }
 
+    pub fn set_title(&mut self, title: &str) {
+        self.win_context.window().set_title(title);
+    }
+
     pub fn width(&self) -> f32 {
         self.win_size.0
     }
