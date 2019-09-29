@@ -223,7 +223,7 @@ pub fn thumb_dp_g3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
 
     match bits!(opcode, 6, 7) {
         0 => { alu::arm_alu_tsts(cpu, lhs, rhs); },
-        1 => { let res = alu::arm_alu_rsbs(cpu, lhs, 0); cpu.registers.write(rd, res) },
+        1 => { let res = alu::arm_alu_rsbs(cpu, rhs, 0); cpu.registers.write(rd, res) },
         2 => { alu::arm_alu_cmps(cpu, lhs, rhs); },
         3 => { alu::arm_alu_cmns(cpu, lhs, rhs); },
         _ => unreachable!(),

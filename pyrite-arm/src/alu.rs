@@ -64,7 +64,7 @@ pub fn arm_alu_sub(_cpu: &mut ArmCpu, lhs: u32, rhs: u32) -> u32 {
 #[inline]
 pub fn arm_alu_rsbs(cpu: &mut ArmCpu, lhs: u32, rhs: u32) -> u32 {
     let res = rhs.wrapping_sub(lhs);
-    set_sub_flags(cpu, lhs, rhs, res);
+    set_sub_flags(cpu, rhs, lhs, res);
     res
 }
 
