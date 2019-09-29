@@ -7,6 +7,7 @@ macro_rules! kb {
     }
 }
 
+// @TODO implement this thing
 macro_rules! gba_error {
     ($($arg:tt)*) => {
         println!($($arg)*)
@@ -162,6 +163,16 @@ impl GbaMemory {
     }
 
     fn init_waitstates(&mut self) {
+        // Unused regions:
+        self.cycles_byte[0x01] = (1, 1);
+        self.cycles_byte[0x0F] = (1, 1);
+
+        self.cycles_halfword[0x01] = (1, 1);
+        self.cycles_halfword[0x0F] = (1, 1);
+
+        self.cycles_word[0x01] = (1, 1);
+        self.cycles_word[0x0F] = (1, 1);
+
         // BIOS, IWRAM, I/O, OAM
         // These regions have a waitstate of 0 and 32bit address buses so all reads and writes
         // only take one cycle (1 + WAIT per access)
@@ -299,7 +310,7 @@ impl GbaMemory {
                     table[region as usize].0 as u32
                 }
             },
-            _ => return 0,
+            _ => return 1,
         }
     }
 
