@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+arm-none-eabi-objdump -b binary -m armv4t --adjust-vma=0x08000000 -D $1
