@@ -1,5 +1,3 @@
-use pyrite_arm::ArmMemory;
-
 // I use a macro instead of a const fn because I need the types
 // to be generic.
 /// Converts kilobytes to bytes.
@@ -17,9 +15,12 @@ macro_rules! gba_error {
 
 pub mod gamepak;
 pub mod ioreg;
+pub mod palette;
 
+use pyrite_arm::ArmMemory;
 use gamepak::GamePakROM;
 use ioreg::IORegisters;
+use palette::Palette;
 
 /// Abstraction over GBA memory that provides timing and handling of reading unused memory.
 pub struct GbaMemory {
@@ -42,13 +43,13 @@ pub struct GbaMemory {
     recent_prefetch: u32,
 
     pub ioregs: IORegisters,
+    pub palette: Palette,
     gamepak: GamePakROM,
 
     // regions:
     mem_bios:   Vec<u8>,
     mem_ewram:  Vec<u8>,
     mem_iwram:  Vec<u8>,
-    mem_pal:    Vec<u8>,
     mem_vram:   Vec<u8>,
     mem_oam:    Vec<u8>,
 }
@@ -67,12 +68,12 @@ impl GbaMemory {
             recent_prefetch: 0,
 
             ioregs: IORegisters::new(),
+            palette: Palette::new(),
             gamepak: GamePakROM::new(Vec::new()),
 
             mem_bios:   vec![0; REGION_BIOS_LEN],
             mem_ewram:  vec![0; REGION_EWRAM_LEN],
             mem_iwram:  vec![0; REGION_IWRAM_LEN],
-            mem_pal:    vec![0; REGION_PAL_LEN],
             mem_vram:   vec![0; REGION_VRAM_LEN],
             mem_oam:    vec![0; REGION_OAM_LEN],
         };
@@ -351,9 +352,7 @@ impl GbaMemory {
             },
 
             REGION_PAL => {
-                // @TODO make this index directly into the GBA's palette rather than going into
-                // memory first.
-                self.mem_pal[(addr as usize) % REGION_PAL_LEN]
+                self.palette.load8(addr % REGION_PAL_LEN32)
             },
 
             REGION_VRAM => {
@@ -432,9 +431,7 @@ impl GbaMemory {
             },
 
             REGION_PAL => {
-                // @TODO make this index directly into the GBA's palette rather than going into
-                // memory first.
-                read16_le(&self.mem_pal, (aligned_addr as usize) % REGION_PAL_LEN)
+                self.palette.load16(aligned_addr % REGION_PAL_LEN32)
             },
 
             REGION_VRAM => {
@@ -513,9 +510,7 @@ impl GbaMemory {
             },
 
             REGION_PAL => {
-                // @TODO make this index directly into the GBA's palette rather than going into
-                // memory first.
-                read32_le(&self.mem_pal, (aligned_addr as usize) % REGION_PAL_LEN)
+                self.palette.load32(aligned_addr % REGION_PAL_LEN32)
             },
 
             REGION_VRAM => {
@@ -587,7 +582,7 @@ impl GbaMemory {
             },
 
             REGION_PAL => {
-                self.mem_pal[(addr as usize) % REGION_PAL_LEN] = value;
+                self.palette.store8(addr % REGION_PAL_LEN32, value);
             },
 
             REGION_VRAM => {
@@ -662,7 +657,7 @@ impl GbaMemory {
             },
 
             REGION_PAL => {
-                write16_le(&mut self.mem_pal, (aligned_addr as usize) % REGION_PAL_LEN, value);
+                self.palette.store16(aligned_addr % REGION_PAL_LEN32, value);
             },
 
             REGION_VRAM => {
@@ -737,7 +732,7 @@ impl GbaMemory {
             },
 
             REGION_PAL => {
-                write32_le(&mut self.mem_pal, (aligned_addr as usize) % REGION_PAL_LEN, value);
+                self.palette.store32(aligned_addr % REGION_PAL_LEN32, value);
             },
 
             REGION_VRAM => {
@@ -925,7 +920,8 @@ const REGION_SRAM: u32      = 0x0E;
 const REGION_BIOS_LEN: usize    = kb!(16);
 const REGION_EWRAM_LEN: usize   = kb!(256);
 const REGION_IWRAM_LEN: usize   = kb!(32);
-const REGION_PAL_LEN: usize     = kb!(1);
+#[cfg(test)] const REGION_PAL_LEN: usize     = kb!(1);
+const REGION_PAL_LEN32: u32     = kb!(1);
 const REGION_VRAM_LEN: usize    = kb!(96);
 const REGION_OAM_LEN: usize     = kb!(1);
 
