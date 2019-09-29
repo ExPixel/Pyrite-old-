@@ -1,0 +1,371 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_OUTPUT_MODE	u-ctags	/u-ctags or e-ctags/
+!_TAG_PROGRAM_AUTHOR	Universal Ctags Team	//
+!_TAG_PROGRAM_NAME	Universal Ctags	/Derived from Exuberant Ctags/
+!_TAG_PROGRAM_URL	https://ctags.io/	/official site/
+!_TAG_PROGRAM_VERSION	0.0.0	/a20bb99d/
+$(BUILD)	Makefile	/^$(BUILD):$/;"	t
+$(OUTPUT).elf	Makefile	/^$(OUTPUT).elf	:	$(OFILES)$/;"	t
+$(OUTPUT).gba	Makefile	/^$(OUTPUT).gba	:	$(OUTPUT).elf$/;"	t
+%.bin.o	Makefile	/^%.bin.o	:	%.bin$/;"	t
+%.h	Makefile	/^%.s %.h	: %.bmp %.grit$/;"	t
+%.raw.o	Makefile	/^%.raw.o	:	%.raw$/;"	t
+%.s	Makefile	/^%.s %.h	: %.bmp %.grit$/;"	t
+ARCH	Makefile	/^ARCH	:=	-mthumb -mthumb-interwork$/;"	m
+ASFLAGS	Makefile	/^ASFLAGS	:=	$(ARCH)$/;"	m
+Arm Wrestler	README.md	/^Arm Wrestler$/;"	c
+BAD_Rd	source\\armwrestler.s	/^.equ BAD_Rd,	0x10$/;"	d
+BAD_Rn	source\\armwrestler.s	/^.equ BAD_Rn,	0x20$/;"	d
+BINFILES	Makefile	/^BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)\/*.*)))$/;"	m
+BMPFILES	Makefile	/^BMPFILES	:=	$(foreach dir,$(GRAPHICS),$(notdir $(wildcard $(dir)\/*.bmp)))$/;"	m
+BUILD	Makefile	/^BUILD		:=	build$/;"	m
+CFILES	Makefile	/^CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)\/*.c)))$/;"	m
+CFLAGS	Makefile	/^CFLAGS	:=	-g -Wall -O3\\$/;"	m
+CPPFILES	Makefile	/^CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)\/*.cpp)))$/;"	m
+CURSEL	source\\armwrestler.s	/^.equ CURSEL,	(VARBASE+16)$/;"	d
+CURSEL	source\\thumbwrestler.s	/^.equ CURSEL,	(VARBASE+16)$/;"	d
+CXXFLAGS	Makefile	/^CXXFLAGS	:=	$(CFLAGS) -fno-rtti -fno-exceptions$/;"	m
+C_MASK	source\\thumbwrestler.s	/^.equ C_MASK,	0x01$/;"	d
+C_SHIFT	source\\thumbwrestler.s	/^.equ C_SHIFT,	0$/;"	d
+CheckKeys	source\\armwrestler.s	/^CheckKeys:$/;"	l
+ClearScreen	source\\armwrestler.s	/^ClearScreen:	$/;"	l
+DATA	Makefile	/^DATA		:=$/;"	m
+DEPENDS	Makefile	/^DEPENDS	:=	$(OFILES:.o=.d)$/;"	m
+DEPSDIR	Makefile	/^export DEPSDIR	:=	$(CURDIR)\/$(BUILD)$/;"	m
+DrawHex	source\\armwrestler.s	/^DrawHex:$/;"	l
+DrawResult	source\\armwrestler.s	/^DrawResult:$/;"	l
+DrawText	source\\armwrestler.s	/^DrawText:$/;"	l
+GRAPHICS	Makefile	/^GRAPHICS	:=	gfx	$/;"	m
+INCLUDE	Makefile	/^export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)\/$(dir)) \\$/;"	m
+INCLUDES	Makefile	/^INCLUDES	:=$/;"	m
+LD	Makefile	/^	export LD	:=	$(CC)$/;"	m
+LD	Makefile	/^	export LD	:=	$(CXX)$/;"	m
+LDFLAGS	Makefile	/^LDFLAGS	=	-g $(ARCH) -Wl,-Map,$(notdir $@).map$/;"	m
+LIBDIRS	Makefile	/^LIBDIRS	:=	$(LIBGBA)$/;"	m
+LIBPATHS	Makefile	/^export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)\/lib)$/;"	m
+LIBS	Makefile	/^LIBS	:=	-lgba$/;"	m
+MENU	source\\armwrestler.s	/^.equ MENU, 	10$/;"	d
+Menu	source\\armwrestler.s	/^Menu:$/;"	l
+OFILES	Makefile	/^export OFILES	:=	$(addsuffix .o,$(BINFILES)) \\$/;"	m
+OUTPUT	Makefile	/^export OUTPUT	:=	$(CURDIR)\/$(TARGET)$/;"	m
+Rd_MASK	source\\thumbwrestler.s	/^.equ Rd_MASK,	0x100$/;"	d
+Rd_SHIFT	source\\thumbwrestler.s	/^.equ Rd_SHIFT,	8$/;"	d
+RunTest	source\\armwrestler.s	/^RunTest:$/;"	l
+SFILES	Makefile	/^SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)\/*.s)))$/;"	m
+SOURCES	Makefile	/^SOURCES		:=	source$/;"	m
+TARGET	Makefile	/^TARGET		:=	$(shell basename $(CURDIR))$/;"	m
+TESTNUM	source\\armwrestler.s	/^.equ TESTNUM,	(VARBASE+8)$/;"	d
+TESTNUM	source\\thumbwrestler.s	/^.equ TESTNUM,	(VARBASE+8)$/;"	d
+TEST_Rd	source\\thumbwrestler.s	/^.macro TEST_Rd reg val$/;"	m
+Test0	source\\armwrestler.s	/^Test0:$/;"	l
+Test1	source\\armwrestler.s	/^Test1:$/;"	l
+Test2	source\\armwrestler.s	/^Test2:$/;"	l
+Test3	source\\armwrestler.s	/^Test3:$/;"	l
+Test4	source\\armwrestler.s	/^Test4:$/;"	l
+Test5	source\\armwrestler.s	/^Test5:$/;"	l
+Test6	source\\armwrestler.s	/^Test6:$/;"	l
+Test7	source\\armwrestler.s	/^Test7:$/;"	l
+Test8	source\\armwrestler.s	/^Test8:$/;"	l
+Test9	source\\armwrestler.s	/^Test9:$/;"	l
+TestTmb	source\\armwrestler.s	/^TestTmb:$/;"	l
+VARBASE	source\\armwrestler.s	/^.equ VARBASE,	0x3000000$/;"	d
+VARBASE	source\\thumbwrestler.s	/^.equ VARBASE,	0x3000000$/;"	d
+VPATH	Makefile	/^export VPATH	:=	$(foreach dir,$(SOURCES),$(CURDIR)\/$(dir)) \\$/;"	m
+VSync	source\\armwrestler.s	/^VSync:$/;"	l
+V_MASK	source\\thumbwrestler.s	/^.equ V_MASK,	0x02$/;"	d
+V_SHIFT	source\\thumbwrestler.s	/^.equ V_SHIFT,	1$/;"	d
+_add_labelpc	source\\thumbwrestler.s	/^	_add_labelpc:$/;"	l
+_add_ok_1	source\\thumbwrestler.s	/^	_add_ok_1:$/;"	l
+_add_ok_2	source\\thumbwrestler.s	/^	_add_ok_2:	$/;"	l
+_add_ok_3	source\\thumbwrestler.s	/^	_add_ok_3:$/;"	l
+_add_ok_4	source\\thumbwrestler.s	/^	_add_ok_4:$/;"	l
+_asr_ok_1	source\\thumbwrestler.s	/^	_asr_ok_1:$/;"	l
+_asr_ok_3	source\\thumbwrestler.s	/^	_asr_ok_3:$/;"	l
+_asr_ok_4	source\\thumbwrestler.s	/^	_asr_ok_4:$/;"	l
+_bic_cc	source\\thumbwrestler.s	/^	_bic_cc:$/;"	l
+_bic_eq	source\\thumbwrestler.s	/^	_bic_eq:$/;"	l
+_bic_fin	source\\thumbwrestler.s	/^	_bic_fin:$/;"	l
+_bic_fin2	source\\thumbwrestler.s	/^	_bic_fin2:$/;"	l
+_bic_mi	source\\thumbwrestler.s	/^	_bic_mi:$/;"	l
+_bic_ne	source\\thumbwrestler.s	/^	_bic_ne:$/;"	l
+_checkkeys	source\\thumbwrestler.s	/^_checkkeys:$/;"	l
+_ck_no_mask	source\\thumbwrestler.s	/^	_ck_no_mask:$/;"	l
+_clearscreen	source\\thumbwrestler.s	/^_clearscreen:	$/;"	l
+_cs_repeat	source\\thumbwrestler.s	/^	_cs_repeat:$/;"	l
+_dr_done	source\\thumbwrestler.s	/^	_dr_done:$/;"	l
+_dr_flag_ok	source\\thumbwrestler.s	/^		_dr_flag_ok:$/;"	l
+_dr_ok	source\\thumbwrestler.s	/^	_dr_ok:$/;"	l
+_dr_rd_ok	source\\thumbwrestler.s	/^	_dr_rd_ok:$/;"	l
+_dr_test_flags	source\\thumbwrestler.s	/^	_dr_test_flags:$/;"	l
+_drawresult	source\\thumbwrestler.s	/^_drawresult:$/;"	l
+_drawtext	source\\thumbwrestler.s	/^_drawtext:$/;"	l
+_dt_chrloop	source\\thumbwrestler.s	/^_dt_chrloop:$/;"	l
+_dt_null	source\\thumbwrestler.s	/^_dt_null:$/;"	l
+_dt_pixel_1_0	source\\thumbwrestler.s	/^_dt_pixel_1_0:$/;"	l
+_dt_pixel_2_0	source\\thumbwrestler.s	/^_dt_pixel_2_0:$/;"	l
+_dt_space	source\\thumbwrestler.s	/^_dt_space:$/;"	l
+_dt_xloop	source\\thumbwrestler.s	/^_dt_xloop:$/;"	l
+_dt_yloop	source\\thumbwrestler.s	/^_dt_yloop:$/;"	l
+_dv_flag_ok	source\\thumbwrestler.s	/^		_dv_flag_ok:$/;"	l
+_dv_test_flags	source\\thumbwrestler.s	/^	_dv_test_flags:$/;"	l
+_forever	source\\thumbwrestler.s	/^_forever:$/;"	l
+_jumptable	source\\thumbwrestler.s	/^_jumptable:	.word _test0,_test1,_test2,_menu$/;"	l
+_ldm_done	source\\thumbwrestler.s	/^	_ldm_done:$/;"	l
+_ldm_r1_r0	source\\thumbwrestler.s	/^	_ldm_r1_r0:$/;"	l
+_ldm_r2_r0	source\\thumbwrestler.s	/^	_ldm_r2_r0:$/;"	l
+_lsl_ok_1	source\\thumbwrestler.s	/^	_lsl_ok_1:$/;"	l
+_lsl_ok_2	source\\thumbwrestler.s	/^	_lsl_ok_2:$/;"	l
+_lsl_ok_3	source\\thumbwrestler.s	/^	_lsl_ok_3:$/;"	l
+_lsl_ok_4	source\\thumbwrestler.s	/^	_lsl_ok_4:$/;"	l
+_lsr_ok_1	source\\thumbwrestler.s	/^	_lsr_ok_1:$/;"	l
+_lsr_ok_2	source\\thumbwrestler.s	/^	_lsr_ok_2:$/;"	l
+_menu	source\\thumbwrestler.s	/^_menu:$/;"	l
+_mul_ok_2	source\\thumbwrestler.s	/^	_mul_ok_2:$/;"	l
+_mul_ok_3	source\\thumbwrestler.s	/^	_mul_ok_3:$/;"	l
+_mvn_ok_1	source\\thumbwrestler.s	/^	_mvn_ok_1:$/;"	l
+_neg_ok_1	source\\thumbwrestler.s	/^	_neg_ok_1:$/;"	l
+_neg_ok_2	source\\thumbwrestler.s	/^	_neg_ok_2:$/;"	l
+_neg_ok_3	source\\thumbwrestler.s	/^	_neg_ok_3:$/;"	l
+_no_cls	source\\thumbwrestler.s	/^	_no_cls:$/;"	l
+_ror_ok_1	source\\thumbwrestler.s	/^	_ror_ok_1:$/;"	l
+_ror_ok_10	source\\thumbwrestler.s	/^	_ror_ok_10:$/;"	l
+_ror_ok_2	source\\thumbwrestler.s	/^	_ror_ok_2:$/;"	l
+_ror_ok_3	source\\thumbwrestler.s	/^	_ror_ok_3:$/;"	l
+_ror_ok_4	source\\thumbwrestler.s	/^	_ror_ok_4:$/;"	l
+_ror_ok_5	source\\thumbwrestler.s	/^	_ror_ok_5:$/;"	l
+_ror_ok_6	source\\thumbwrestler.s	/^	_ror_ok_6:$/;"	l
+_ror_ok_7	source\\thumbwrestler.s	/^	_ror_ok_7:$/;"	l
+_ror_ok_8	source\\thumbwrestler.s	/^	_ror_ok_8:$/;"	l
+_ror_ok_9	source\\thumbwrestler.s	/^	_ror_ok_9:$/;"	l
+_runtest	source\\thumbwrestler.s	/^_runtest:$/;"	l
+_stm_done	source\\thumbwrestler.s	/^	_stm_done:$/;"	l
+_stm_r1_r0	source\\thumbwrestler.s	/^	_stm_r1_r0:$/;"	l
+_stm_r2_r0	source\\thumbwrestler.s	/^	_stm_r2_r0:$/;"	l
+_szADC	source\\thumbwrestler.s	/^_szADC:		.asciz "ADC"$/;"	l
+_szADD	source\\thumbwrestler.s	/^_szADD:		.asciz "ADD"$/;"	l
+_szALU	source\\thumbwrestler.s	/^_szALU:		.asciz "ALU TEST"$/;"	l
+_szAND	source\\thumbwrestler.s	/^_szAND:		.asciz "AND"$/;"	l
+_szASR	source\\thumbwrestler.s	/^_szASR:		.asciz "ASR"$/;"	l
+_szBIC	source\\thumbwrestler.s	/^_szBIC:		.asciz "BIC"$/;"	l
+_szBad	source\\thumbwrestler.s	/^_szBad:		.asciz "BAD"$/;"	l
+_szC	source\\thumbwrestler.s	/^_szC:		.asciz "C"$/;"	l
+_szCMP	source\\thumbwrestler.s	/^_szCMP:		.asciz "CMP"$/;"	l
+_szGE	source\\thumbwrestler.s	/^_szGE:		.asciz ","$/;"	l
+_szGT	source\\thumbwrestler.s	/^_szGT:		.asciz "+"$/;"	l
+_szLDM	source\\thumbwrestler.s	/^_szLDM:		.asciz "LDM"$/;"	l
+_szLDM1	source\\thumbwrestler.s	/^_szLDM1:	.asciz "LDM\/STM TEST"$/;"	l
+_szLDMIA	source\\thumbwrestler.s	/^_szLDMIA:	.asciz "LDMIA"$/;"	l
+_szLDR	source\\thumbwrestler.s	/^_szLDR:		.asciz "LDR"$/;"	l
+_szLDR1	source\\thumbwrestler.s	/^_szLDR1:	.asciz "LDR\/STR TEST 1"$/;"	l
+_szLDRB	source\\thumbwrestler.s	/^_szLDRB:	.asciz "LDRB"$/;"	l
+_szLDRH	source\\thumbwrestler.s	/^_szLDRH:	.asciz "LDRH"$/;"	l
+_szLDRH1	source\\thumbwrestler.s	/^_szLDRH1:	.asciz "LDRH R"$/;"	l
+_szLDRH2	source\\thumbwrestler.s	/^_szLDRH2:	.asciz "LDRH \\\\"$/;"	l
+_szLDRSB	source\\thumbwrestler.s	/^_szLDRSB:	.asciz "LDRSB"$/;"	l
+_szLDRSH	source\\thumbwrestler.s	/^_szLDRSH:	.asciz "LDRSH"$/;"	l
+_szLE	source\\thumbwrestler.s	/^_szLE:		.asciz "."$/;"	l
+_szLSL	source\\thumbwrestler.s	/^_szLSL:		.asciz "LSL"$/;"	l
+_szLSR	source\\thumbwrestler.s	/^_szLSR:		.asciz "LSR"$/;"	l
+_szLT	source\\thumbwrestler.s	/^_szLT:		.asciz "-"$/;"	l
+_szMUL	source\\thumbwrestler.s	/^_szMUL:		.asciz "MUL"$/;"	l
+_szMVN	source\\thumbwrestler.s	/^_szMVN:		.asciz "MVN"$/;"	l
+_szN	source\\thumbwrestler.s	/^_szN:		.asciz "N"$/;"	l
+_szNEG	source\\thumbwrestler.s	/^_szNEG:		.asciz "NEG"$/;"	l
+_szOK	source\\thumbwrestler.s	/^_szOK:		.asciz "OK"$/;"	l
+_szORR	source\\thumbwrestler.s	/^_szORR:		.asciz "ORR"$/;"	l
+_szROR	source\\thumbwrestler.s	/^_szROR:		.asciz "ROR"$/;"	l
+_szRd	source\\thumbwrestler.s	/^_szRd:		.asciz "R^"$/;"	l
+_szRn	source\\thumbwrestler.s	/^_szRn:		.asciz "R_"$/;"	l
+_szSTMIA	source\\thumbwrestler.s	/^_szSTMIA:	.asciz "STMIA"$/;"	l
+_szSTR	source\\thumbwrestler.s	/^_szSTR:		.asciz "STR"$/;"	l
+_szSTRB	source\\thumbwrestler.s	/^_szSTRB:	.asciz "STRB"$/;"	l
+_szSTRH	source\\thumbwrestler.s	/^_szSTRH:	.asciz "STRH"$/;"	l
+_szSUB	source\\thumbwrestler.s	/^_szSUB:		.asciz "SUB"$/;"	l
+_szV	source\\thumbwrestler.s	/^_szV:		.asciz "V"$/;"	l
+_szZ	source\\thumbwrestler.s	/^_szZ:		.asciz "Z"$/;"	l
+_test0	source\\thumbwrestler.s	/^_test0:$/;"	l
+_test1	source\\thumbwrestler.s	/^_test1:$/;"	l
+_test2	source\\thumbwrestler.s	/^_test2:$/;"	l
+_tmbmain	source\\thumbwrestler.s	/^_tmbmain:$/;"	l
+_tvar64	source\\thumbwrestler.s	/^_tvar64:	.word 0x11223344,0x55667788$/;"	l
+_var64	source\\thumbwrestler.s	/^_var64:		.word 0x11223344,0x55667788$/;"	l
+_vs_loop_1	source\\thumbwrestler.s	/^	_vs_loop_1:$/;"	l
+_vs_loop_2	source\\thumbwrestler.s	/^	_vs_loop_2:$/;"	l
+_vsync	source\\thumbwrestler.s	/^_vsync:$/;"	l
+add	source\\armwrestler.s	/^add     r0, r0, #4$/;"	l
+all	Makefile	/^all	: $(BUILD)$/;"	t
+clean	Makefile	/^clean:$/;"	t
+cmp_end	source\\thumbwrestler.s	/^cmp_end:	$/;"	l
+cs_repeat	source\\armwrestler.s	/^	cs_repeat:$/;"	l
+dh_cloop	source\\armwrestler.s	/^dh_cloop:	$/;"	l
+dh_hloop	source\\armwrestler.s	/^dh_hloop:$/;"	l
+dh_vloop	source\\armwrestler.s	/^dh_vloop:$/;"	l
+dr_c_ok	source\\armwrestler.s	/^dr_c_ok:$/;"	l
+dr_done	source\\armwrestler.s	/^dr_done:$/;"	l
+dr_mem_ok	source\\armwrestler.s	/^dr_mem_ok:$/;"	l
+dr_n_ok	source\\armwrestler.s	/^dr_n_ok:$/;"	l
+dr_ok	source\\armwrestler.s	/^dr_ok:$/;"	l
+dr_q_ok	source\\armwrestler.s	/^dr_q_ok:$/;"	l
+dr_rd_ok	source\\armwrestler.s	/^dr_rd_ok:$/;"	l
+dr_rn_ok	source\\armwrestler.s	/^dr_rn_ok:$/;"	l
+dr_v_ok	source\\armwrestler.s	/^dr_v_ok:$/;"	l
+dr_z_ok	source\\armwrestler.s	/^dr_z_ok:$/;"	l
+draw_menuitems	source\\armwrestler.s	/^	draw_menuitems:$/;"	l
+dt_cloop	source\\armwrestler.s	/^dt_cloop:$/;"	l
+dt_hloop	source\\armwrestler.s	/^dt_hloop:$/;"	l
+dt_not_ldm	source\\armwrestler.s	/^	dt_not_ldm:$/;"	l
+dt_not_ldr	source\\armwrestler.s	/^	dt_not_ldr:$/;"	l
+dt_null	source\\armwrestler.s	/^dt_null:$/;"	l
+dt_vloop	source\\armwrestler.s	/^dt_vloop:$/;"	l
+font	source\\armwrestler.s	/^font:		.incbin "..\/data\/font8x8.pat"$/;"	l
+forever	source\\armwrestler.s	/^forever:$/;"	l
+handle_menu	source\\armwrestler.s	/^handle_menu:$/;"	l
+jumptable	source\\armwrestler.s	/^jumptable: 	.word Test0,Test1,Test2,Test3$/;"	l
+labelone	source\\armwrestler.s	/^labelone:$/;"	l
+labelthree	source\\armwrestler.s	/^labelthree:	$/;"	l
+labeltwo	source\\armwrestler.s	/^labeltwo: 			@ 12	$/;"	l
+ldr	source\\armwrestler.s	/^ldr 	r1,=(VARBASE+0x10)$/;"	l
+ldr	source\\armwrestler.s	/^ldr     r4, =0x7FFF$/;"	l
+ldr	source\\armwrestler.s	/^ldr     r5, =0x7318$/;"	l
+ldr	source\\armwrestler.s	/^ldr     r6, =0xE1F$/;"	l
+main	source\\armwrestler.s	/^main:$/;"	l
+memVal	source\\armwrestler.s	/^memVal:		.word 0$/;"	l
+menu_not_start	source\\armwrestler.s	/^menu_not_start:$/;"	l
+menuitems	source\\armwrestler.s	/^menuitems:	.word szArm1,szArm2,szArm3$/;"	l
+menulinks	source\\armwrestler.s	/^menulinks:	.word 0,2,4$/;"	l
+mov	source\\armwrestler.s	/^mov 	r0,#0		$/;"	l
+mov	source\\armwrestler.s	/^mov 	r0,#2$/;"	l
+mov	source\\armwrestler.s	/^mov 	r0,#MENU$/;"	l
+mov	source\\armwrestler.s	/^mov 	r10,#0$/;"	l
+mov	source\\armwrestler.s	/^mov     r0, #0x400$/;"	l
+mov	source\\armwrestler.s	/^mov     r0, #0x5000000$/;"	l
+mov	source\\armwrestler.s	/^mov     r1, #0$/;"	l
+mov	source\\armwrestler.s	/^mov     r1, #0x4000000$/;"	l
+mov	source\\armwrestler.s	/^mov     r2, #0x300$/;"	l
+mov	source\\armwrestler.s	/^mov     r3, #0x18$/;"	l
+no_erase	source\\armwrestler.s	/^no_erase:	$/;"	l
+not_down	source\\armwrestler.s	/^not_down:$/;"	l
+not_select	source\\armwrestler.s	/^not_select:	$/;"	l
+not_select_tmb	source\\thumbwrestler.s	/^	not_select_tmb:$/;"	l
+not_start	source\\armwrestler.s	/^not_start:$/;"	l
+not_start_tmb	source\\thumbwrestler.s	/^	not_start_tmb:$/;"	l
+not_up	source\\armwrestler.s	/^not_up:$/;"	l
+palette	source\\armwrestler.s	/^palette:$/;"	l
+rdVal	source\\armwrestler.s	/^rdVal:		.word 0$/;"	l
+rnVal	source\\armwrestler.s	/^rnVal:		.word 0$/;"	l
+romvar	source\\armwrestler.s	/^romvar:  	.byte 0x80,0,0,0$/;"	l
+romvar2	source\\armwrestler.s	/^romvar2: 	.byte 0x00,0x8f,0,0xff$/;"	l
+romvar3	source\\armwrestler.s	/^romvar3: 	.byte 0x80,0x7f,0,0$/;"	l
+skip_flags	source\\armwrestler.s	/^skip_flags:$/;"	l
+str	source\\armwrestler.s	/^str 	r0,[r1]$/;"	l
+str	source\\armwrestler.s	/^str 	r0,[r1],#-4		@ Menu item selection$/;"	l
+str	source\\armwrestler.s	/^str 	r0,[r1],#-4		@ The test number$/;"	l
+str	source\\armwrestler.s	/^str 	r0,[r1],#-4		@ Used in CheckKeys$/;"	l
+str	source\\armwrestler.s	/^str     r0, [r1]$/;"	l
+strh	source\\armwrestler.s	/^strh    r1, [r0],#2$/;"	l
+strh	source\\armwrestler.s	/^strh    r2, [r0],#2$/;"	l
+strh	source\\armwrestler.s	/^strh    r3, [r0],#2$/;"	l
+strh	source\\armwrestler.s	/^strh    r4, [r0],#2$/;"	l
+strh	source\\armwrestler.s	/^strh    r5, [r0],#2$/;"	l
+strh	source\\armwrestler.s	/^strh    r6, [r0],#2$/;"	l
+sub_end	source\\thumbwrestler.s	/^sub_end:	$/;"	l
+szADC	source\\armwrestler.s	/^szADC:		.asciz "ADC"$/;"	l
+szADD	source\\armwrestler.s	/^szADD:		.asciz "ADD"$/;"	l
+szALU1	source\\armwrestler.s	/^szALU1:		.asciz  "ALU TESTS PART 1"$/;"	l
+szALU2	source\\armwrestler.s	/^szALU2:		.asciz  "ALU PT 2 \/ MISC"$/;"	l
+szAND	source\\armwrestler.s	/^szAND:		.asciz "AND"$/;"	l
+szAV5	source\\armwrestler.s	/^szAV5:		.asciz  "ARM V5TE TESTS"$/;"	l
+szArm1	source\\armwrestler.s	/^szArm1:		.asciz "ARM ALU"$/;"	l
+szArm2	source\\armwrestler.s	/^szArm2:		.asciz "ARM LDR\/STR"$/;"	l
+szArm3	source\\armwrestler.s	/^szArm3:		.asciz "ARM LDM\/STM"$/;"	l
+szArm4	source\\armwrestler.s	/^szArm4:		.asciz "ARM V5TE"$/;"	l
+szArmwrestler	source\\armwrestler.s	/^szArmwrestler:	.asciz "j      ARMWRESTLER GBA       j"$/;"	l
+szAster2	source\\armwrestler.s	/^szAster2:	    .asciz "j                            j"$/;"	l
+szAsterixes	source\\armwrestler.s	/^szAsterixes:	.asciz "jjjjjjjjjjjjjjjjjjjjjjjjjjjjjj"$/;"	l
+szAuthor	source\\armwrestler.s	/^szAuthor:	    .asciz "j         Micg 2006          j"$/;"	l
+szAuthor2	source\\armwrestler.s	/^szAuthor2:	    .asciz "j       NORMMATTg 2012       j"$/;"	l
+szBIC	source\\armwrestler.s	/^szBIC:		.asciz "BIC"$/;"	l
+szBad	source\\armwrestler.s	/^szBad:		.asciz "BAD"$/;"	l
+szC	source\\armwrestler.s	/^szC:		.asciz "C"$/;"	l
+szCLZ	source\\armwrestler.s	/^szCLZ:		.asciz "CLZ"$/;"	l
+szCMN	source\\armwrestler.s	/^szCMN:		.asciz "CMN"$/;"	l
+szCMP	source\\armwrestler.s	/^szCMP:		.asciz "CMP"$/;"	l
+szEOR	source\\armwrestler.s	/^szEOR:		.asciz "EOR"$/;"	l
+szHexNum	source\\armwrestler.s	/^szHexNum:	.asciz "00000000"$/;"	l
+szLDM	source\\armwrestler.s	/^szLDM:		.asciz "LDM"$/;"	l
+szLDM1	source\\armwrestler.s	/^szLDM1:		.asciz 	"LDM\/STM TESTS 1"$/;"	l
+szLDMtype	source\\armwrestler.s	/^szLDMtype:	.ascii "IB) "$/;"	l
+szLDR	source\\armwrestler.s	/^szLDR:		.asciz "LDR"$/;"	l
+szLDRB	source\\armwrestler.s	/^szLDRB:		.asciz "LDRB"$/;"	l
+szLDRD	source\\armwrestler.s	/^szLDRD:		.asciz "LDRD"$/;"	l
+szLDRH	source\\armwrestler.s	/^szLDRH:		.asciz "LDRH"$/;"	l
+szLDRSB	source\\armwrestler.s	/^szLDRSB:	.asciz "LDRSB"$/;"	l
+szLDRSH	source\\armwrestler.s	/^szLDRSH:	.asciz "LDRSH"$/;"	l
+szLDRtype	source\\armwrestler.s	/^szLDRtype:	.ascii "&\\\\] "$/;"	l
+szLS1	source\\armwrestler.s	/^szLS1: 		.asciz   "LOAD TESTS PART 1"$/;"	l
+szLS2	source\\armwrestler.s	/^szLS2: 		.asciz   "LOAD TESTS PART 2"$/;"	l
+szLS3	source\\armwrestler.s	/^szLS3: 		.asciz   "LOAD TESTS PART 3"$/;"	l
+szLS4	source\\armwrestler.s	/^szLS4: 		.asciz   "LOAD TESTS PART 4"$/;"	l
+szLS5	source\\armwrestler.s	/^szLS5: 		.asciz   "LOAD TESTS PART 5"$/;"	l
+szLS6	source\\armwrestler.s	/^szLS6: 		.asciz   "LOAD TESTS PART 6"$/;"	l
+szLS7	source\\armwrestler.s	/^szLS7: 		.asciz   "LOAD TESTS PART 7"$/;"	l
+szLS8	source\\armwrestler.s	/^szLS8: 		.asciz   "LOAD TESTS PART 8"$/;"	l
+szMLA	source\\armwrestler.s	/^szMLA:		.asciz "MLA"$/;"	l
+szMOV	source\\armwrestler.s	/^szMOV:		.asciz "MOV"$/;"	l
+szMRC	source\\armwrestler.s	/^szMRC:		.asciz "MRC"$/;"	l
+szMRS	source\\armwrestler.s	/^szMRS:		.asciz "MRS"$/;"	l
+szMSR	source\\armwrestler.s	/^szMSR:		.asciz "MSR"$/;"	l
+szMUL	source\\armwrestler.s	/^szMUL:		.asciz "MUL"$/;"	l
+szMVN	source\\armwrestler.s	/^szMVN:		.asciz "MVN"$/;"	l
+szMarker	source\\armwrestler.s	/^szMarker:	.asciz "`"$/;"	l
+szMem	source\\armwrestler.s	/^szMem:		.asciz "MEM"$/;"	l
+szMenu	source\\armwrestler.s	/^szMenu:		.asciz "Menu"$/;"	l
+szN	source\\armwrestler.s	/^szN:		.asciz "N"$/;"	l
+szNext	source\\armwrestler.s	/^szNext:		.asciz "Nextg"$/;"	l
+szOK	source\\armwrestler.s	/^szOK:		.asciz "OK"$/;"	l
+szORR	source\\armwrestler.s	/^szORR:		.asciz "ORR"$/;"	l
+szPressStart	source\\armwrestler.s	/^szPressStart: 	.asciz "PRESS START"$/;"	l
+szQ	source\\armwrestler.s	/^szQ:		.asciz "Q"$/;"	l
+szQADD	source\\armwrestler.s	/^szQADD:		.asciz "QADD"$/;"	l
+szRSB	source\\armwrestler.s	/^szRSB:		.asciz "RSB"$/;"	l
+szRSC	source\\armwrestler.s	/^szRSC:		.asciz "RSC"$/;"	l
+szRd	source\\armwrestler.s	/^szRd:		.asciz "R^"$/;"	l
+szRn	source\\armwrestler.s	/^szRn:		.asciz "R_"$/;"	l
+szRomMsg	source\\armwrestler.s	/^szRomMsg:	.asciz "Message from ROM"$/;"	l
+szSBC	source\\armwrestler.s	/^szSBC:		.asciz "SBC"$/;"	l
+szSMLABB	source\\armwrestler.s	/^szSMLABB:	.asciz "SMLABB"$/;"	l
+szSMLABT	source\\armwrestler.s	/^szSMLABT:	.asciz "SMLABT"$/;"	l
+szSMLAL	source\\armwrestler.s	/^szSMLAL:	.asciz "SMLAL"$/;"	l
+szSMLATB	source\\armwrestler.s	/^szSMLATB:	.asciz "SMLATB"$/;"	l
+szSMLATT	source\\armwrestler.s	/^szSMLATT:	.asciz "SMLATT"$/;"	l
+szSMULBB	source\\armwrestler.s	/^szSMULBB:	.asciz "SMULBB"$/;"	l
+szSMULBT	source\\armwrestler.s	/^szSMULBT:	.asciz "SMULBT"$/;"	l
+szSMULL	source\\armwrestler.s	/^szSMULL: 	.asciz "SMULL"$/;"	l
+szSMULTB	source\\armwrestler.s	/^szSMULTB:	.asciz "SMULTB"$/;"	l
+szSMULTT	source\\armwrestler.s	/^szSMULTT:	.asciz "SMULTT"$/;"	l
+szSTM	source\\armwrestler.s	/^szSTM:		.asciz "STM"$/;"	l
+szSTR	source\\armwrestler.s	/^szSTR:		.asciz "STR"$/;"	l
+szSTRB	source\\armwrestler.s	/^szSTRB:		.asciz "STRB"$/;"	l
+szSTRH	source\\armwrestler.s	/^szSTRH:		.asciz "STRH"$/;"	l
+szSUB	source\\armwrestler.s	/^szSUB:		.asciz "SUB"$/;"	l
+szSWP	source\\armwrestler.s	/^szSWP:		.asciz "SWP"$/;"	l
+szSWPB	source\\armwrestler.s	/^szSWPB:		.asciz "SWPB"$/;"	l
+szSel	source\\armwrestler.s	/^szSel:		.asciz "`"$/;"	l
+szSelect	source\\armwrestler.s	/^szSelect:	.asciz "SELECT A TEST AND PRESS"$/;"	l
+szSelect2	source\\armwrestler.s	/^szSelect2:	.asciz "SELECT:"$/;"	l
+szSpace	source\\armwrestler.s	/^szSpace:	.asciz " "$/;"	l
+szStart	source\\armwrestler.s	/^szStart:	.asciz "START:"$/;"	l
+szStart2	source\\armwrestler.s	/^szStart2:	.asciz "START"$/;"	l
+szTEQ	source\\armwrestler.s	/^szTEQ:		.asciz "TEQ"$/;"	l
+szTST	source\\armwrestler.s	/^szTST:		.asciz "TST"$/;"	l
+szTmb1	source\\armwrestler.s	/^szTmb1:		.asciz "THUMB ALU"$/;"	l
+szTmb2	source\\armwrestler.s	/^szTmb2:		.asciz "THUMB LDR\/STR"$/;"	l
+szTmb3	source\\armwrestler.s	/^szTmb3:		.asciz "THUMB LDM\/STM"$/;"	l
+szUMLAL	source\\armwrestler.s	/^szUMLAL: 	.asciz "UMLAL"$/;"	l
+szUMULL	source\\armwrestler.s	/^szUMULL: 	.asciz "UMULL"$/;"	l
+szV	source\\armwrestler.s	/^szV:		.asciz "V"$/;"	l
+szZ	source\\armwrestler.s	/^szZ:		.asciz "Z"$/;"	l
+var64	source\\armwrestler.s	/^var64:		.word 0x11223344,0x55667788$/;"	l
+vs_loop1	source\\armwrestler.s	/^	vs_loop1:$/;"	l
+vs_loop2	source\\armwrestler.s	/^	vs_loop2:$/;"	l

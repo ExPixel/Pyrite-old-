@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+
+# exit when any command fails
+set -e
+# output commands as they are executed
+set -o xtrace
+
+arm_test_root="pyrite-arm/data"
+
+assemble_object() {
+    local root_dir="${1}"
+    local asm_file="${root_dir}/asm/${2}.s"
+    local obj_file="${root_dir}/obj/${2}.o"
+    echo "ASM [${2}] ${asm_file} > ${obj_file}"
+    arm-none-eabi-as -mcpu=arm7tdmi -o ${obj_file} ${asm_file}
+}
+
+assemble_binary() {
+    local root_dir="${1}"
+    local asm_file="${root_dir}/asm/${2}.s"
+    local obj_file="${root_dir}/obj/${2}.o"
+    local elf_file="${root_dir}/obj/${2}.ld.o"
+    local bin_file="${root_dir}/bin/${2}.bin"
+    echo "ASM [${2}] ${asm_file} > ${obj_file} > ${bin_file}"
+
+    arm-none-eabi-as -mcpu=arm7tdmi -o ${obj_file} ${asm_file}
+    arm-none-eabi-ld -T "${root_dir}/link.ld" "${root_dir}/obj/startup.o" "${obj_file}" -o "${elf_file}"
+    arm-none-eabi-objcopy -O binary ${elf_file} ${bin_file}
+}
+
+compile_arm() {
+    local root_dir="${1}"
+    local src_file="${root_dir}/src/${2}.c"
+    local obj_file="${root_dir}/obj/${2}.o"
+    local bin_file="${root_dir}/bin/${2}.bin"
+    local inc_dir="${root_dir}/include"
+    echo "ASM [${2}] ${asm_file} > ${obj_file} > ${bin_file}"
+
+    arm-none-eabi-gcc -Wall -O0 -T "${root_dir}/link.ld" --specs=nosys.specs -nostdlib -ffreestanding -mcpu=arm7tdmi -I${inc_dir} -o ${obj_file} ${src_file} "${root_dir}/obj/startup.o"
+    arm-none-eabi-objcopy -O binary ${obj_file} ${bin_file}
+}
+
+compile_thumb() {
+    local root_dir="${1}"
+    local src_file="${root_dir}/src/${2}.c"
+    local obj_file="${root_dir}/obj/${2}_thumb.o"
+    local bin_file="${root_dir}/bin/${2}_thumb.bin"
+    local inc_dir="${root_dir}/include"
+    echo "ASM [${2}] ${asm_file} > ${obj_file} > ${bin_file}"
+
+    arm-none-eabi-gcc -Wall -O0 -T "${root_dir}/link.ld" --specs=nosys.specs -nostdlib -ffreestanding -mcpu=arm7tdmi -I${inc_dir} -mthumb -o ${obj_file} ${src_file} "${root_dir}/obj/startup.o"
+    arm-none-eabi-objcopy -O binary ${obj_file} ${bin_file}
+}
+
+reset_root_dir() {
+    local root_dir="${1}"
+
+    rm -rf "${root_dir}/obj"
+    rm -rf "${root_dir}/bin"
+
+    mkdir -p "${root_dir}/obj"
+    mkdir -p "${root_dir}/bin"
+}
+
+reset_root_dir $arm_test_root
+
+assemble_object $arm_test_root "startup"
+assemble_binary $arm_test_root "arm_division"
+
+assemble_object $arm_test_root "startup"
+compile_arm $arm_test_root "chacha20"
+compile_thumb $arm_test_root "chacha20"

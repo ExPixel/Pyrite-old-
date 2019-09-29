@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "pyrite-arm",
+    "pyrite-common",
+    "pyrite-gba",
+    "pyrite"
+]

@@ -1,0 +1,11 @@
+[package]
+name = "pyrite-arm"
+version = "0.1.0"
+authors = ["Adolph C. <adolphc@outlook.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+pyrite-common = { path = "../pyrite-common" }
+log = { version = "0.4", features = ["std"] }
