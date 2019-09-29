@@ -245,6 +245,7 @@ pub fn thumb_dp_g4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
         1 => {
             let res = lhs.wrapping_mul(rhs);
             cpu.registers.write(rd, res);
+            alu::set_nz_flags(cpu, res);
             cpu.cycles += clock::cycles_multiply(memory, false, cpu.registers.read(15), rhs, true);
         },
         2 => { let res = alu::arm_alu_bics(cpu, lhs, rhs); cpu.registers.write(rd, res) },
