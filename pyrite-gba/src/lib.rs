@@ -68,6 +68,10 @@ impl Gba {
             self.memory.ioregs.keyinput.inner |= key.mask();
         }
     }
+
+    pub fn is_key_pressed(&mut self, key: KeypadInput) -> bool {
+        (self.memory.ioregs.keyinput.inner & (key.mask())) == 0
+    }
 }
 
 #[derive(Clone, Copy)]
