@@ -200,7 +200,11 @@ pub fn set_sub_flags(cpu: &mut ArmCpu, lhs: u32, rhs: u32, res: u32) {
 
     let (_, overflow) = (lhs as i32).overflowing_sub(rhs as i32);
 
+    // #NOTE The concept of a borrow is not the same in ARM as it is in x86.
+    //       while in x86 the borrow flag is set if lhs < rhs, in ARM
+    //       if is set if lhs >= rhs.
     cpu.registers.putf_c(lhs >= rhs);
+
     cpu.registers.putf_v(overflow);
 }
 
@@ -208,7 +212,12 @@ pub fn set_sub_flags(cpu: &mut ArmCpu, lhs: u32, rhs: u32, res: u32) {
 pub fn set_sbc_flags(cpu: &mut ArmCpu, lhs: u32, rhs: u32, not_carry: u32, res: u32) {
     cpu.registers.putfi_n((res >> 31) & 1);
     cpu.registers.putf_z(res == 0);
+
+    // #NOTE The concept of a borrow is not the same in ARM as it is in x86.
+    //       while in x86 the borrow flag is set if lhs < rhs, in ARM
+    //       if is set if lhs >= rhs.
     cpu.registers.putf_c((lhs as u64) >= (rhs as u64 + not_carry as u64));
+
     cpu.registers.putf_v((((lhs >> 31)^rhs)&((lhs >> 31) ^ res)) != 0);
 }
 
