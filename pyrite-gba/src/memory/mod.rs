@@ -807,11 +807,11 @@ impl GbaMemory {
             },
 
             32 => {
-                gba_error!("bad 16bit write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
+                gba_error!("bad 32bit write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
             },
 
             _ => {
-                gba_error!("bad write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
+                gba_error!("bad (unknown width???) write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
             },
         }
     }
