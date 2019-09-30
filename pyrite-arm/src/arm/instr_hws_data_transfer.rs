@@ -30,25 +30,24 @@ macro_rules! arm_gen_hwsdt {
                 }
             }
 
+            // writeback to base register
+            // post-indexing as well
+            if $writeback {
+                let writeback_addr = if $indexing == POST {
+                    if $direction == INC {
+                        addr.wrapping_add(offset)
+                    } else {
+                        addr.wrapping_sub(offset)
+                    }
+                } else {
+                    addr
+                };
+                cpu.registers.write(rn, writeback_addr);
+            }
+
             let pc = cpu.registers.read(15); // used for counting cycles
             let oaddr = addr; // used for counting cycles
             $transfer(cpu, memory, rd, addr);
-
-            // post-indexing
-            if $indexing == POST {
-                if $direction == INC {
-                    addr = addr.wrapping_add(offset);
-                } else {
-                    addr = addr.wrapping_sub(offset);
-                }
-            }
-
-            // writeback to base register
-            // Since writeback is technically done before the actual transfer,
-            // we just don't writeback if rn is the same as rd during a LOAD
-            if $writeback && ($transfer_type != LOAD || rn != rd) {
-                cpu.registers.write(rn, addr);
-            }
 
             if $transfer_type == LOAD {
                 if rd == 15 || ($writeback == WRITEBACK && rn == 15) {

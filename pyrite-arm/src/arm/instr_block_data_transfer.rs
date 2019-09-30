@@ -51,28 +51,40 @@ macro_rules! arm_gen_bdt {
                 cpu.registers.write_mode(CpuMode::User);
             }
 
-
-            // From Documentation:
-            //  The second cycle fetches the first word and performs base modification.
-            // So writeback must happen sometime before the second write and after address
-            // calulation.
-            if $writeback {
-                let writeback_addr = if $direction == DEC {
-                    base.wrapping_sub(reg_count * 4)
-                } else {
-                    base.wrapping_add(reg_count * 4)
-                };
-                cpu.registers.write(rn, writeback_addr);
-            }
-
             let mut first = true;
             for reg in 0..16 {
                 if (register_list & (1 << reg)) != 0 {
                     addr = addr.wrapping_add(4);
                     $transfer(cpu, memory, reg, addr);
+
                     if first {
                         cpu.cycles += memory.data_access_nonseq32(addr);
                         first = false;
+
+                        // From Documentation:
+                        // The second cycle fetches the first word and performs base modification.
+                        // So writeback must happen sometime before the second write and after address
+                        // calulation.
+                        //
+                        // Extended:
+                        // When write-back is specified, the base is written back at the end of the
+                        // second cycle of the instruction. During a STM, the first register is
+                        // written out at the start of the second cycle. A STM which includes
+                        // storing the base, with the base as the first register to be stored, will
+                        // therefore store the unchanged value, whereas with the base second or
+                        // later in the transfer order, will store the modified value. A LDM will
+                        // always overwrite the updated base if the base is in teh list.
+                        if $writeback {
+                            if $transfer_type == STORE || (register_list & (1 << rn)) == 0 {
+                                let writeback_addr = if $direction == DEC {
+                                    base.wrapping_sub(reg_count * 4)
+                                } else {
+                                    base.wrapping_add(reg_count * 4)
+                                };
+                                cpu.registers.write(rn, writeback_addr);
+                            }
+                        }
+
                     } else {
                         cpu.cycles += memory.data_access_seq32(addr);
                     }

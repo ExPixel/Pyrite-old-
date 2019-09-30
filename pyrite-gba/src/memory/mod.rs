@@ -799,15 +799,15 @@ impl GbaMemory {
 
         match width {
             8 => {
-                gba_error!("bad 8bit write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
+                gba_error!("bad 8-bit write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
             },
 
             16 => {
-                gba_error!("bad 16bit write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
+                gba_error!("bad 16-bit write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
             },
 
             32 => {
-                gba_error!("bad 32bit write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
+                gba_error!("bad 32-bit write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
             },
 
             _ => {

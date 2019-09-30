@@ -825,9 +825,6 @@ fn thumb_stmia(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rb: u3
     // the lowest register always goes into the lowest address so we precalculate the lowest
     let mut addr = base.wrapping_sub(4);
 
-    // writeback the ending address to the base register
-    cpu.registers.write(rb, base.wrapping_add(reg_count * 4));
-
     // count prefetch cycles
     cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
 
@@ -843,6 +840,11 @@ fn thumb_stmia(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rb: u3
             if first {
                 cpu.cycles += memory.data_access_nonseq32(addr);
                 first = false;
+
+                // @NOTE see ARM block data transfer instruction documentation for why this is
+                //       here.
+                // writeback the ending address to the base register
+                cpu.registers.write(rb, base.wrapping_add(reg_count * 4));
             } else {
                 cpu.cycles += memory.data_access_seq32(addr);
             }
