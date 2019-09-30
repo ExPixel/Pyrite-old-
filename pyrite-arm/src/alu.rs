@@ -207,11 +207,6 @@ pub fn set_sub_flags(cpu: &mut ArmCpu, lhs: u32, rhs: u32, res: u32) {
 
 #[inline]
 pub fn set_sbc_flags(cpu: &mut ArmCpu, lhs: u32, rhs: u32, not_carry: u32, res: u32) {
-    let negative = (res >> 31) & 1;
-    let zero = (res == 0);
-    let carry = (rhs as u64 + not_carry as u64) > lhs as u64;
-    let overflow = (((lhs >> 31)^(rhs))&((lhs >> 31) ^ res)) != 0;
-
     cpu.registers.putfi_n((res >> 31) & 1);
     cpu.registers.putf_z(res == 0);
     cpu.registers.putfi_c((lhs as u64) >= (rhs as u64 + not_carry as u64));
