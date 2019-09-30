@@ -36,6 +36,7 @@ macro_rules! impl_move_shifted_register {
             let lhs = cpu.registers.read(rs);
             let rhs = bits!(opcode, 6, 10);
             let res = $op(cpu, lhs, rhs);
+            alu::set_nz_flags(cpu, res); // emulates a move, so we set NZ
             cpu.registers.write(rd, res);
 
             // clock the instruction prefetch
@@ -186,8 +187,8 @@ pub fn thumb_dp_g1(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
     match bits!(opcode, 6, 7) {
         0 => { let res = alu::arm_alu_ands(cpu, lhs, rhs); cpu.registers.write(rd, res) },
         1 => { let res = alu::arm_alu_eors(cpu, lhs, rhs); cpu.registers.write(rd, res) },
-        2 => { let res = alu::arm_alu_llr_s(cpu, lhs, rhs); cpu.registers.write(rd, res) },
-        3 => { let res = alu::arm_alu_lrr_s(cpu, lhs, rhs); cpu.registers.write(rd, res) },
+        2 => { let res = alu::arm_alu_llr_s(cpu, lhs, rhs & 0xFF); alu::set_nz_flags(cpu, res); cpu.registers.write(rd, res) },
+        3 => { let res = alu::arm_alu_lrr_s(cpu, lhs, rhs & 0xFF); alu::set_nz_flags(cpu, res); cpu.registers.write(rd, res) },
         _ => unreachable!(),
     }
 
@@ -203,10 +204,10 @@ pub fn thumb_dp_g2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
     let rhs = cpu.registers.read(rs);
 
     match bits!(opcode, 6, 7) {
-        0 => { let res = alu::arm_alu_arr_s(cpu, lhs, rhs); cpu.registers.write(rd, res) },
+        0 => { let res = alu::arm_alu_arr_s(cpu, lhs, rhs & 0xFF); alu::set_nz_flags(cpu, res); cpu.registers.write(rd, res) },
         1 => { let res = alu::arm_alu_adcs(cpu, lhs, rhs); cpu.registers.write(rd, res) },
         2 => { let res = alu::arm_alu_sbcs(cpu, lhs, rhs); cpu.registers.write(rd, res) },
-        3 => { let res = alu::arm_alu_rrr_s(cpu, lhs, rhs); cpu.registers.write(rd, res) },
+        3 => { let res = alu::arm_alu_rrr_s(cpu, lhs, rhs & 0xFF); alu::set_nz_flags(cpu, res); cpu.registers.write(rd, res) },
         _ => unreachable!(),
     }
 

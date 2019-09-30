@@ -189,8 +189,8 @@ pub fn set_add_flags(cpu: &mut ArmCpu, lhs: u32, rhs: u32, res: u32) {
     let (_, carry) = lhs.overflowing_add(rhs);
     let (_, overflow) = (lhs as i32).overflowing_add(rhs as i32);
 
-    cpu.registers.putfi_c(carry);
-    cpu.registers.putfi_v(overflow);
+    cpu.registers.putf_c(carry);
+    cpu.registers.putf_v(overflow);
 }
 
 #[inline]
@@ -198,19 +198,18 @@ pub fn set_sub_flags(cpu: &mut ArmCpu, lhs: u32, rhs: u32, res: u32) {
     cpu.registers.putfi_n((res >> 31) & 1);
     cpu.registers.putf_z(res == 0);
 
-    let (_, carry) = lhs.overflowing_sub(rhs);
     let (_, overflow) = (lhs as i32).overflowing_sub(rhs as i32);
 
-    cpu.registers.putfi_c(carry);
-    cpu.registers.putfi_v(overflow);
+    cpu.registers.putf_c(lhs >= rhs);
+    cpu.registers.putf_v(overflow);
 }
 
 #[inline]
 pub fn set_sbc_flags(cpu: &mut ArmCpu, lhs: u32, rhs: u32, not_carry: u32, res: u32) {
     cpu.registers.putfi_n((res >> 31) & 1);
     cpu.registers.putf_z(res == 0);
-    cpu.registers.putfi_c((lhs as u64) >= (rhs as u64 + not_carry as u64));
-    cpu.registers.putfi_v((((lhs >> 31)^rhs)&((lhs >> 31) ^ res)) != 0);
+    cpu.registers.putf_c((lhs as u64) >= (rhs as u64 + not_carry as u64));
+    cpu.registers.putf_v((((lhs >> 31)^rhs)&((lhs >> 31) ^ res)) != 0);
 }
 
 #[inline]
@@ -224,8 +223,8 @@ pub fn set_adc_flags(cpu: &mut ArmCpu, lhs: u32, rhs: u32, carry: u32, res: u32)
     let (_, carry_1) = res_0.overflowing_add(carry);
     let (_, overflow_1) = (res_0 as i32).overflowing_add(carry as i32);
 
-    cpu.registers.putfi_c(carry_0 | carry_1);
-    cpu.registers.putfi_v(overflow_0 | overflow_1);
+    cpu.registers.putf_c(carry_0 | carry_1);
+    cpu.registers.putf_v(overflow_0 | overflow_1);
 }
 
 
@@ -307,12 +306,15 @@ pub fn arm_alu_rrr(lhs: u32, rhs: u32) -> u32 {
     // If this byte is zero, the unchanged contents of Rm will be used as the second operand,
     // and the old value of the CPSR C flag will be passed on as the shifter carry output.
     if rhs == 0 { return lhs }
-    // ROR by n where n is greater than 32 will give the same result and carry out as ROR by n-32;
-    // therefore repeatedly subtract 32 from n until the amount is in the range 1 to 32 and see above.
-    let rhs = rhs & 31; // This might not be right?
     // ROR by 32 has result equal to Rm, carry out equal to bit 31 of Rm.
     if rhs == 32 { lhs }
-    else { lhs.arm_ror(rhs) }
+    else {
+        // ROR by n where n is greater than 32 will give the same result and carry out as ROR by n-32;
+        // therefore repeatedly subtract 32 from n until the amount is in the range 1 to 32 and see above.
+        let rhs = rhs & 31; // This might not be right?
+
+        lhs.arm_ror(rhs)
+    }
 }
 
 #[inline]
@@ -414,20 +416,22 @@ pub fn arm_alu_rri_s(cpu: &mut ArmCpu, lhs: u32, rhs: u32) -> u32 {
     // The form of the shift field which might be expected to give ROR #0
     // is used to encode a special function of the barrel shifter, rotate right extended (RRX)
     if rhs == 0 { return arm_alu_rrx_s(cpu, lhs) }
+    cpu.registers.putfi_c((lhs >> (rhs - 1)) & 1);
     lhs.arm_ror(rhs)
 }
 
 #[inline]
 pub fn arm_alu_rrr_s(cpu: &mut ArmCpu, lhs: u32, rhs: u32) -> u32 {
-    // ROR by n where n is greater than 32 will give the same result and carry out as ROR by n-32;
-    // therefore repeatedly subtract 32 from n until the amount is in the range 1 to 32 and see above.
-    let rhs = rhs & 31; // This might not be right?
     // If this byte is zero, the unchanged contents of Rm will be used as the second operand,
     // and the old value of the CPSR C flag will be passed on as the shifter carry output.
     if rhs == 0 { return lhs }
     // ROR by 32 has result equal to Rm, carry out equal to bit 31 of Rm.
     if rhs == 32 { cpu.registers.putfi_c(lhs & 0x80000000); lhs }
     else {
+        // ROR by n where n is greater than 32 will give the same result and carry out as ROR by n-32;
+        // therefore repeatedly subtract 32 from n until the amount is in the range 1 to 32 and see above.
+        let rhs = rhs & 31; // This might not be right?
+
         cpu.registers.putfi_c((lhs >> (rhs - 1)) & 1);
         lhs.arm_ror(rhs)
     }
