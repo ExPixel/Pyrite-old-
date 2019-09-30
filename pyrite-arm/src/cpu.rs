@@ -282,6 +282,19 @@ pub enum CpuException {
 }
 
 impl CpuException {
+    pub fn name(self) -> &'static str {
+        match self {
+            CpuException::Reset => "Reset",
+            CpuException::Undefined => "Undefined",
+            CpuException::SWI => "SWI",
+            CpuException::PrefetchAbort => "Prefetch Abort",
+            CpuException::DataAbort => "Data Abort",
+            CpuException::IRQ => "IRQ",
+            CpuException::FIQ => "FIQ",
+            CpuException::AddressExceeds26Bit => "Address Exceeds 26 bit",
+        }
+    }
+
     pub fn info(self) -> CpuExceptionInfo {
         match self {
             CpuException::Reset => EXCEPTION_RESET,
