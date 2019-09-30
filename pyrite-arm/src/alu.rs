@@ -18,22 +18,25 @@ pub fn arm_alu_rsc(cpu: &mut ArmCpu, lhs: u32, rhs: u32) -> u32 {
 
 #[inline]
 pub fn arm_alu_adcs(cpu: &mut ArmCpu, lhs: u32, rhs: u32) -> u32 {
+    let carry = if cpu.registers.getf_c() { 1 } else { 0 };
     let res = arm_alu_adc(cpu, lhs, rhs);
-    set_add_flags(cpu, lhs, rhs, res);
+    set_adc_flags(cpu, lhs, rhs, carry, res);
     res
 }
 
 #[inline]
 pub fn arm_alu_sbcs(cpu: &mut ArmCpu, lhs: u32, rhs: u32) -> u32 {
+    let not_carry = if !cpu.registers.getf_c() { 1 } else { 0 };
     let res = arm_alu_sbc(cpu, lhs, rhs);
-    set_sub_flags(cpu, lhs, rhs, res);
+    set_sbc_flags(cpu, lhs, rhs, not_carry, res);
     res
 }
 
 #[inline]
 pub fn arm_alu_rscs(cpu: &mut ArmCpu, lhs: u32, rhs: u32) -> u32 {
+    let not_carry = if !cpu.registers.getf_c() { 1 } else { 0 };
     let res = arm_alu_rsc(cpu, lhs, rhs);
-    set_sub_flags(cpu, lhs, rhs, res);
+    set_sbc_flags(cpu, rhs, lhs, not_carry, res);
     res
 }
 
@@ -182,20 +185,52 @@ pub fn set_nz_flags(cpu: &mut ArmCpu, res: u32) {
 pub fn set_add_flags(cpu: &mut ArmCpu, lhs: u32, rhs: u32, res: u32) {
     cpu.registers.putfi_n((res >> 31) & 1);
     cpu.registers.putf_z(res == 0);
-    // The following is ported from CowBite
-    // Theirs seems to work well.
-    cpu.registers.putfi_c(((lhs&rhs)|(lhs&(!res))|(rhs&(!res)))>>31);
-    cpu.registers.putfi_v(((lhs&rhs&(!res))|((!lhs)&(!rhs)&res))>>31);
+
+    let (_, carry) = lhs.overflowing_add(rhs);
+    let (_, overflow) = (lhs as i32).overflowing_add(rhs as i32);
+
+    cpu.registers.putfi_c(carry);
+    cpu.registers.putfi_v(overflow);
 }
 
 #[inline]
 pub fn set_sub_flags(cpu: &mut ArmCpu, lhs: u32, rhs: u32, res: u32) {
     cpu.registers.putfi_n((res >> 31) & 1);
     cpu.registers.putf_z(res == 0);
-    // The following is ported from CowBite
-    // Theirs seems to work well.
-    cpu.registers.putfi_c(((lhs&(!rhs))|(lhs&(!res))|((!rhs)&(!res)))>>31);
-    cpu.registers.putfi_v(((lhs&!(rhs|res))|((rhs&res)&!lhs))>>31);
+
+    let (_, carry) = lhs.overflowing_sub(rhs);
+    let (_, overflow) = (lhs as i32).overflowing_sub(rhs as i32);
+
+    cpu.registers.putfi_c(carry);
+    cpu.registers.putfi_v(overflow);
+}
+
+#[inline]
+pub fn set_sbc_flags(cpu: &mut ArmCpu, lhs: u32, rhs: u32, not_carry: u32, res: u32) {
+    let negative = (res >> 31) & 1;
+    let zero = (res == 0);
+    let carry = (rhs as u64 + not_carry as u64) > lhs as u64;
+    let overflow = (((lhs >> 31)^(rhs))&((lhs >> 31) ^ res)) != 0;
+
+    cpu.registers.putfi_n((res >> 31) & 1);
+    cpu.registers.putf_z(res == 0);
+    cpu.registers.putfi_c((lhs as u64) >= (rhs as u64 + not_carry as u64));
+    cpu.registers.putfi_v((((lhs >> 31)^rhs)&((lhs >> 31) ^ res)) != 0);
+}
+
+#[inline]
+pub fn set_adc_flags(cpu: &mut ArmCpu, lhs: u32, rhs: u32, carry: u32, res: u32) {
+    cpu.registers.putfi_n((res >> 31) & 1);
+    cpu.registers.putf_z(res == 0);
+
+    let (res_0, carry_0) = lhs.overflowing_add(rhs);
+    let (_, overflow_0) = (lhs as i32).overflowing_add(rhs as i32);
+
+    let (_, carry_1) = res_0.overflowing_add(carry);
+    let (_, overflow_1) = (res_0 as i32).overflowing_add(carry as i32);
+
+    cpu.registers.putfi_c(carry_0 | carry_1);
+    cpu.registers.putfi_v(overflow_0 | overflow_1);
 }
 
 
