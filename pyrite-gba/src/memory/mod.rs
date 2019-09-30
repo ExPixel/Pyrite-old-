@@ -45,14 +45,14 @@ pub struct GbaMemory {
 
     pub ioregs: IORegisters,
     pub palette: Palette,
-    gamepak: GamePakROM,
+    pub gamepak: GamePakROM,
 
     // regions:
-    mem_bios:   Vec<u8>,
-    mem_ewram:  Vec<u8>,
-    mem_iwram:  Vec<u8>,
-    mem_vram:   Vec<u8>,
-    mem_oam:    Vec<u8>,
+    pub mem_bios:   Vec<u8>,
+    pub mem_ewram:  Vec<u8>,
+    pub mem_iwram:  Vec<u8>,
+    pub mem_vram:   Vec<u8>,
+    pub mem_oam:    Vec<u8>,
 }
 
 impl GbaMemory {
@@ -98,6 +98,7 @@ impl GbaMemory {
         self.gamepak = GamePakROM::new(data);
     }
 
+    // @TODO remove these
     pub fn gamepak_rom(&self) -> &GamePakROM {
         &self.gamepak
     }
@@ -1018,14 +1019,14 @@ const fn align32(addr: u32) -> u32 {
 
 /// Reads a u16 from a byte array in little endian byte order.
 #[inline]
-fn read16_le(mem: &[u8], offset: usize) -> u16 {
+pub fn read16_le(mem: &[u8], offset: usize) -> u16 {
     assert!(mem.len() > offset + 1, "16bit read out of range (offset: {}, len: {})", offset, mem.len());
     (mem[offset] as u16) | ((mem[offset + 1] as u16) <<  8)
 }
 
 /// Reads a u32 from a byte array in little endian byte order.
 #[inline]
-fn read32_le(mem: &[u8], offset: usize) -> u32 {
+pub fn read32_le(mem: &[u8], offset: usize) -> u32 {
     assert!(mem.len() > offset + 3, "32bit read out of range (offset: {}, len: {})", offset, mem.len());
     (mem[offset] as u32) |
         ((mem[offset + 1] as u32) <<  8) |
@@ -1035,7 +1036,7 @@ fn read32_le(mem: &[u8], offset: usize) -> u32 {
 
 /// Writes a u16 into a byte array in little endian byte order.
 #[inline]
-fn write16_le(mem: &mut [u8], offset: usize, value: u16) {
+pub fn write16_le(mem: &mut [u8], offset: usize, value: u16) {
     assert!(mem.len() > offset + 1, "16bit write out of range (offset: {}, len: {})", offset, mem.len());
     mem[offset] = value as u8;
     mem[offset + 1] = (value >> 8) as u8;
@@ -1043,7 +1044,7 @@ fn write16_le(mem: &mut [u8], offset: usize, value: u16) {
 
 /// Writes a u32 into a byte array in little endian byte order.
 #[inline]
-fn write32_le(mem: &mut [u8], offset: usize, value: u32) {
+pub fn write32_le(mem: &mut [u8], offset: usize, value: u32) {
     assert!(mem.len() > offset + 3, "32bit write out of range (offset: {}, len: {})", offset, mem.len());
     mem[offset] = value as u8;
     mem[offset + 1] = (value >>  8) as u8;

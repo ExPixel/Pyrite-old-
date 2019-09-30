@@ -64,41 +64,39 @@ impl Palette {
         (hi << 16) | lo
     }
 
-    pub fn get_bg16_color(&self, palette_index: u32, color_index: u32) -> u16 {
+    pub fn get_bg16_color(&self, palette_index: u8, color_index: u8) -> u16 {
         debug_assert!(palette_index < 16, "palette index must be less than 16");
         debug_assert!(color_index < 16, "color index must be less than 16");
         self.bg_colors[((palette_index * 16) + color_index) as usize]
     }
 
-    pub fn get_bg256_color(&self, color_index: u32) -> u16 {
-        debug_assert!(color_index <= 256, "color index must be less than 256");
+    pub fn get_bg256_color(&self, color_index: u8) -> u16 {
         self.bg_colors[color_index as usize]
     }
 
-    pub fn get_bg16_rgb(&self, palette_index: u32, color_index: u32) -> (u8, u8, u8) {
+    pub fn get_bg16_rgb(&self, palette_index: u8, color_index: u8) -> (u8, u8, u8) {
         u16_to_pixel(self.get_bg16_color(palette_index, color_index))
     }
 
-    pub fn get_bg256_rgb(&self, color_index: u32) -> (u8, u8, u8) {
+    pub fn get_bg256_rgb(&self, color_index: u8) -> (u8, u8, u8) {
         u16_to_pixel(self.get_bg256_color(color_index))
     }
 
-    pub fn get_obj16_color(&self, palette_index: u32, color_index: u32) -> u16 {
+    pub fn get_obj16_color(&self, palette_index: u8, color_index: u8) -> u16 {
         debug_assert!(palette_index < 16, "palette index must be less than 16");
         debug_assert!(color_index < 16, "color index must be less than 16");
         self.obj_colors[((palette_index * 16) + color_index) as usize]
     }
 
-    pub fn get_obj256_color(&self, color_index: u32) -> u16 {
-        debug_assert!(color_index <= 256, "color index must be less than 256");
+    pub fn get_obj256_color(&self, color_index: u8) -> u16 {
         self.obj_colors[color_index as usize]
     }
 
-    pub fn get_obj16_rgb(&self, palette_index: u32, color_index: u32) -> (u8, u8, u8) {
+    pub fn get_obj16_rgb(&self, palette_index: u8, color_index: u8) -> (u8, u8, u8) {
         u16_to_pixel(self.get_obj16_color(palette_index, color_index))
     }
 
-    pub fn get_obj256_rgb(&self, color_index: u32) -> (u8, u8, u8) {
+    pub fn get_obj256_rgb(&self, color_index: u8) -> (u8, u8, u8) {
         u16_to_pixel(self.get_obj256_color(color_index))
     }
 }
@@ -110,13 +108,13 @@ pub fn u16_to_pixel(p16: u16) -> (u8, u8, u8) {
     //     (((p16 >> 10) & 0x1F) as u8) * 8,
     // )
 
-    let r = p16 as u32;
-    let g = (p16 >> 5) as u32;
-    let b = (p16 >> 10) as u32;
+    let r = (p16 & 0x1F) as u32;
+    let g = ((p16 >>  5) & 0x1F) as u32;
+    let b = ((p16 >> 10) & 0x1F) as u32;
 
     return (
-        ((r * 31) / 255) as u8,
-        ((g * 31) / 255) as u8,
-        ((b * 31) / 255) as u8,
+        ((r * 255) / 31) as u8,
+        ((g * 255) / 31) as u8,
+        ((b * 255) / 31) as u8,
     )
 }

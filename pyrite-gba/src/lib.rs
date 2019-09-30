@@ -39,7 +39,7 @@ impl Gba {
             self.cpu.registers.write_mode(registers::CpuMode::Supervisor);
         }
 
-        self.memory.ioregs.keyinput.inner = 0x1FF;
+        self.memory.ioregs.keyinput.inner = 0x3FF;
         // @TODO some more IO registers need to be set here.
     }
 
@@ -58,6 +58,36 @@ impl Gba {
 
     pub fn is_frame_ready(&self) -> bool {
         self.lcd.end_of_frame
+    }
+
+    pub fn set_key_pressed(&mut self, key: KeypadInput, pressed: bool) {
+        // 0 = Pressed, 1 = Released
+        if pressed {
+            self.memory.ioregs.keyinput.inner &= !key.mask();
+        } else {
+            self.memory.ioregs.keyinput.inner |= key.mask();
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+#[repr(u16)]
+pub enum KeypadInput {
+    ButtonA = 0,
+    ButtonB = 1,
+    Select  = 2,
+    Start   = 3,
+    Right   = 4,
+    Left    = 5,
+    Up      = 6,
+    Down    = 7,
+    ButtonR = 8,
+    ButtonL = 9,
+}
+
+impl KeypadInput {
+    fn mask(self) -> u16 {
+        1 << (self as u16)
     }
 }
 

@@ -3,6 +3,8 @@
 //! only 16KBytes of VRAM can be used for OBJ tiles.
 
 use super::super::GbaMemory;
+use super::super::memory::read16_le;
+use super::super::memory::palette::u16_to_pixel;
 
 /// BG Mode 3 - 240x160 pixels, 32768 colors
 /// Two bytes are associated to each pixel, directly defining one of the 32768 colors (without using palette data,
@@ -18,23 +20,22 @@ use super::super::GbaMemory;
 /// The background occupies 75 KBytes (06000000-06012BFF), most of the 80 Kbytes BG area,
 /// not allowing to redraw an invisible second frame in background, so this mode is mostly recommended for still images only.
 pub fn mode3(line: u32, out: &mut [(u8, u8, u8)], memory: &mut GbaMemory) {
-    const BG_DATA_START: u32    = 0x06000000;
-    // const BG_DATA_END: u32      = 0x06012BFE;
-
-    let pixel_data_start = BG_DATA_START + (480 * line);
-    let mut pixel_offset = 0;
-    while pixel_offset < 240 {
-        let pixel = memory.read_halfword(pixel_data_start + (pixel_offset * 2));
+    let pixel_data_start = 480 * line as usize;
+    for pixel_offset in 0..240 {
+        let pixel = read16_le(&memory.mem_vram, pixel_data_start + (pixel_offset * 2));
         out[pixel_offset as usize] = u16_to_pixel(pixel);
-        pixel_offset += 1;
     }
 }
 
-#[inline(always)]
-fn u16_to_pixel(p16: u16) -> (u8, u8, u8) {
-    (
-        (( p16        & 0x1F) as u8) * 8,
-        (((p16 >>  5) & 0x1F) as u8) * 8,
-        (((p16 >> 10) & 0x1F) as u8) * 8,
-    )
+pub fn mode4(line: u32, out: &mut [(u8, u8, u8)], memory: &mut GbaMemory) {
+    const FRAME1_OFFSET: usize = 0xA000;
+
+    let pixel_data_start = 240*(line as usize) + FRAME1_OFFSET*(memory.ioregs.dispcnt.frame() as usize);
+    for pixel_offset in 0..240 {
+        let pixel = memory.mem_vram[pixel_data_start + pixel_offset];
+        out[pixel_offset as usize] = memory.palette.get_bg256_rgb(pixel);
+    }
+}
+
+pub fn mode5(_line: u32, _out: &mut [(u8, u8, u8)], _memory: &mut GbaMemory) {
 }

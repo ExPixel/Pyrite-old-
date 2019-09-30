@@ -61,7 +61,7 @@ impl GbaLCD {
 
     fn enter_hblank(&mut self, _cpu: &mut ArmCpu, memory: &mut GbaMemory, video: &mut dyn GbaVideoOutput) {
         if self.line_number < VDRAW_LINES {
-            bitmap_modes::mode3(self.line_number, &mut self.line_pixels, memory);
+            self.render_line(memory);
             video.display_line(self.line_number, &self.line_pixels);
             if self.line_number == (VDRAW_LINES - 1) {
                 self.end_of_frame = true;
@@ -82,8 +82,19 @@ impl GbaLCD {
             video.pre_frame();
         } else if self.line_number >= VDRAW_LINES {
             memory.ioregs.dispstat.set_vblank(true);
+        } else {
+            memory.ioregs.dispstat.set_vblank(false);
         }
 
         memory.ioregs.vcount.set_current_scanline(self.line_number as u16);
+    }
+
+    fn render_line(&mut self, memory: &mut GbaMemory) {
+        match memory.ioregs.dispcnt.bg_mode() {
+            3 => bitmap_modes::mode3(self.line_number, &mut self.line_pixels, memory),
+            4 => bitmap_modes::mode4(self.line_number, &mut self.line_pixels, memory),
+            5 => bitmap_modes::mode5(self.line_number, &mut self.line_pixels, memory),
+            _ => { /* unimplemented mode :( */ }
+        }
     }
 }
