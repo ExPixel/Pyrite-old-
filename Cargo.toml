@@ -5,3 +5,6 @@ members = [
     "pyrite-gba",
     "pyrite"
 ]
+
+[profile.dev]
+opt-level=1
