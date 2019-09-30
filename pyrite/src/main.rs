@@ -18,6 +18,15 @@ fn run_emulator() -> i32 {
     let mut no_audio = pyrite_gba::NoAudioOutput;
 
     let mut gba = Gba::new();
+    
+    // Since I can't be sure that I have everything I need for the BIOS to function properly all
+    // exceptions are just disabled for now.
+    gba.cpu.set_exception_handler(Box::new(|_cpu, _memory, exception, exception_addr| {
+        println!("error: {} exception at 0x{:08X}", exception.name(), exception_addr);
+
+        // consume the exception
+        true 
+    }));
 
     if let Some(rom_file) = std::env::args().nth(1) {
         match load_binary(&rom_file) {
