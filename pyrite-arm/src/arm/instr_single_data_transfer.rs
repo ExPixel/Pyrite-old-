@@ -56,7 +56,9 @@ macro_rules! arm_gen_sdt {
             }
 
             // writeback to base register
-            if $writeback {
+            // Since writeback is technically done before the actual transfer,
+            // we just don't writeback if rn is the same as rd during a LOAD
+            if $writeback && ($transfer_type != LOAD || rn != rd) {
                 cpu.registers.write(rn, addr);
             }
 
