@@ -235,37 +235,28 @@ impl ArmCpu {
 #[inline]
 pub(crate) fn check_condition(cond: u32, regs: &ArmRegisters) -> bool {
     match cond {
-        // EQ   | Z set                         |   equal
-        0b0000 => regs.getf_z(),
-        // NE   | Z clear                       | not equal
-        0b0001 => !regs.getf_z(),
-        // CS   | C set                         | unsigned higher or same
-        0b0010 => regs.getf_c(),
-        // CC   | C clear                       | unsigned lower
-        0b0011 => !regs.getf_c(),
-        // MI   | N set                         | negative
-        0b0100 => regs.getf_n(),
-        // PL   | N clear                       | positive or zero
-        0b0101 => !regs.getf_n(),
-        // VS   | V set                         | overflow
-        0b0110 => regs.getf_v(),
-        // VC   | V clear                       | no overflow
-        0b0111 => !regs.getf_v(),
-        // HI   | C set and Z clear             | unsigned higher
-        0b1000 => regs.getf_c() & !regs.getf_z(),
-        // LS   | C clear or Z set              | unsigned lower or same
-        0b1001 => !regs.getf_c() & regs.getf_z(),
-        // GE   | N equals V                    | greater or equal
-        0b1010 => regs.getf_n() == regs.getf_v(),
-        // LT   | N not equal to V              | less than
-        0b1011 => regs.getf_n() != regs.getf_v(),
-        // GT   | Z clear AND (N equals V)      | greater than
-        0b1100 => !regs.getf_z() & (regs.getf_n() == regs.getf_v()),
-        // LE   | Z set OR (N not equal to V)   | less than or equal
-        0b1101 => regs.getf_z() || (regs.getf_n() != regs.getf_v()),
-        // AL   | (ignored)                     | always
-        0b1110 => true,
-        _      => panic!("bad condition code: 0x{:08X} ({:04b})", cond, cond),
+        0x0 => regs.getf_z(),                   // 0:   EQ     Z=1           equal (zero) (same)
+        0x1 => !regs.getf_z(),                  // 1:   NE     Z=0           not equal (nonzero) (not same)
+        0x2 => regs.getf_c(),                   // 2:   CS/HS  C=1           unsigned higher or same (carry set)
+        0x3 => !regs.getf_c(),                  // 3:   CC/LO  C=0           unsigned lower (carry cleared)
+        0x4 => regs.getf_n(),                   // 4:   MI     N=1           negative (minus)
+        0x5 => !regs.getf_n(),                  // 5:   PL     N=0           positive or zero (plus)
+        0x6 => regs.getf_v(),                   // 6:   VS     V=1           overflow (V set)
+        0x7 => !regs.getf_v(),                  // 7:   VC     V=0           no overflow (V cleared)
+        0x8 => regs.getf_c() & !regs.getf_z(),  // 8:   HI     C=1 and Z=0   unsigned higher
+        0x9 => !regs.getf_c() | regs.getf_z(),  // 9:   LS     C=0 or Z=1    unsigned lower or same
+        0xA => regs.getf_n() == regs.getf_v(),  // A:   GE     N=V           greater or equal
+        0xB => regs.getf_n() != regs.getf_v(),  // B:   LT     N<>V          less than
+        0xC => {                                // C:   GT     Z=0 and N=V   greater than
+            !regs.getf_z() & (regs.getf_n() == regs.getf_v())
+        },   
+        0xD => {                                // D:   LE     Z=1 or N<>V   less or equal
+            regs.getf_z() | (regs.getf_n() != regs.getf_v())
+        },    
+        0xE => true,                            // E:   AL     -             always (the "AL" suffix can be omitted)
+        0xF => false,                           // F:   NV     -             never (ARMv1,v2 only) (Reserved ARMv3 and up)
+        // :(
+        _   => panic!("bad condition code: 0x{:08X} ({:04b})", cond, cond),
     }
 }
 
