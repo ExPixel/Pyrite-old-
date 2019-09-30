@@ -1,6 +1,9 @@
 pub struct Palette {
     bg_colors:  [u16; 256],
     obj_colors: [u16; 256],
+
+    bg_rgb:     [(u8, u8, u8); 256],
+    obj_rgb:    [(u8, u8, u8); 256],
 }
 
 impl Palette {
@@ -8,6 +11,9 @@ impl Palette {
         Palette {
             bg_colors:  [0u16; 256],
             obj_colors: [0u16; 256],
+
+            bg_rgb:     [(0u8, 0u8, 0u8); 256],
+            obj_rgb:    [(0u8, 0u8, 0u8); 256],
         }
     }
 
@@ -23,8 +29,14 @@ impl Palette {
 
     pub fn store16(&mut self, addr: u32, value: u16) {
         match addr {
-            0x000..=0x1FE =>  self.bg_colors[(addr / 2) as usize] = value,
-            0x200..=0x3FE => self.obj_colors[((addr - 0x200) / 2) as usize] = value,
+            0x000..=0x1FE => {
+                self.bg_colors[(addr / 2) as usize] = value;
+                self.bg_rgb[(addr / 2) as usize] = u16_to_pixel(value);
+            },
+            0x200..=0x3FE => {
+                self.obj_colors[((addr - 0x200) / 2) as usize] = value;
+                self.obj_rgb[((addr - 0x200) / 2) as usize] = u16_to_pixel(value);
+            },
             _ => {
                 // @TODO maybe I should just log an error instead.
                 panic!("bad palette write to address 0x{:08X}", addr);
@@ -64,40 +76,52 @@ impl Palette {
         (hi << 16) | lo
     }
 
+    #[inline]
     pub fn get_bg16_color(&self, palette_index: u8, color_index: u8) -> u16 {
         debug_assert!(palette_index < 16, "palette index must be less than 16");
         debug_assert!(color_index < 16, "color index must be less than 16");
         self.bg_colors[((palette_index * 16) + color_index) as usize]
     }
 
+    #[inline]
     pub fn get_bg256_color(&self, color_index: u8) -> u16 {
         self.bg_colors[color_index as usize]
     }
 
+    #[inline]
     pub fn get_bg16_rgb(&self, palette_index: u8, color_index: u8) -> (u8, u8, u8) {
-        u16_to_pixel(self.get_bg16_color(palette_index, color_index))
+        debug_assert!(palette_index < 16, "palette index must be less than 16");
+        debug_assert!(color_index < 16, "color index must be less than 16");
+        self.bg_rgb[((palette_index * 16) + color_index) as usize]
     }
 
+    #[inline]
     pub fn get_bg256_rgb(&self, color_index: u8) -> (u8, u8, u8) {
-        u16_to_pixel(self.get_bg256_color(color_index))
+        self.bg_rgb[color_index as usize]
     }
 
+    #[inline]
     pub fn get_obj16_color(&self, palette_index: u8, color_index: u8) -> u16 {
         debug_assert!(palette_index < 16, "palette index must be less than 16");
         debug_assert!(color_index < 16, "color index must be less than 16");
         self.obj_colors[((palette_index * 16) + color_index) as usize]
     }
 
+    #[inline]
     pub fn get_obj256_color(&self, color_index: u8) -> u16 {
         self.obj_colors[color_index as usize]
     }
 
+    #[inline]
     pub fn get_obj16_rgb(&self, palette_index: u8, color_index: u8) -> (u8, u8, u8) {
-        u16_to_pixel(self.get_obj16_color(palette_index, color_index))
+        debug_assert!(palette_index < 16, "palette index must be less than 16");
+        debug_assert!(color_index < 16, "color index must be less than 16");
+        self.obj_rgb[((palette_index * 16) + color_index) as usize]
     }
 
+    #[inline]
     pub fn get_obj256_rgb(&self, color_index: u8) -> (u8, u8, u8) {
-        u16_to_pixel(self.get_obj256_color(color_index))
+        self.obj_rgb[color_index as usize]
     }
 }
 
