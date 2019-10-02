@@ -19,7 +19,7 @@ pub struct GbaLCD {
     cycles_remaining:   u32,
     in_hblank:          bool,
     line_number:        u32,
-    line_pixels:        [(u8, u8, u8); 240],
+    line_pixels:        [u16; 240],
 }
 
 impl GbaLCD {
@@ -28,7 +28,7 @@ impl GbaLCD {
             cycles_remaining:   HDRAW_CYCLES,
             in_hblank:          false,
             line_number:        0,
-            line_pixels:        [(0, 0, 0); 240],
+            line_pixels:        [0; 240],
             end_of_frame:       false,
         }
     }
@@ -103,7 +103,7 @@ impl GbaLCD {
             bad_mode => {
                 println!("BAD MODE {}", bad_mode);
                 for out_pixel in self.line_pixels.iter_mut() {
-                    *out_pixel = (255, 0, 255);
+                    *out_pixel = 0;
                 }
             },
         }

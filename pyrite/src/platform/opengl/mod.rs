@@ -10,7 +10,7 @@ pub struct PyriteGL {
     fragment_shader:    globj::Shader,
 
     texture:            globj::Texture,
-    texture_data:       Box<[u8; 240 * 160 * 3]>,
+    texture_data:       Box<[u16; 240 * 160]>,
 }
 
 impl PyriteGL {
@@ -48,7 +48,7 @@ impl PyriteGL {
         }
 
         unsafe { gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1) };
-        let texture = globj::Texture::new::<&[u8]>(240, 160, globj::InternalPixelFormat::RGB, globj::PixelDataFormat::RGB, globj::PixelDataType::UnsignedByte, None);
+        let texture = globj::Texture::new::<&[u8]>(240, 160, globj::InternalPixelFormat::RGBA, globj::PixelDataFormat::BGRA, globj::PixelDataType::UnsignedShort_1_5_5_5_Rev, None);
 
         globj::check_gl_errors(|e| eprintln!("GL Error: {}", e));
 
@@ -60,7 +60,7 @@ impl PyriteGL {
             vertex_shader:      vertex_shader,
             fragment_shader:    fragment_shader,
             texture:            texture,
-            texture_data:       Box::new([0u8; 240 * 160 * 3]),
+            texture_data:       Box::new([0; 240 * 160]),
         }
     }
 
@@ -88,14 +88,9 @@ impl PyriteGL {
 }
 
 impl GbaVideoOutput for PyriteGL {
-    fn display_line(&mut self, line: u32, pixels: &[(u8, u8, u8)]) {
-        let mut offset = (line as usize) * 240 * 3;
-        for pixel in pixels.iter() {
-            self.texture_data[offset    ] = pixel.0;
-            self.texture_data[offset + 1] = pixel.1;
-            self.texture_data[offset + 2] = pixel.2;
-            offset += 3;
-        }
+    fn display_line(&mut self, line: u32, pixels: &[u16]) {
+        let offset = (line as usize) * 240;
+        (&mut self.texture_data[offset..(offset + 240)]).copy_from_slice(&pixels);
     }
 
     fn pre_frame(&mut self) {
@@ -104,8 +99,10 @@ impl GbaVideoOutput for PyriteGL {
 
     fn post_frame(&mut self) {
         self.texture.bind();
-        unsafe { gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1) };
-        self.texture.set_pixels::<&[u8]>(0, 0, 240, 160, globj::PixelDataFormat::RGB, globj::PixelDataType::UnsignedByte, &self.texture_data[0..]);
+        unsafe {
+            gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
+            self.texture.set_pixels::<&[u8]>(0, 0, 240, 160, globj::PixelDataFormat::RGBA, globj::PixelDataType::UnsignedShort_1_5_5_5_Rev, std::mem::transmute(&self.texture_data[0..]));
+        }
     }
 }
 

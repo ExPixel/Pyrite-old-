@@ -104,7 +104,7 @@ pub trait GbaVideoOutput {
 
     /// Called by the LCD every time a line is ready to be committed to the video
     /// output somehow.
-    fn display_line(&mut self, line: u32, pixels: &[(u8, u8, u8)]);
+    fn display_line(&mut self, line: u32, pixels: &[u16]);
 }
 
 pub trait GbaAudioOutput {
@@ -126,7 +126,7 @@ impl GbaVideoOutput for NoVideoOutput {
     fn pre_frame(&mut self) { /* NOP */ }
     fn post_frame(&mut self) { /* NOP */ }
 
-    fn display_line(&mut self, _line: u32, _pixels: &[(u8, u8, u8)]) {
+    fn display_line(&mut self, _line: u32, _pixels: &[u16]) {
         /* NOP */
     }
 }

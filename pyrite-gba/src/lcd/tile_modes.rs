@@ -85,11 +85,9 @@ use super::super::memory::palette::Palette;
 use super::super::memory::read16_le;
 // use super::super::memory::palette::u16_to_pixel;
 
-pub fn mode0(line: u32, out: &mut [(u8, u8, u8)], memory: &mut GbaMemory) {
-    // @TODO remove this debug code, there should't be a need to clear the buffer:
-    for p in out.iter_mut() {
-        *p = (0xFF, 0xFF, 0xFF);
-    }
+pub fn mode0(line: u32, out: &mut [u16], memory: &mut GbaMemory) {
+    // first we clear the background completely.
+    for p in out.iter_mut() { *p = 0; }
  
     for (priority) in (0u16..=3u16) {
         for bg_idx in (0usize..=3usize) {
@@ -117,10 +115,10 @@ pub fn mode0(line: u32, out: &mut [(u8, u8, u8)], memory: &mut GbaMemory) {
     }
 }
 
-pub fn mode1(_line: u32, _out: &mut [(u8, u8, u8)], _memory: &mut GbaMemory) {
+pub fn mode1(_line: u32, _out: &mut [u16], _memory: &mut GbaMemory) {
 }
 
-pub fn mode2(_line: u32, _out: &mut [(u8, u8, u8)], _memory: &mut GbaMemory) {
+pub fn mode2(_line: u32, _out: &mut [u16], _memory: &mut GbaMemory) {
 }
 
 /// Internal Screen Size (dots) and size of BG Map (bytes):
@@ -137,12 +135,12 @@ const TEXT_MODE_SCREEN_SIZE: [(u32, u32); 4] = [
     (512, 512),
 ];
 
-fn draw_bg_text_mode_4bit(line: u32, bg: TextBG, out: &mut [(u8, u8, u8)], vram: &[u8], palette: &Palette) {
+fn draw_bg_text_mode_4bit(line: u32, bg: TextBG, out: &mut [u16], vram: &[u8], palette: &Palette) {
     let scx = bg.xoffset % bg.width;
     let scy = (bg.yoffset + line) % bg.height;
 
     let ty = scy % 8;
-    let align_start = 8 - (scx % 8);
+    let align_start = if scx % 8 != 0 { 8 - (scx % 8) } else { 0 }; // start at the next whole tile on screen
     let align_end = if align_start != 0 { 8 - align_start } else { 0 };
 
     let screen_tile_y_offset = (scy / 8) * (bg.width / 8);
@@ -159,21 +157,170 @@ fn draw_bg_text_mode_4bit(line: u32, bg: TextBG, out: &mut [(u8, u8, u8)], vram:
         let tile_info = read16_le(vram, tile_info_offset as usize);
         let tile_number = (tile_info & 0x3FF) as u32;
         let tile_palette = ((tile_info >> 12) & 0xF) as u8;
-        // let horizontal_flip = (tile_info & 0x400) != 0;
-        // let vertical_flip = (tile_info & 0x800) != 0;
-        let tile_data_start = bg.char_base + (32 * tile_number) + (4 * ty);
+        let horizontal_flip = (tile_info & 0x400) != 0;
+        let vertical_flip = (tile_info & 0x800) != 0;
+        let tile_data_start = bg.char_base + (32 * tile_number) + (if vertical_flip { 28 - (4 * ty) } else { 4 * ty });
 
-        for tx in 0..4 {
-            let tpixel = vram[(tile_data_start + tx) as usize];
-            let left = palette.get_bg16_rgb(tile_palette, tpixel & 0xF);
-            let right = palette.get_bg16_rgb(tile_palette, (tpixel >> 4) & 0xF);
-            out[(dx + tx*2) as usize] = left;
-            out[(dx + tx*2 + 1) as usize] = right;
+        if horizontal_flip {
+            for otx in 0..4 {
+                let tx = 3 - otx;
+                let tpixel = vram[(tile_data_start + tx) as usize];
+                let left = palette.get_bg16(tile_palette, tpixel & 0xF);
+                let right = palette.get_bg16(tile_palette, (tpixel >> 4) & 0xF);
+                out[(dx + otx*2) as usize] = right;
+                out[(dx + otx*2 + 1) as usize] = left;
+            }
+        } else {
+            for tx in 0..4 {
+                let tpixel = vram[(tile_data_start + tx) as usize];
+                let left = palette.get_bg16(tile_palette, tpixel & 0xF);
+                let right = palette.get_bg16(tile_palette, (tpixel >> 4) & 0xF);
+                out[(dx + tx*2) as usize] = left;
+                out[(dx + tx*2 + 1) as usize] = right;
+            }
+        }
+    }
+
+    if align_start != 0 {
+        // Left Edge
+        {
+            let scx = scx % bg.width;
+            let area_idx = (scy/256)*(bg.width/256) + (scx/256);
+            let area_x = scx % 256;
+            let area_tx = area_x / 8;
+            let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
+            let tile_info = read16_le(vram, tile_info_offset as usize);
+            let tile_number = (tile_info & 0x3FF) as u32;
+            let tile_palette = ((tile_info >> 12) & 0xF) as u8;
+            let horizontal_flip = (tile_info & 0x400) != 0;
+            let vertical_flip = (tile_info & 0x800) != 0;
+            let tile_data_start = bg.char_base + (32 * tile_number) + (if vertical_flip { 28 - (4 * ty) } else { 4 * ty });
+            let unalign_start = scx % 8;
+
+            for otx in unalign_start..8 {
+                let tx = if horizontal_flip { 7 - otx } else { otx };
+                let tpixel = vram[(tile_data_start + (tx / 2)) as usize];
+                if tx % 2 == 0 {
+                    out[(otx - unalign_start) as usize] = palette.get_bg16(tile_palette, tpixel & 0xF);
+                } else {
+                    out[(otx - unalign_start) as usize] = palette.get_bg16(tile_palette, (tpixel >> 4) & 0xF);
+                }
+            }
+        }
+
+        // Right Edge
+        {
+            let scx = (scx + 240 - align_end)  % bg.width;
+            let area_idx = (scy/256)*(bg.width/256) + (scx/256);
+            let area_x = scx % 256;
+            let area_tx = area_x / 8;
+            let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
+            let tile_info = read16_le(vram, tile_info_offset as usize);
+            let tile_number = (tile_info & 0x3FF) as u32;
+            let tile_palette = ((tile_info >> 12) & 0xF) as u8;
+            let horizontal_flip = (tile_info & 0x400) != 0;
+            let vertical_flip = (tile_info & 0x800) != 0;
+            let tile_data_start = bg.char_base + (32 * tile_number) + (if vertical_flip { 28 - (4 * ty) } else { 4 * ty });
+
+            let unalign_start = (240 - align_end);
+            for otx in unalign_start..240 {
+                let tx = if horizontal_flip { 7 - (otx - unalign_start) } else { otx - unalign_start };
+                let tpixel = vram[(tile_data_start + (tx / 2)) as usize];
+                if tx % 2 == 0 {
+                    out[otx as usize] = palette.get_bg16(tile_palette, tpixel & 0xF);
+                } else {
+                    out[otx as usize] = palette.get_bg16(tile_palette, (tpixel >> 4) & 0xF);
+                }
+            }
         }
     }
 }
 
-fn draw_bg_text_mode_16bit(line: u32, bg: TextBG, out: &mut [(u8, u8, u8)], vram: &[u8], palette: &Palette) {
+fn draw_bg_text_mode_16bit(line: u32, bg: TextBG, out: &mut [u16], vram: &[u8], palette: &Palette) {
+    let scx = bg.xoffset % bg.width;
+    let scy = (bg.yoffset + line) % bg.height;
+
+    let ty = scy % 8;
+    let align_start = if scx % 8 != 0 { 8 - (scx % 8) } else { 0 }; // start at the next whole tile on screen
+    let align_end = if align_start != 0 { 8 - align_start } else { 0 };
+
+    let screen_tile_y_offset = (scy / 8) * (bg.width / 8);
+    let area_y = scy % 256;
+    let area_ty = area_y / 8;
+
+    for dx in (align_start..=(240 - 8 - align_end)).step_by(8) {
+        let scx = (scx + dx) % bg.width; // shadow scx in here
+        let area_idx = (scy/256)*(bg.width/256) + (scx/256);
+        let area_x = scx % 256;
+        let area_tx = area_x / 8;
+
+        let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
+        let tile_info = read16_le(vram, tile_info_offset as usize);
+        let tile_number = (tile_info & 0x3FF) as u32;
+        let horizontal_flip = (tile_info & 0x400) != 0;
+        let vertical_flip = (tile_info & 0x800) != 0;
+        let tile_data_start = bg.char_base + (64 * tile_number) + (if vertical_flip { 56 - (8 * ty) } else { 8 * ty });
+
+        if horizontal_flip {
+            for otx in 0..8 {
+                let tx = 7 - otx;
+                let tpixel = vram[(tile_data_start + tx) as usize];
+                out[(dx + otx) as usize] = palette.get_bg256(tpixel);
+            }
+        } else {
+            for tx in 0..8 {
+                let tpixel = vram[(tile_data_start + tx) as usize];
+                let tpixel = vram[(tile_data_start + tx) as usize];
+                out[(dx + tx) as usize] = palette.get_bg256(tpixel);
+            }
+        }
+    }
+
+    if align_start != 0 {
+        // Left Edge
+        {
+            let scx = scx % bg.width;
+            let area_idx = (scy/256)*(bg.width/256) + (scx/256);
+            let area_x = scx % 256;
+            let area_tx = area_x / 8;
+            let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
+            let tile_info = read16_le(vram, tile_info_offset as usize);
+            let tile_number = (tile_info & 0x3FF) as u32;
+            let tile_palette = ((tile_info >> 12) & 0xF) as u8;
+            let horizontal_flip = (tile_info & 0x400) != 0;
+            let vertical_flip = (tile_info & 0x800) != 0;
+            let tile_data_start = bg.char_base + (64 * tile_number) + (if vertical_flip { 56 - (8 * ty) } else { 8 * ty });
+            let unalign_start = scx % 8;
+
+            for otx in unalign_start..8 {
+                let tx = if horizontal_flip { 7 - otx } else { otx };
+                let tpixel = vram[(tile_data_start + (tx / 2)) as usize];
+                out[(otx - unalign_start) as usize] = palette.get_bg256(tpixel);
+            }
+        }
+
+        // Right Edge
+        {
+            let scx = (scx + 240 - align_end)  % bg.width;
+            let area_idx = (scy/256)*(bg.width/256) + (scx/256);
+            let area_x = scx % 256;
+            let area_tx = area_x / 8;
+            let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
+            let tile_info = read16_le(vram, tile_info_offset as usize);
+            let tile_number = (tile_info & 0x3FF) as u32;
+            let tile_palette = ((tile_info >> 12) & 0xF) as u8;
+            let horizontal_flip = (tile_info & 0x400) != 0;
+            let vertical_flip = (tile_info & 0x800) != 0;
+            let tile_data_start = bg.char_base + (64 * tile_number) + (if vertical_flip { 56 - (8 * ty) } else { 8 * ty });
+
+            let unalign_start = (240 - align_end);
+            for otx in unalign_start..240 {
+                let tx = if horizontal_flip { 7 - (otx - unalign_start) } else { otx - unalign_start };
+                let tpixel = vram[(tile_data_start + (tx / 2)) as usize];
+                out[otx as usize] = palette.get_bg256(tpixel);
+            }
+        }
+    }
 }
 
 struct TextBG {

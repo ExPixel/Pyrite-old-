@@ -4,7 +4,6 @@
 
 use super::super::GbaMemory;
 use super::super::memory::read16_le;
-use super::super::memory::palette::u16_to_pixel;
 
 /// BG Mode 3 - 240x160 pixels, 32768 colors
 /// Two bytes are associated to each pixel, directly defining one of the 32768 colors (without using palette data,
@@ -19,23 +18,24 @@ use super::super::memory::palette::u16_to_pixel;
 /// The first 480 bytes define the topmost line, the next 480 the next line, and so on.
 /// The background occupies 75 KBytes (06000000-06012BFF), most of the 80 Kbytes BG area,
 /// not allowing to redraw an invisible second frame in background, so this mode is mostly recommended for still images only.
-pub fn mode3(line: u32, out: &mut [(u8, u8, u8)], memory: &mut GbaMemory) {
+pub fn mode3(line: u32, out: &mut [u16], memory: &mut GbaMemory) {
     let pixel_data_start = 480 * line as usize;
     for pixel_offset in 0..240 {
         let pixel = read16_le(&memory.mem_vram, pixel_data_start + (pixel_offset * 2));
-        out[pixel_offset as usize] = u16_to_pixel(pixel);
+        out[pixel_offset as usize] = pixel;
     }
 }
 
-pub fn mode4(line: u32, out: &mut [(u8, u8, u8)], memory: &mut GbaMemory) {
+pub fn mode4(line: u32, out: &mut [u16], memory: &mut GbaMemory) {
     const FRAME1_OFFSET: usize = 0xA000;
 
     let pixel_data_start = 240*(line as usize) + FRAME1_OFFSET*(memory.ioregs.dispcnt.frame() as usize);
     for pixel_offset in 0..240 {
         let pixel = memory.mem_vram[pixel_data_start + pixel_offset];
-        out[pixel_offset as usize] = memory.palette.get_bg256_rgb(pixel);
+        out[pixel_offset as usize] = memory.palette.get_bg256(pixel);
     }
 }
 
-pub fn mode5(_line: u32, _out: &mut [(u8, u8, u8)], _memory: &mut GbaMemory) {
+pub fn mode5(_line: u32, _out: &mut [u16], _memory: &mut GbaMemory) {
+    unimplemented!("mode5 rendering");
 }
