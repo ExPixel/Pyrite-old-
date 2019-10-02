@@ -7,18 +7,9 @@ pub struct IORegisters {
     pub green_swap: Reg16,
     pub dispstat: RegDISPSTAT,
     pub vcount: RegVCOUNT,
-    pub bg0cnt: Reg16,
-    pub bg1cnt: Reg16,
-    pub bg2cnt: Reg16,
-    pub bg3cnt: Reg16,
-    pub bg0hofs: Reg16,
-    pub bg0vofs: Reg16,
-    pub bg1hofs: Reg16,
-    pub bg1vofs: Reg16,
-    pub bg2hofs: Reg16,
-    pub bg2vofs: Reg16,
-    pub bg3hofs: Reg16,
-    pub bg3vofs: Reg16,
+    pub bg_cnt:  [RegBGxCNT; 4],
+    pub bg_hofs: [RegBGxHOFS; 4], 
+    pub bg_vofs: [RegBGxVOFS; 4], 
     pub bg2pa: Reg16,
     pub bg2pb: Reg16,
     pub bg2pc: Reg16,
@@ -212,18 +203,18 @@ impl IORegisters {
             0x0002 => Some(self.green_swap.inner),
             0x0004 => Some(self.dispstat.inner),
             0x0006 => Some(self.vcount.inner),
-            0x0008 => Some(self.bg0cnt.inner),
-            0x000A => Some(self.bg1cnt.inner),
-            0x000C => Some(self.bg2cnt.inner),
-            0x000E => Some(self.bg3cnt.inner),
-            0x0010 => Some(self.bg0hofs.inner),
-            0x0012 => Some(self.bg0vofs.inner),
-            0x0014 => Some(self.bg1hofs.inner),
-            0x0016 => Some(self.bg1vofs.inner),
-            0x0018 => Some(self.bg2hofs.inner),
-            0x001A => Some(self.bg2vofs.inner),
-            0x001C => Some(self.bg3hofs.inner),
-            0x001E => Some(self.bg3vofs.inner),
+            0x0008 => Some(self.bg_cnt[0].inner),
+            0x000A => Some(self.bg_cnt[1].inner),
+            0x000C => Some(self.bg_cnt[2].inner),
+            0x000E => Some(self.bg_cnt[3].inner),
+            0x0010 => Some(self.bg_hofs[0].inner),
+            0x0012 => Some(self.bg_vofs[0].inner),
+            0x0014 => Some(self.bg_hofs[1].inner),
+            0x0016 => Some(self.bg_vofs[1].inner),
+            0x0018 => Some(self.bg_hofs[2].inner),
+            0x001A => Some(self.bg_vofs[2].inner),
+            0x001C => Some(self.bg_hofs[3].inner),
+            0x001E => Some(self.bg_vofs[3].inner),
             0x0020 => Some(self.bg2pa.inner),
             0x0022 => Some(self.bg2pb.inner),
             0x0024 => Some(self.bg2pc.inner),
@@ -373,18 +364,18 @@ impl IORegisters {
             0x0002 => self.green_swap.inner = value,
             0x0004 => self.dispstat.inner = value,
             0x0006 => self.vcount.inner = value,
-            0x0008 => self.bg0cnt.inner = value,
-            0x000A => self.bg1cnt.inner = value,
-            0x000C => self.bg2cnt.inner = value,
-            0x000E => self.bg3cnt.inner = value,
-            0x0010 => self.bg0hofs.inner = value,
-            0x0012 => self.bg0vofs.inner = value,
-            0x0014 => self.bg1hofs.inner = value,
-            0x0016 => self.bg1vofs.inner = value,
-            0x0018 => self.bg2hofs.inner = value,
-            0x001A => self.bg2vofs.inner = value,
-            0x001C => self.bg3hofs.inner = value,
-            0x001E => self.bg3vofs.inner = value,
+            0x0008 => self.bg_cnt[0].inner = value,
+            0x000A => self.bg_cnt[1].inner = value,
+            0x000C => self.bg_cnt[2].inner = value,
+            0x000E => self.bg_cnt[3].inner = value,
+            0x0010 => self.bg_hofs[0].inner = value,
+            0x0012 => self.bg_vofs[0].inner = value,
+            0x0014 => self.bg_hofs[1].inner = value,
+            0x0016 => self.bg_vofs[1].inner = value,
+            0x0018 => self.bg_hofs[2].inner = value,
+            0x001A => self.bg_vofs[2].inner = value,
+            0x001C => self.bg_hofs[3].inner = value,
+            0x001E => self.bg_vofs[3].inner = value,
             0x0020 => self.bg2pa.inner = value,
             0x0022 => self.bg2pb.inner = value,
             0x0024 => self.bg2pc.inner = value,
@@ -760,5 +751,64 @@ ioreg! {
         phi_terminal_output, set_phi_terminal_output: u16 = [11, 12],
         gamepak_prefetch, set_gamepak_prefetch: bool = [14, 14],
         gamepak_type_flag, set_gamepak_type_flag: bool = [15, 15],
+    }
+}
+
+/// 4000008h - BG0CNT - BG0 Control (R/W) (BG Modes 0,1 only)
+/// 400000Ah - BG1CNT - BG1 Control (R/W) (BG Modes 0,1 only)
+/// 400000Ch - BG2CNT - BG2 Control (R/W) (BG Modes 0,1,2 only)
+/// 400000Eh - BG3CNT - BG3 Control (R/W) (BG Modes 0,2 only)
+///
+///   Bit   Expl.
+///   0-1   BG Priority           (0-3, 0=Highest)
+///   2-3   Character Base Block  (0-3, in units of 16 KBytes) (=BG Tile Data)
+///   4-5   Not used (must be zero) (except in NDS mode: MSBs of char base)
+///   6     Mosaic                (0=Disable, 1=Enable)
+///   7     Colors/Palettes       (0=16/16, 1=256/1)
+///   8-12  Screen Base Block     (0-31, in units of 2 KBytes) (=BG Map Data)
+///   13    BG0/BG1: Not used (except in NDS mode: Ext Palette Slot for BG0/BG1)
+///   13    BG2/BG3: Display Area Overflow (0=Transparent, 1=Wraparound)
+///   14-15 Screen Size (0-3)
+///
+/// Internal Screen Size (dots) and size of BG Map (bytes):
+///
+///   Value  Text Mode      Rotation/Scaling Mode
+///   0      256x256 (2K)   128x128   (256 bytes)
+///   1      512x256 (4K)   256x256   (1K)
+///   2      256x512 (4K)   512x512   (4K)
+///   3      512x512 (8K)   1024x1024 (16K)
+ioreg! {
+    RegBGCNT: u16 {
+        priority, set_priority: u16 = [0, 1],
+        char_base_block, set_char_base_block: u16 = [2, 3],
+        mosaic, set_mosaic: bool = [6, 6],
+        pal256, set_pal256: bool = [7, 7],
+        screen_base_block, set_screen_base_block: u16 = [8, 12],
+        display_area_overflow, set_display_area_overflow: bool = [13, 13],
+        screen_size, set_screen_size: u16 = [14, 15],
+    }
+}
+
+ioreg! {
+    RegBGxCNT: u16 {
+        priority, set_priority: u16 = [0, 1],
+        char_base_block, set_char_base_block: u16 = [2, 3],
+        mosaic, set_mosaic: bool = [6, 6],
+        pal256, set_pal256: bool = [7, 7],
+        screen_base_block, set_screen_base_block: u16 = [8, 12],
+        display_area_overflow, set_display_area_overflow: bool = [13, 13],
+        screen_size, set_screen_size: u16 = [14, 15],
+    }
+}
+
+ioreg! {
+    RegBGxHOFS: u16 {
+        offset, set_offset: u16 = [0, 8],
+    }
+}
+
+ioreg! {
+    RegBGxVOFS: u16 {
+        offset, set_offset: u16 = [0, 8],
     }
 }

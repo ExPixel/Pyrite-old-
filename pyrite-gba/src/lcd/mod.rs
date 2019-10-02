@@ -1,4 +1,5 @@
 mod bitmap_modes;
+mod tile_modes;
 
 use super::{ GbaVideoOutput, GbaMemory, ArmCpu };
 
@@ -86,15 +87,25 @@ impl GbaLCD {
             memory.ioregs.dispstat.set_vblank(false);
         }
 
+        memory.ioregs.dispstat.set_vcounter(self.line_number as u16 == memory.ioregs.dispstat.vcount_setting());
         memory.ioregs.vcount.set_current_scanline(self.line_number as u16);
     }
 
     fn render_line(&mut self, memory: &mut GbaMemory) {
         match memory.ioregs.dispcnt.bg_mode() {
+            0 => tile_modes::mode0(self.line_number, &mut self.line_pixels, memory),
+            1 => tile_modes::mode1(self.line_number, &mut self.line_pixels, memory),
+            2 => tile_modes::mode2(self.line_number, &mut self.line_pixels, memory),
             3 => bitmap_modes::mode3(self.line_number, &mut self.line_pixels, memory),
             4 => bitmap_modes::mode4(self.line_number, &mut self.line_pixels, memory),
             5 => bitmap_modes::mode5(self.line_number, &mut self.line_pixels, memory),
-            _ => { /* unimplemented mode :( */ }
+
+            bad_mode => {
+                println!("BAD MODE {}", bad_mode);
+                for out_pixel in self.line_pixels.iter_mut() {
+                    *out_pixel = (255, 0, 255);
+                }
+            },
         }
     }
 }
