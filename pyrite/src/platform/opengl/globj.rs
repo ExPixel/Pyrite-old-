@@ -374,8 +374,8 @@ impl Texture {
         unsafe {
             gl::GenTextures(1, &mut handle);
             gl::BindTexture(gl::TEXTURE_2D, handle);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as _);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as _);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as _);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as _);
 
             if let Some(data) = pixel_data {
                 let pixel_data_ptr = data.get_data_ptr();

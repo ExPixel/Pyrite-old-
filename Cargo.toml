@@ -3,7 +3,10 @@ members = [
     "pyrite-arm",
     "pyrite-common",
     "pyrite-gba",
-    "pyrite"
+    "pyrite",
+
+    "imgui-sys",
+    "imgui"
 ]
 
 [profile.dev]
