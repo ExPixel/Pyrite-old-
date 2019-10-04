@@ -525,16 +525,11 @@ dependencies = [
 name = "imgui"
 version = "0.1.0"
 dependencies = [
- "bitflags 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "imgui-sys 0.1.0",
-]
-
-[[package]]
-name = "imgui-sys"
-version = "0.1.0"
-dependencies = [
  "bindgen 0.46.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bitflags 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cc 1.0.45 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gl 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "glutin 0.21.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -763,6 +758,7 @@ version = "0.1.0"
 dependencies = [
  "gl 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "glutin 0.21.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "imgui 0.1.0",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "pyrite-gba 0.1.0",
 ]

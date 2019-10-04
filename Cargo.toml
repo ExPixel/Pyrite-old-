@@ -4,8 +4,6 @@ members = [
     "pyrite-common",
     "pyrite-gba",
     "pyrite",
-
-    "imgui-sys",
     "imgui"
 ]
 

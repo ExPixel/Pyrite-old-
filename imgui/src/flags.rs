@@ -1,3 +1,5 @@
+use crate::sys;
+
 pub type FlagType = i32;
 pub trait ZeroFlag {
     fn get_zero_flag() -> Self;
