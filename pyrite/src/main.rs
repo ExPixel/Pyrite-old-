@@ -1,4 +1,5 @@
 #[allow(dead_code)] mod platform;
+mod gba_imgui;
 
 use pyrite_gba::Gba;
 
@@ -14,8 +15,6 @@ fn run_emulator() -> i32 {
     if let Err(_) = window.set_position_center() {
         log::error!("failed to place the window in the center of the screen");
     }
-    let mut video = platform::opengl::PyriteGL::new();
-    let mut no_audio = pyrite_gba::NoAudioOutput;
 
     let mut gba = Gba::new();
     
@@ -45,6 +44,8 @@ fn run_emulator() -> i32 {
         return 1;
     }
 
+    let mut imgui_ui = gba_imgui::GbaImGui::new(gba, window.glutin_window());
+
     let mut fps_counter = FPSCounter::new();
     let mut title_buffer = "Pyrite (NO FPS)".to_string();
     while !window.close_requested() {
@@ -59,52 +60,9 @@ fn run_emulator() -> i32 {
             window.set_title(&title_buffer);
         }
 
-        window.handle_events_with_handler(|event| {
-            use glutin::VirtualKeyCode;
-            use pyrite_gba::KeypadInput;
+        window.handle_events_with_handler(|window, event| imgui_ui.handle_event(window, event));
+        imgui_ui.render_frame(window.glutin_window());
 
-            let window_event;
-            match event {
-                &glutin::Event::WindowEvent { ref event, .. } => {
-                    window_event = event;
-                }, 
-                _ => { return },
-            }
-
-            match window_event {
-                glutin::WindowEvent::KeyboardInput { input, .. } => {
-                    let pressed = match input.state {
-                        glutin::ElementState::Pressed => true,
-                        glutin::ElementState::Released => false,
-                    };
-
-                    match input.virtual_keycode {
-                        Some(VirtualKeyCode::Left) => gba.set_key_pressed(KeypadInput::Left, pressed),
-                        Some(VirtualKeyCode::Right) => gba.set_key_pressed(KeypadInput::Right, pressed),
-                        Some(VirtualKeyCode::Up) => gba.set_key_pressed(KeypadInput::Up, pressed),
-                        Some(VirtualKeyCode::Down) => gba.set_key_pressed(KeypadInput::Down, pressed),
-
-                        Some(VirtualKeyCode::Return) => gba.set_key_pressed(KeypadInput::Start, pressed),
-                        Some(VirtualKeyCode::Back) => gba.set_key_pressed(KeypadInput::Select, pressed),
-
-                        Some(VirtualKeyCode::Z) => gba.set_key_pressed(KeypadInput::ButtonA, pressed),
-                        Some(VirtualKeyCode::X) => gba.set_key_pressed(KeypadInput::ButtonB, pressed),
-
-                        Some(VirtualKeyCode::A) => gba.set_key_pressed(KeypadInput::ButtonL, pressed),
-                        Some(VirtualKeyCode::S) => gba.set_key_pressed(KeypadInput::ButtonR, pressed),
-                        _ => { /* NOP */ },
-                    }
-                },
-
-                _ => { /* NOP */ },
-            }
-        });
-
-        loop {
-            gba.step(&mut video, &mut no_audio);
-            if gba.is_frame_ready() { break }
-        }
-        video.render();
         window.flip();
     }
 

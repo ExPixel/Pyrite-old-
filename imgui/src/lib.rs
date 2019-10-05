@@ -1,8 +1,9 @@
 #[macro_export]
 macro_rules! str {
     ($RustStr:expr) => {
+        #[allow(unused_unsafe)]
         unsafe {
-            CStr::from_bytes_with_nul_unchecked(concat!($RustStr, '\0').as_bytes())
+            $crate::imstr::ImStr::from_bytes_with_nul_unchecked(concat!($RustStr, '\0').as_bytes())
         }
     }
 }

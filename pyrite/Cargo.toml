@@ -11,4 +11,4 @@ pyrite-gba = { path = "../pyrite-gba" }
 gl = "0.13.0"
 glutin = "0.21.1"
 log = { version = "0.4", features = ["std"] }
-imgui = { path = "../imgui", features = ["gl", "glutin"] }
+imgui = { path = "../imgui", features = ["gl", "opengl3", "glutin"] }

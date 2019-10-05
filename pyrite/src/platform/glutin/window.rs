@@ -43,17 +43,17 @@ impl Window {
     }
 
     pub fn handle_events(&mut self) {
-        self.internal_handle_events(|_event| {});
+        self.internal_handle_events(|_window, _event| {});
     }
 
-    pub fn handle_events_with_handler<F: FnMut(&glutin::Event)>(&mut self, custom_handler: F) {
+    pub fn handle_events_with_handler<F: FnMut(&glutin::Window, &glutin::Event)>(&mut self, custom_handler: F) {
         self.internal_handle_events(custom_handler);
     }
 
-    fn internal_handle_events<F: FnMut(&glutin::Event)>(&mut self, mut custom_handler: F) {
+    fn internal_handle_events<F: FnMut(&glutin::Window, &glutin::Event)>(&mut self, mut custom_handler: F) {
         if let Some(mut events_loop) = self.events_loop.take() {
             events_loop.poll_events(|event| {
-                custom_handler(&event);
+                custom_handler(self.win_context.window(), &event);
                 match event {
                     glutin::Event::WindowEvent { event, .. } => {
                         self.handle_window_event(event);
@@ -135,5 +135,9 @@ impl Window {
 
     pub fn center_y(&self) -> f32 {
         self.win_size.1 / 2.0
+    }
+
+    pub fn glutin_window(&self) -> &glutin::Window {
+        self.win_context.window()
     }
 }

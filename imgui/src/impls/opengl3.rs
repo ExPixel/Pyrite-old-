@@ -1,5 +1,5 @@
 use crate::api as imgui;
-use crate::bindings::{ImDrawData, ImDrawVert, ImDrawList, ImVec2, ImDrawIdx, ImDrawCmd};
+use crate::sys::{ImDrawData, ImDrawVert, ImDrawList, ImVec2, ImDrawIdx, ImDrawCmd};
 use gl;
 use gl::types::{GLint, GLuint, GLenum, GLboolean, GLsizei};
 use std::mem::{transmute};

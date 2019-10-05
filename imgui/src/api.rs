@@ -1,17 +1,18 @@
-use std::ffi::CStr;
+use crate::imstr::{ImStr};
 use crate::flags::*;
-
 use crate::sys;
 pub use crate::sys::ImVec2;
 pub use crate::sys::ImVec4;
 
-pub fn get_version() -> &'static CStr {
+// use std::os::raw::c_int;
+
+pub fn get_version() -> &'static ImStr {
     unsafe {
-        CStr::from_ptr(sys::igGetVersion())
+        ImStr::from_ptr(sys::igGetVersion())
     }
 }
 
-pub fn debug_version_and_data_layout(version: &CStr, sz_io: usize, sz_style: usize, sz_vec2: usize, sz_vec4: usize, sz_vert: usize, sz_draw_idx: usize) -> bool {
+pub fn debug_version_and_data_layout(version: &ImStr, sz_io: usize, sz_style: usize, sz_vec2: usize, sz_vec4: usize, sz_vert: usize, sz_draw_idx: usize) -> bool {
     unsafe {
         sys::igDebugCheckVersionAndDataLayout(version.as_ptr(), sz_io, sz_style, sz_vec2, sz_vec4, sz_vert, sz_draw_idx)
     }
@@ -23,13 +24,55 @@ pub fn get_io() -> Option<&'static mut sys::ImGuiIO> {
     }
 }
 
-pub fn create_context(shared_font_atlas: &mut sys::ImFontAtlas) -> Option<&'static mut sys::ImGuiContext> {
+pub fn create_context(shared_font_atlas: Option<&mut sys::ImFontAtlas>) -> Option<&'static mut sys::ImGuiContext> {
     unsafe {
-        sys::igCreateContext(shared_font_atlas).as_mut()
+        sys::igCreateContext(opt_mut_ptr(shared_font_atlas)).as_mut()
     }
 }
 
-pub fn begin(name: &CStr, p_open: &mut bool, flags: WindowFlags) -> bool {
+pub fn destroy_context(context: Option<&mut sys::ImGuiContext>) {
+    unsafe {
+        sys::igDestroyContext(opt_mut_ptr(context))
+    }
+}
+
+pub fn get_draw_data() -> Option<&'static mut sys::ImDrawData> {
+    unsafe {
+        sys::igGetDrawData().as_mut()
+    }
+}
+
+pub fn style_colors_dark(dst: Option<&mut sys::ImGuiStyle>) {
+    unsafe {
+        sys::igStyleColorsDark(opt_mut_ptr(dst))
+    }
+}
+
+pub fn style_colors_classic(dst: Option<&mut sys::ImGuiStyle>) {
+    unsafe {
+        sys::igStyleColorsClassic(opt_mut_ptr(dst))
+    }
+}
+
+pub fn style_colors_light(dst: Option<&mut sys::ImGuiStyle>) {
+    unsafe {
+        sys::igStyleColorsLight(opt_mut_ptr(dst))
+    }
+}
+
+pub fn new_frame() {
+    unsafe {
+        sys::igNewFrame()
+    }
+}
+
+pub fn render() {
+    unsafe {
+        sys::igRender()
+    }
+}
+
+pub fn begin(name: &ImStr, p_open: &mut bool, flags: WindowFlags) -> bool {
     unsafe {
         sys::igBegin(name.as_ptr(), p_open, flags.bits() as _)
     }
@@ -97,13 +140,29 @@ macro_rules! create_owned_impl {
 }
 
 impl sys::ImGuiIO {
-    pub fn add_input_characters_utf8(&mut self, s: &CStr) {
+    pub fn add_input_characters_utf8(&mut self, s: &ImStr) {
         unsafe {
             sys::ImGuiIO_AddInputCharactersUTF8(self, s.as_ptr())
         }
     }
 }
 create_owned_impl!(IO, sys::ImGuiIO, sys::ImGuiIO_ImGuiIO, sys::ImGuiIO_destroy);
+
+impl sys::ImFontAtlas {
+    pub fn get_tex_data_as_rgba32(&mut self, out_pixels: &mut *mut u8, out_width: &mut i32, out_height: &mut i32, out_bytes_per_pixel: Option<&mut i32>) {
+        unsafe {
+            sys::ImFontAtlas_GetTexDataAsRGBA32(self, out_pixels as _, out_width as _, out_height as _, opt_mut_ptr(out_bytes_per_pixel))
+        }
+    }
+}
+
+impl sys::ImDrawData {
+    pub fn scale_clip_rects(&mut self, fb_scale: ImVec2) {
+        unsafe {
+            sys::ImDrawData_ScaleClipRects(self, fb_scale)
+        }
+    }
+}
 
 /////////////////////////////////////////////
 //
@@ -117,6 +176,22 @@ pub const fn vec2(x: f32, y: f32) -> ImVec2 {
 
 pub const fn vec4(x: f32, y: f32, z: f32, w: f32) -> ImVec4 {
     ImVec4 { x, y, z, w }
+}
+
+// fn opt_ptr<T>(opt: Option<&T>) -> *const T {
+//     if let Some(t) = opt {
+//         t as *const T
+//     } else {
+//         std::ptr::null()
+//     }
+// }
+
+fn opt_mut_ptr<T>(opt: Option<&mut T>) -> *mut T {
+    if let Some(t) = opt {
+        t as *mut T
+    } else {
+        std::ptr::null_mut()
+    }
 }
 
 #[cfg(test)]

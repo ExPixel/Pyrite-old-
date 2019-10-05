@@ -16,7 +16,7 @@ static mut g: GlobalGlutinState = GlobalGlutinState {
     mouse_pressed:  [false; 3],
 };
 
-pub fn process_window_event(event: &Event, gl_window: &glutin::Window) -> bool {
+pub fn process_window_event(gl_window: &glutin::Window, event: &Event) -> bool {
     let mut io = imgui::get_io().unwrap();
     match event {
         Event::WindowEvent {event, ..} => match event {
@@ -71,10 +71,10 @@ pub fn process_window_event(event: &Event, gl_window: &glutin::Window) -> bool {
                 };
                 let chlen = ch.len_utf8();
                 for idx in 0..chlen { b5[idx] = b4[idx]; }
-                let cstr = unsafe {
-                    std::ffi::CStr::from_bytes_with_nul_unchecked(&b5[0..(chlen + 1)])
+                let imstr = unsafe {
+                    crate::imstr::ImStr::from_bytes_with_nul_unchecked(&b5[0..(chlen + 1)])
                 };
-                io.add_input_characters_utf8(&cstr);
+                io.add_input_characters_utf8(&imstr);
             },
 
             WindowEvent::KeyboardInput { input, .. } => {
