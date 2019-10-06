@@ -90,8 +90,6 @@ pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     // first we clear the background completely.
     for p in out.iter_mut() { *p = 0x8000; }
 
-    let mut tmp: Line = [0u16; 240];
- 
     for priority in 0u16..=3u16 {
         for bg_idx in 0usize..=3usize {
             let cnt = memory.ioregs.bg_cnt[bg_idx];
@@ -110,16 +108,17 @@ pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
             let bg = TextBG::new(cnt, xoffset, yoffset);
 
             if cnt.pal256() {
-                draw_bg_text_mode_16bit(line, bg, &mut tmp, &memory.mem_vram, &memory.palette);
+                draw_bg_text_mode_16bit(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
+                    if (col & 0x8000) != 0 {
+                        out[off] = col;
+                    }
+                });
             } else {
-                draw_bg_text_mode_4bit(line, bg, &mut tmp, &memory.mem_vram, &memory.palette);
-            }
-            
-            for idx in 0..240 {
-                let px = tmp[idx];
-                if (px & 0x8000) != 0 {
-                    out[idx] = px;
-                }
+                draw_bg_text_mode_4bit(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
+                    if (col & 0x8000) != 0 {
+                        out[off] = col;
+                    }
+                });
             }
         }
     }
@@ -145,7 +144,7 @@ const TEXT_MODE_SCREEN_SIZE: [(u32, u32); 4] = [
     (512, 512),
 ];
 
-fn draw_bg_text_mode_4bit(line: u32, bg: TextBG, out: &mut Line, vram: &[u8], palette: &Palette) {
+fn draw_bg_text_mode_4bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u8], palette: &Palette, mut poke: F) {
     let scx = bg.xoffset % bg.width;
     let scy = (bg.yoffset + line) % bg.height;
 
@@ -183,16 +182,16 @@ fn draw_bg_text_mode_4bit(line: u32, bg: TextBG, out: &mut Line, vram: &[u8], pa
                 let tpixel = vram[(tile_data_start + tx) as usize];
                 let left = palette.get_bg16(tile_palette, tpixel & 0xF);
                 let right = palette.get_bg16(tile_palette, (tpixel >> 4) & 0xF);
-                out[(dx + otx*2) as usize] = right;
-                out[(dx + otx*2 + 1) as usize] = left;
+                poke((dx + otx*2) as usize, right);
+                poke((dx + otx*2 + 1) as usize, left);
             }
         } else {
             for tx in 0..4 {
                 let tpixel = vram[(tile_data_start + tx) as usize];
                 let left = palette.get_bg16(tile_palette, tpixel & 0xF);
                 let right = palette.get_bg16(tile_palette, (tpixel >> 4) & 0xF);
-                out[(dx + tx*2) as usize] = left;
-                out[(dx + tx*2 + 1) as usize] = right;
+                poke((dx + tx*2) as usize, left);
+                poke((dx + tx*2 + 1) as usize, right);
             }
         }
     }
@@ -226,9 +225,9 @@ fn draw_bg_text_mode_4bit(line: u32, bg: TextBG, out: &mut Line, vram: &[u8], pa
                 let tx = if horizontal_flip { 7 - otx } else { otx };
                 let tpixel = vram[(tile_data_start + (tx / 2)) as usize];
                 if tx % 2 == 0 {
-                    out[(otx - unalign_start) as usize] = palette.get_bg16(tile_palette, tpixel & 0xF);
+                    poke((otx - unalign_start) as usize, palette.get_bg16(tile_palette, tpixel & 0xF));
                 } else {
-                    out[(otx - unalign_start) as usize] = palette.get_bg16(tile_palette, (tpixel >> 4) & 0xF);
+                    poke((otx - unalign_start) as usize, palette.get_bg16(tile_palette, (tpixel >> 4) & 0xF));
                 }
             }
 
@@ -260,16 +259,16 @@ fn draw_bg_text_mode_4bit(line: u32, bg: TextBG, out: &mut Line, vram: &[u8], pa
                 let tx = if horizontal_flip { 7 - (otx - unalign_start) } else { otx - unalign_start };
                 let tpixel = vram[(tile_data_start + (tx / 2)) as usize];
                 if tx % 2 == 0 {
-                    out[otx as usize] = palette.get_bg16(tile_palette, tpixel & 0xF);
+                    poke(otx as usize, palette.get_bg16(tile_palette, tpixel & 0xF));
                 } else {
-                    out[otx as usize] = palette.get_bg16(tile_palette, (tpixel >> 4) & 0xF);
+                    poke(otx as usize, palette.get_bg16(tile_palette, (tpixel >> 4) & 0xF));
                 }
             }
         }
     }
 }
 
-fn draw_bg_text_mode_16bit(line: u32, bg: TextBG, out: &mut Line, vram: &[u8], palette: &Palette) {
+fn draw_bg_text_mode_16bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u8], palette: &Palette, mut poke: F) {
     let scx = bg.xoffset % bg.width;
     let scy = (bg.yoffset + line) % bg.height;
 
@@ -304,12 +303,12 @@ fn draw_bg_text_mode_16bit(line: u32, bg: TextBG, out: &mut Line, vram: &[u8], p
             for otx in 0..8 {
                 let tx = 7 - otx;
                 let tpixel = vram[(tile_data_start + tx) as usize];
-                out[(dx + otx) as usize] = palette.get_bg256(tpixel);
+                poke((dx + otx) as usize, palette.get_bg256(tpixel));
             }
         } else {
             for tx in 0..8 {
                 let tpixel = vram[(tile_data_start + tx) as usize];
-                out[(dx + tx) as usize] = palette.get_bg256(tpixel);
+                poke((dx + tx) as usize, palette.get_bg256(tpixel));
             }
         }
     }
@@ -340,7 +339,7 @@ fn draw_bg_text_mode_16bit(line: u32, bg: TextBG, out: &mut Line, vram: &[u8], p
             for otx in unalign_start..8 {
                 let tx = if horizontal_flip { 7 - otx } else { otx };
                 let tpixel = vram[(tile_data_start + (tx / 2)) as usize];
-                out[(otx - unalign_start) as usize] = palette.get_bg256(tpixel);
+                poke((otx - unalign_start) as usize, palette.get_bg256(tpixel));
             }
         }
 
@@ -368,7 +367,7 @@ fn draw_bg_text_mode_16bit(line: u32, bg: TextBG, out: &mut Line, vram: &[u8], p
             for otx in unalign_start..240 {
                 let tx = if horizontal_flip { 7 - (otx - unalign_start) } else { otx - unalign_start };
                 let tpixel = vram[(tile_data_start + (tx / 2)) as usize];
-                out[otx as usize] = palette.get_bg256(tpixel);
+                poke(otx as usize, palette.get_bg256(tpixel));
             }
         }
     }
