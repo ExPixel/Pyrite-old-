@@ -145,7 +145,7 @@ const TEXT_MODE_SCREEN_SIZE: [(u32, u32); 4] = [
 ];
 
 fn draw_bg_text_mode_4bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u8], palette: &Palette, mut poke: F) {
-    let scx = bg.xoffset % bg.width;
+    let scx = bg.xoffset & (bg.width - 1);
     let scy = (bg.yoffset + line) % bg.height;
 
     let ty = scy % 8;
@@ -155,14 +155,16 @@ fn draw_bg_text_mode_4bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
     let area_y = scy % 256;
     let area_ty = area_y / 8;
 
-    for dx in (align_start..=(240 - 8 - align_end)).step_by(8) {
-        let scx = (scx + dx) % bg.width; // shadow scx in here
+    let mut dx = align_start;
+    while dx <= (240 - 8 - align_end) {
+        let scx = (scx + dx) & (bg.width - 1); // shadow scx in here
         let area_idx = (scy/256)*(bg.width/256) + (scx/256);
         let area_x = scx % 256;
         let area_tx = area_x / 8;
 
         let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
         if tile_info_offset >= 0x10000 { // this is in object VRAM
+            dx += 8;
             continue;
         }
 
@@ -173,6 +175,7 @@ fn draw_bg_text_mode_4bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
         let vertical_flip = (tile_info & 0x800) != 0;
         let tile_data_start = bg.char_base + (32 * tile_number) + (if vertical_flip { 28 - (4 * ty) } else { 4 * ty });
         if tile_data_start >= 0x10000 { // this is in object VRAM
+            dx += 8;
             continue;
         }
 
@@ -194,13 +197,15 @@ fn draw_bg_text_mode_4bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
                 poke((dx + tx*2 + 1) as usize, right);
             }
         }
+
+        dx += 8;
     }
 
     if align_start != 0 {
         // @NOTE I couldn't think of a better way to break out of a block wihout a whole bunch of nested
         // if statements...
         'left_edge: loop {
-            let scx = scx % bg.width;
+            let scx = scx & (bg.width - 1);
             let area_idx = (scy/256)*(bg.width/256) + (scx/256);
             let area_x = scx % 256;
             let area_tx = area_x / 8;
@@ -235,7 +240,7 @@ fn draw_bg_text_mode_4bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
         }
 
         'right_edge: loop {
-            let scx = (scx + 240 - align_end)  % bg.width;
+            let scx = (scx + 240 - align_end) & (bg.width - 1);
             let area_idx = (scy/256)*(bg.width/256) + (scx/256);
             let area_x = scx % 256;
             let area_tx = area_x / 8;
@@ -269,7 +274,7 @@ fn draw_bg_text_mode_4bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
 }
 
 fn draw_bg_text_mode_16bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u8], palette: &Palette, mut poke: F) {
-    let scx = bg.xoffset % bg.width;
+    let scx = bg.xoffset & (bg.width - 1);
     let scy = (bg.yoffset + line) % bg.height;
 
     let ty = scy % 8;
@@ -279,14 +284,16 @@ fn draw_bg_text_mode_16bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[
     let area_y = scy % 256;
     let area_ty = area_y / 8;
 
-    for dx in (align_start..=(240 - 8 - align_end)).step_by(8) {
-        let scx = (scx + dx) % bg.width; // shadow scx in here
+    let mut dx = align_start;
+    while dx <= (240 - 8 - align_end) {
+        let scx = (scx + dx) & (bg.width - 1); // shadow scx in here
         let area_idx = (scy/256)*(bg.width/256) + (scx/256);
         let area_x = scx % 256;
         let area_tx = area_x / 8;
 
         let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
         if tile_info_offset >= 0x10000 { // this is in object VRAM
+            dx += 8;
             continue;
         }
 
@@ -296,6 +303,7 @@ fn draw_bg_text_mode_16bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[
         let vertical_flip = (tile_info & 0x800) != 0;
         let tile_data_start = bg.char_base + (64 * tile_number) + (if vertical_flip { 56 - (8 * ty) } else { 8 * ty });
         if tile_data_start >= 0x10000 { // this is in object VRAM
+            dx += 8;
             continue;
         }
 
@@ -311,12 +319,14 @@ fn draw_bg_text_mode_16bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[
                 poke((dx + tx) as usize, palette.get_bg256(tpixel));
             }
         }
+
+        dx += 8;
     }
 
     if align_start != 0 {
         // Left Edge
         'left_edge: loop {
-            let scx = scx % bg.width;
+            let scx = scx & (bg.width - 1);
             let area_idx = (scy/256)*(bg.width/256) + (scx/256);
             let area_x = scx % 256;
             let area_tx = area_x / 8;
@@ -345,7 +355,7 @@ fn draw_bg_text_mode_16bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[
 
         // Right Edge
         'right_edge: loop {
-            let scx = (scx + 240 - align_end)  % bg.width;
+            let scx = (scx + 240 - align_end) & (bg.width - 1);
             let area_idx = (scy/256)*(bg.width/256) + (scx/256);
             let area_x = scx % 256;
             let area_tx = area_x / 8;
