@@ -72,25 +72,31 @@ impl Palette {
     pub fn get_bg16(&self, palette_index: u8, color_index: u8) -> u16 {
         debug_assert!(palette_index < 16, "palette index must be less than 16");
         debug_assert!(color_index < 16, "color index must be less than 16");
-        self.bg_colors[((palette_index * 16) + color_index) as usize]
+        fix_transparency(self.bg_colors[((palette_index * 16) + color_index) as usize], color_index != 0)
     }
 
     #[inline]
     pub fn get_bg256(&self, color_index: u8) -> u16 {
-        self.bg_colors[color_index as usize]
+        fix_transparency(self.bg_colors[color_index as usize], color_index != 0)
     }
 
     #[inline]
     pub fn get_obj16(&self, palette_index: u8, color_index: u8) -> u16 {
         debug_assert!(palette_index < 16, "palette index must be less than 16");
         debug_assert!(color_index < 16, "color index must be less than 16");
-        self.obj_colors[((palette_index * 16) + color_index) as usize]
+        fix_transparency(self.obj_colors[((palette_index * 16) + color_index) as usize], color_index != 0)
     }
 
     #[inline]
     pub fn get_obj256(&self, color_index: u8) -> u16 {
-        self.obj_colors[color_index as usize]
+        fix_transparency(self.obj_colors[color_index as usize], color_index != 0)
     }
+}
+
+#[inline(always)]
+fn fix_transparency(color: u16, opaque: bool) -> u16 {
+    let n = if opaque { 1 } else { 0 };
+    (color & 0x7FFF) | (n << 15)
 }
 
 // pub fn u16_to_pixel(p16: u16) -> u32 {

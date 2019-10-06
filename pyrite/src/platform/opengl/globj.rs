@@ -392,6 +392,10 @@ impl Texture {
         }
     }
 
+    pub fn get_handle(&self) -> GLuint {
+        self.handle
+    }
+
     pub fn get_width(&mut self) -> u32 {
         self.width
     }

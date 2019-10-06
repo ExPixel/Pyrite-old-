@@ -1,5 +1,8 @@
 use pyrite_gba::GbaVideoOutput;
+mod gba;
 mod globj;
+
+pub use gba::GbaTexture;
 
 pub struct PyriteGL {
     vertex_array:       globj::VertexArray,

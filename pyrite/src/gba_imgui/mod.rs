@@ -1,15 +1,19 @@
+mod widgets;
 use pyrite_gba::Gba;
+use crate::platform::opengl::GbaTexture;
 
 pub struct GbaImGui {
-    video:  crate::platform::opengl::PyriteGL,
-    gba:    Gba,
+    gba: Gba,
+    emulator_display_window_open: bool,
+    gba_texture: GbaTexture,
 }
 
 impl GbaImGui {
     pub fn new(gba: Gba, window: &glutin::Window) -> GbaImGui {
         let mut ret = GbaImGui {
-            video:  crate::platform::opengl::PyriteGL::new(),
-            gba:    gba,
+            gba: gba,
+            emulator_display_window_open: true,
+            gba_texture: GbaTexture::new(),
         };
         ret.init(window);
         ret
@@ -97,10 +101,9 @@ impl GbaImGui {
     fn render_gba_frame(&mut self) {
         let mut no_audio = pyrite_gba::NoAudioOutput;
         loop {
-            self.gba.step(&mut self.video, &mut no_audio);
+            self.gba.step(&mut self.gba_texture, &mut no_audio);
             if self.gba.is_frame_ready() { break }
         }
-        self.video.render();
     }
 
     pub fn render_frame(&mut self, window: &glutin::Window) {
@@ -118,15 +121,18 @@ impl GbaImGui {
         imgui::new_frame();
 
         // Send ImGui commands and build the current frame here:
-        // self.ui.render(&mut self.gba);
-        if imgui::begin(imgui::str!("Test"), &mut true, imgui::none()) {
-            imgui::end();
-        }
+        self.render_gui();
 
         // Render ImGui
         imgui::render();
 
         imgui::impls::opengl3::render_draw_data(imgui::get_draw_data());
+    }
+
+    fn render_gui(&mut self) {
+        if self.emulator_display_window_open {
+            widgets::draw_emulator_display_widget(&self.gba_texture, &mut self.emulator_display_window_open);
+        }
     }
 }
 

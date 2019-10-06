@@ -1,10 +1,16 @@
 use crate::imstr::{ImStr};
 use crate::flags::*;
 use crate::sys;
-pub use crate::sys::ImVec2;
-pub use crate::sys::ImVec4;
 
-// use std::os::raw::c_int;
+pub use crate::sys::{
+    ImVec2,
+    ImVec4,
+    ImFontAtlas,
+    ImGuiIO,
+    ImGuiContext,
+    ImDrawData,
+    ImTextureID,
+};
 
 pub fn get_version() -> &'static ImStr {
     unsafe {
@@ -78,15 +84,35 @@ pub fn begin(name: &ImStr, p_open: &mut bool, flags: WindowFlags) -> bool {
     }
 }
 
+pub fn end() {
+    unsafe {
+        sys::igEnd()
+    }
+}
+
 pub fn get_mouse_cursor() -> MouseCursor {
     unsafe {
         MouseCursor::from_bits(sys::igGetMouseCursor()).expect("invalid mouse cursor value")
     }
 }
 
-pub fn end() {
+pub fn image(user_texture_id: sys::ImTextureID, size: ImVec2, uv0: Option<ImVec2>, uv1: Option<ImVec2>, tint_col: Option<ImVec4>, border_col: Option<ImVec4>) {
     unsafe {
-        sys::igEnd()
+        sys::igImage(user_texture_id, size,
+            uv0.unwrap_or(vec2(0.0, 0.0)),
+            uv1.unwrap_or(vec2(1.0, 1.0)),
+            tint_col.unwrap_or(vec4(1.0, 1.0, 1.0, 1.0)),
+            border_col.unwrap_or(vec4(0.0, 0.0, 0.0, 0.0)))
+    }
+}
+
+pub fn image_with_size(user_texture_id: sys::ImTextureID, size: ImVec2) {
+    image(user_texture_id, size, None, None, None, None)
+}
+
+pub fn get_window_content_region_max() -> ImVec2 {
+    unsafe {
+        sys::igGetContentRegionAvail_nonUDT2().into()
     }
 }
 
@@ -161,6 +187,13 @@ impl sys::ImDrawData {
         unsafe {
             sys::ImDrawData_ScaleClipRects(self, fb_scale)
         }
+    }
+}
+
+impl std::convert::From<sys::ImVec2_Simple> for ImVec2 {
+    #[inline(always)]
+    fn from(simple: sys::ImVec2_Simple) -> Self {
+        ImVec2 { x: simple.x, y: simple.y }
     }
 }
 
