@@ -269,6 +269,8 @@ fn draw_bg_text_mode_4bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
                     poke(otx as usize, palette.get_bg16(tile_palette, (tpixel >> 4) & 0xF));
                 }
             }
+
+            break 'right_edge;
         }
     }
 }
@@ -351,6 +353,8 @@ fn draw_bg_text_mode_16bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[
                 let tpixel = vram[(tile_data_start + (tx / 2)) as usize];
                 poke((otx - unalign_start) as usize, palette.get_bg256(tpixel));
             }
+
+            break 'left_edge;
         }
 
         // Right Edge
@@ -379,6 +383,8 @@ fn draw_bg_text_mode_16bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[
                 let tpixel = vram[(tile_data_start + (tx / 2)) as usize];
                 poke(otx as usize, palette.get_bg256(tpixel));
             }
+
+            break 'right_edge;
         }
     }
 }
