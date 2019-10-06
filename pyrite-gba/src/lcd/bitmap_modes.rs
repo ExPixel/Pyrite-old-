@@ -2,6 +2,7 @@
 //! Bitmaps are implemented as BG2, with Rotation/Scaling support. As bitmap modes are occupying 80KBytes of BG memory,
 //! only 16KBytes of VRAM can be used for OBJ tiles.
 
+use super::Line;
 use super::super::GbaMemory;
 use super::super::memory::read16_le;
 
@@ -18,7 +19,7 @@ use super::super::memory::read16_le;
 /// The first 480 bytes define the topmost line, the next 480 the next line, and so on.
 /// The background occupies 75 KBytes (06000000-06012BFF), most of the 80 Kbytes BG area,
 /// not allowing to redraw an invisible second frame in background, so this mode is mostly recommended for still images only.
-pub fn mode3(line: u32, out: &mut [u16], memory: &mut GbaMemory) {
+pub fn mode3(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     let pixel_data_start = 480 * line as usize;
     for pixel_offset in 0..240 {
         let pixel = read16_le(&memory.mem_vram, pixel_data_start + (pixel_offset * 2));
@@ -26,7 +27,7 @@ pub fn mode3(line: u32, out: &mut [u16], memory: &mut GbaMemory) {
     }
 }
 
-pub fn mode4(line: u32, out: &mut [u16], memory: &mut GbaMemory) {
+pub fn mode4(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     const FRAME1_OFFSET: usize = 0xA000;
 
     let pixel_data_start = 240*(line as usize) + FRAME1_OFFSET*(memory.ioregs.dispcnt.frame() as usize);
@@ -36,6 +37,6 @@ pub fn mode4(line: u32, out: &mut [u16], memory: &mut GbaMemory) {
     }
 }
 
-pub fn mode5(_line: u32, _out: &mut [u16], _memory: &mut GbaMemory) {
+pub fn mode5(_line: u32, _out: &mut Line, _memory: &mut GbaMemory) {
     unimplemented!("mode5 rendering");
 }

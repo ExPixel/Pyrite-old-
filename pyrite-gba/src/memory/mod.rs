@@ -1129,19 +1129,19 @@ mod test {
         // Simple IO register write:
         memory.write_halfword(0x04000008, 0xFBEA);
         assert_eq!(memory.read_halfword(0x04000008), 0xFBEA);
-        assert_eq!(memory.ioregs.bg0cnt.inner, 0xFBEA);
+        assert_eq!(memory.ioregs.bg_cnt[0].inner, 0xFBEA);
 
         // Writing to 2 IO registers at once:
         memory.write_word(0x04000014, 0xBEE5CABE);
         assert_eq!(memory.read_halfword(0x04000014), 0xCABE);
         assert_eq!(memory.read_halfword(0x04000016), 0xBEE5);
-        assert_eq!(memory.ioregs.bg1hofs.inner, 0xCABE);
-        assert_eq!(memory.ioregs.bg1vofs.inner, 0xBEE5);
+        assert_eq!(memory.ioregs.bg_hofs[1].inner, 0xCABE);
+        assert_eq!(memory.ioregs.bg_vofs[1].inner, 0xBEE5);
 
         // Partial Register Write:
         memory.write_byte(0x04000018, 0xDD);
         assert_eq!(memory.read_byte(0x04000018), 0xDD);
-        assert_eq!(memory.ioregs.bg2hofs.inner as u8, 0xDD);
+        assert_eq!(memory.ioregs.bg_hofs[2].inner as u8, 0xDD);
 
         // Partial Register Read
         memory.write_halfword(0x04000018, 0xEFBE);

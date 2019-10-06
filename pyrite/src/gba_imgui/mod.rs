@@ -4,7 +4,7 @@ use crate::platform::opengl::GbaTexture;
 
 pub struct GbaImGui {
     gba: Gba,
-    emulator_display_window_open: bool,
+    emulator_display: widgets::EmulatorDisplayWidget,
     gba_texture: GbaTexture,
 }
 
@@ -12,7 +12,7 @@ impl GbaImGui {
     pub fn new(gba: Gba, window: &glutin::Window) -> GbaImGui {
         let mut ret = GbaImGui {
             gba: gba,
-            emulator_display_window_open: true,
+            emulator_display: widgets::EmulatorDisplayWidget::new(),
             gba_texture: GbaTexture::new(),
         };
         ret.init(window);
@@ -64,26 +64,28 @@ impl GbaImGui {
 
         match window_event {
             glutin::WindowEvent::KeyboardInput { input, .. } => {
-                let pressed = match input.state {
-                    glutin::ElementState::Pressed => true,
-                    glutin::ElementState::Released => false,
-                };
+                if self.emulator_display.is_focused() {
+                    let pressed = match input.state {
+                        glutin::ElementState::Pressed => true,
+                        glutin::ElementState::Released => false,
+                    };
 
-                match input.virtual_keycode {
-                    Some(VirtualKeyCode::Left) => self.gba.set_key_pressed(KeypadInput::Left, pressed),
-                    Some(VirtualKeyCode::Right) => self.gba.set_key_pressed(KeypadInput::Right, pressed),
-                    Some(VirtualKeyCode::Up) => self.gba.set_key_pressed(KeypadInput::Up, pressed),
-                    Some(VirtualKeyCode::Down) => self.gba.set_key_pressed(KeypadInput::Down, pressed),
+                    match input.virtual_keycode {
+                        Some(VirtualKeyCode::Left) => self.gba.set_key_pressed(KeypadInput::Left, pressed),
+                        Some(VirtualKeyCode::Right) => self.gba.set_key_pressed(KeypadInput::Right, pressed),
+                        Some(VirtualKeyCode::Up) => self.gba.set_key_pressed(KeypadInput::Up, pressed),
+                        Some(VirtualKeyCode::Down) => self.gba.set_key_pressed(KeypadInput::Down, pressed),
 
-                    Some(VirtualKeyCode::Return) => self.gba.set_key_pressed(KeypadInput::Start, pressed),
-                    Some(VirtualKeyCode::Back) => self.gba.set_key_pressed(KeypadInput::Select, pressed),
+                        Some(VirtualKeyCode::Return) => self.gba.set_key_pressed(KeypadInput::Start, pressed),
+                        Some(VirtualKeyCode::Back) => self.gba.set_key_pressed(KeypadInput::Select, pressed),
 
-                    Some(VirtualKeyCode::Z) => self.gba.set_key_pressed(KeypadInput::ButtonA, pressed),
-                    Some(VirtualKeyCode::X) => self.gba.set_key_pressed(KeypadInput::ButtonB, pressed),
+                        Some(VirtualKeyCode::Z) => self.gba.set_key_pressed(KeypadInput::ButtonA, pressed),
+                        Some(VirtualKeyCode::X) => self.gba.set_key_pressed(KeypadInput::ButtonB, pressed),
 
-                    Some(VirtualKeyCode::A) => self.gba.set_key_pressed(KeypadInput::ButtonL, pressed),
-                    Some(VirtualKeyCode::S) => self.gba.set_key_pressed(KeypadInput::ButtonR, pressed),
-                    _ => { /* NOP */ },
+                        Some(VirtualKeyCode::A) => self.gba.set_key_pressed(KeypadInput::ButtonL, pressed),
+                        Some(VirtualKeyCode::S) => self.gba.set_key_pressed(KeypadInput::ButtonR, pressed),
+                        _ => { /* NOP */ },
+                    }
                 }
             },
 
@@ -130,8 +132,8 @@ impl GbaImGui {
     }
 
     fn render_gui(&mut self) {
-        if self.emulator_display_window_open {
-            widgets::draw_emulator_display_widget(&self.gba_texture, &mut self.emulator_display_window_open);
+        if self.emulator_display.open {
+            self.emulator_display.draw(&self.gba_texture);
         }
     }
 }

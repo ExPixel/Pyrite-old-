@@ -12,6 +12,8 @@ pub const VBLANK_LINES: u32 = 68;
 pub const HDRAW_CYCLES: u32 = 960;
 pub const HBLANK_CYCLES: u32 = 272;
 
+pub type Line = [u16; 240];
+
 pub struct GbaLCD {
     pub(crate) end_of_frame: bool,
 
@@ -19,7 +21,7 @@ pub struct GbaLCD {
     cycles_remaining:   u32,
     in_hblank:          bool,
     line_number:        u32,
-    line_pixels:        [u16; 240],
+    line_pixels:        Line,
 }
 
 impl GbaLCD {

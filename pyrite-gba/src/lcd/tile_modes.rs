@@ -79,18 +79,21 @@
 //! 
 //! The size and VRAM base address of the separate BG maps for BG0-3 are set up by BG0CNT-BG3CNT registers.
 
+use super::Line;
 use super::super::GbaMemory;
 use super::super::memory::ioreg::{ RegBGxCNT, RegBGxHOFS, RegBGxVOFS };
 use super::super::memory::palette::Palette;
 use super::super::memory::read16_le;
 // use super::super::memory::palette::u16_to_pixel;
 
-pub fn mode0(line: u32, out: &mut [u16], memory: &mut GbaMemory) {
+pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     // first we clear the background completely.
-    for p in out.iter_mut() { *p = 0; }
+    for p in out.iter_mut() { *p = 0x8000; }
+
+    let mut tmp: Line = [0u16; 240];
  
-    for (priority) in (0u16..=3u16) {
-        for bg_idx in (0usize..=3usize) {
+    for priority in 0u16..=3u16 {
+        for bg_idx in 0usize..=3usize {
             let cnt = memory.ioregs.bg_cnt[bg_idx];
             if cnt.priority() != priority { continue; }
             let enabled = match bg_idx {
@@ -107,18 +110,25 @@ pub fn mode0(line: u32, out: &mut [u16], memory: &mut GbaMemory) {
             let bg = TextBG::new(cnt, xoffset, yoffset);
 
             if cnt.pal256() {
-                draw_bg_text_mode_16bit(line, bg, out, &memory.mem_vram, &memory.palette);
+                draw_bg_text_mode_16bit(line, bg, &mut tmp, &memory.mem_vram, &memory.palette);
             } else {
-                draw_bg_text_mode_4bit(line, bg, out, &memory.mem_vram, &memory.palette);
+                draw_bg_text_mode_4bit(line, bg, &mut tmp, &memory.mem_vram, &memory.palette);
+            }
+            
+            for idx in 0..240 {
+                let px = tmp[idx];
+                if (px & 0x8000) != 0 {
+                    out[idx] = px;
+                }
             }
         }
     }
 }
 
-pub fn mode1(_line: u32, _out: &mut [u16], _memory: &mut GbaMemory) {
+pub fn mode1(_line: u32, _out: &mut Line, _memory: &mut GbaMemory) {
 }
 
-pub fn mode2(_line: u32, _out: &mut [u16], _memory: &mut GbaMemory) {
+pub fn mode2(_line: u32, _out: &mut Line, _memory: &mut GbaMemory) {
 }
 
 /// Internal Screen Size (dots) and size of BG Map (bytes):
@@ -135,7 +145,7 @@ const TEXT_MODE_SCREEN_SIZE: [(u32, u32); 4] = [
     (512, 512),
 ];
 
-fn draw_bg_text_mode_4bit(line: u32, bg: TextBG, out: &mut [u16], vram: &[u8], palette: &Palette) {
+fn draw_bg_text_mode_4bit(line: u32, bg: TextBG, out: &mut Line, vram: &[u8], palette: &Palette) {
     let scx = bg.xoffset % bg.width;
     let scy = (bg.yoffset + line) % bg.height;
 
@@ -143,7 +153,6 @@ fn draw_bg_text_mode_4bit(line: u32, bg: TextBG, out: &mut [u16], vram: &[u8], p
     let align_start = if scx % 8 != 0 { 8 - (scx % 8) } else { 0 }; // start at the next whole tile on screen
     let align_end = if align_start != 0 { 8 - align_start } else { 0 };
 
-    let screen_tile_y_offset = (scy / 8) * (bg.width / 8);
     let area_y = scy % 256;
     let area_ty = area_y / 8;
 
@@ -154,12 +163,19 @@ fn draw_bg_text_mode_4bit(line: u32, bg: TextBG, out: &mut [u16], vram: &[u8], p
         let area_tx = area_x / 8;
 
         let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
+        if tile_info_offset >= 0x10000 { // this is in object VRAM
+            continue;
+        }
+
         let tile_info = read16_le(vram, tile_info_offset as usize);
         let tile_number = (tile_info & 0x3FF) as u32;
         let tile_palette = ((tile_info >> 12) & 0xF) as u8;
         let horizontal_flip = (tile_info & 0x400) != 0;
         let vertical_flip = (tile_info & 0x800) != 0;
         let tile_data_start = bg.char_base + (32 * tile_number) + (if vertical_flip { 28 - (4 * ty) } else { 4 * ty });
+        if tile_data_start >= 0x10000 { // this is in object VRAM
+            continue;
+        }
 
         if horizontal_flip {
             for otx in 0..4 {
@@ -182,19 +198,28 @@ fn draw_bg_text_mode_4bit(line: u32, bg: TextBG, out: &mut [u16], vram: &[u8], p
     }
 
     if align_start != 0 {
-        // Left Edge
-        {
+        // @NOTE I couldn't think of a better way to break out of a block wihout a whole bunch of nested
+        // if statements...
+        'left_edge: loop {
             let scx = scx % bg.width;
             let area_idx = (scy/256)*(bg.width/256) + (scx/256);
             let area_x = scx % 256;
             let area_tx = area_x / 8;
             let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
+            if tile_info_offset >= 0x10000 { // this is in object VRAM
+                break 'left_edge;
+            }
+
             let tile_info = read16_le(vram, tile_info_offset as usize);
             let tile_number = (tile_info & 0x3FF) as u32;
             let tile_palette = ((tile_info >> 12) & 0xF) as u8;
             let horizontal_flip = (tile_info & 0x400) != 0;
             let vertical_flip = (tile_info & 0x800) != 0;
             let tile_data_start = bg.char_base + (32 * tile_number) + (if vertical_flip { 28 - (4 * ty) } else { 4 * ty });
+            if tile_data_start >= 0x10000 { // this is in object VRAM
+                break 'left_edge;
+            }
+
             let unalign_start = scx % 8;
 
             for otx in unalign_start..8 {
@@ -206,23 +231,31 @@ fn draw_bg_text_mode_4bit(line: u32, bg: TextBG, out: &mut [u16], vram: &[u8], p
                     out[(otx - unalign_start) as usize] = palette.get_bg16(tile_palette, (tpixel >> 4) & 0xF);
                 }
             }
+
+            break 'left_edge;
         }
 
-        // Right Edge
-        {
+        'right_edge: loop {
             let scx = (scx + 240 - align_end)  % bg.width;
             let area_idx = (scy/256)*(bg.width/256) + (scx/256);
             let area_x = scx % 256;
             let area_tx = area_x / 8;
             let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
+            if tile_info_offset >= 0x10000 { // this is in object VRAM
+                break 'right_edge;
+            }
+
             let tile_info = read16_le(vram, tile_info_offset as usize);
             let tile_number = (tile_info & 0x3FF) as u32;
             let tile_palette = ((tile_info >> 12) & 0xF) as u8;
             let horizontal_flip = (tile_info & 0x400) != 0;
             let vertical_flip = (tile_info & 0x800) != 0;
             let tile_data_start = bg.char_base + (32 * tile_number) + (if vertical_flip { 28 - (4 * ty) } else { 4 * ty });
+            if tile_data_start >= 0x10000 { // this is in object VRAM
+                break 'right_edge;
+            }
 
-            let unalign_start = (240 - align_end);
+            let unalign_start = 240 - align_end;
             for otx in unalign_start..240 {
                 let tx = if horizontal_flip { 7 - (otx - unalign_start) } else { otx - unalign_start };
                 let tpixel = vram[(tile_data_start + (tx / 2)) as usize];
@@ -236,7 +269,7 @@ fn draw_bg_text_mode_4bit(line: u32, bg: TextBG, out: &mut [u16], vram: &[u8], p
     }
 }
 
-fn draw_bg_text_mode_16bit(line: u32, bg: TextBG, out: &mut [u16], vram: &[u8], palette: &Palette) {
+fn draw_bg_text_mode_16bit(line: u32, bg: TextBG, out: &mut Line, vram: &[u8], palette: &Palette) {
     let scx = bg.xoffset % bg.width;
     let scy = (bg.yoffset + line) % bg.height;
 
@@ -244,7 +277,6 @@ fn draw_bg_text_mode_16bit(line: u32, bg: TextBG, out: &mut [u16], vram: &[u8], 
     let align_start = if scx % 8 != 0 { 8 - (scx % 8) } else { 0 }; // start at the next whole tile on screen
     let align_end = if align_start != 0 { 8 - align_start } else { 0 };
 
-    let screen_tile_y_offset = (scy / 8) * (bg.width / 8);
     let area_y = scy % 256;
     let area_ty = area_y / 8;
 
@@ -255,11 +287,18 @@ fn draw_bg_text_mode_16bit(line: u32, bg: TextBG, out: &mut [u16], vram: &[u8], 
         let area_tx = area_x / 8;
 
         let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
+        if tile_info_offset >= 0x10000 { // this is in object VRAM
+            continue;
+        }
+
         let tile_info = read16_le(vram, tile_info_offset as usize);
         let tile_number = (tile_info & 0x3FF) as u32;
         let horizontal_flip = (tile_info & 0x400) != 0;
         let vertical_flip = (tile_info & 0x800) != 0;
         let tile_data_start = bg.char_base + (64 * tile_number) + (if vertical_flip { 56 - (8 * ty) } else { 8 * ty });
+        if tile_data_start >= 0x10000 { // this is in object VRAM
+            continue;
+        }
 
         if horizontal_flip {
             for otx in 0..8 {
@@ -270,7 +309,6 @@ fn draw_bg_text_mode_16bit(line: u32, bg: TextBG, out: &mut [u16], vram: &[u8], 
         } else {
             for tx in 0..8 {
                 let tpixel = vram[(tile_data_start + tx) as usize];
-                let tpixel = vram[(tile_data_start + tx) as usize];
                 out[(dx + tx) as usize] = palette.get_bg256(tpixel);
             }
         }
@@ -278,18 +316,25 @@ fn draw_bg_text_mode_16bit(line: u32, bg: TextBG, out: &mut [u16], vram: &[u8], 
 
     if align_start != 0 {
         // Left Edge
-        {
+        'left_edge: loop {
             let scx = scx % bg.width;
             let area_idx = (scy/256)*(bg.width/256) + (scx/256);
             let area_x = scx % 256;
             let area_tx = area_x / 8;
             let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
+            if tile_info_offset >= 0x10000 { // this is in object VRAM
+                break 'left_edge;
+            }
+
             let tile_info = read16_le(vram, tile_info_offset as usize);
             let tile_number = (tile_info & 0x3FF) as u32;
-            let tile_palette = ((tile_info >> 12) & 0xF) as u8;
             let horizontal_flip = (tile_info & 0x400) != 0;
             let vertical_flip = (tile_info & 0x800) != 0;
             let tile_data_start = bg.char_base + (64 * tile_number) + (if vertical_flip { 56 - (8 * ty) } else { 8 * ty });
+            if tile_data_start >= 0x10000 { // this is in object VRAM
+                break 'left_edge;
+            }
+
             let unalign_start = scx % 8;
 
             for otx in unalign_start..8 {
@@ -300,20 +345,26 @@ fn draw_bg_text_mode_16bit(line: u32, bg: TextBG, out: &mut [u16], vram: &[u8], 
         }
 
         // Right Edge
-        {
+        'right_edge: loop {
             let scx = (scx + 240 - align_end)  % bg.width;
             let area_idx = (scy/256)*(bg.width/256) + (scx/256);
             let area_x = scx % 256;
             let area_tx = area_x / 8;
             let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
+            if tile_info_offset >= 0x10000 { // this is in object VRAM
+                break 'right_edge;
+            }
+
             let tile_info = read16_le(vram, tile_info_offset as usize);
             let tile_number = (tile_info & 0x3FF) as u32;
-            let tile_palette = ((tile_info >> 12) & 0xF) as u8;
             let horizontal_flip = (tile_info & 0x400) != 0;
             let vertical_flip = (tile_info & 0x800) != 0;
             let tile_data_start = bg.char_base + (64 * tile_number) + (if vertical_flip { 56 - (8 * ty) } else { 8 * ty });
+            if tile_data_start >= 0x10000 { // this is in object VRAM
+                break 'right_edge;
+            }
 
-            let unalign_start = (240 - align_end);
+            let unalign_start = 240 - align_end;
             for otx in unalign_start..240 {
                 let tx = if horizontal_flip { 7 - (otx - unalign_start) } else { otx - unalign_start };
                 let tpixel = vram[(tile_data_start + (tx / 2)) as usize];

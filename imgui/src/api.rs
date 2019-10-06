@@ -6,10 +6,12 @@ pub use crate::sys::{
     ImVec2,
     ImVec4,
     ImFontAtlas,
-    ImGuiIO,
-    ImGuiContext,
     ImDrawData,
     ImTextureID,
+
+    ImGuiIO,
+    ImGuiContext,
+    ImGuiSizeCallbackData,
 };
 
 pub fn get_version() -> &'static ImStr {
@@ -96,7 +98,7 @@ pub fn get_mouse_cursor() -> MouseCursor {
     }
 }
 
-pub fn image(user_texture_id: sys::ImTextureID, size: ImVec2, uv0: Option<ImVec2>, uv1: Option<ImVec2>, tint_col: Option<ImVec4>, border_col: Option<ImVec4>) {
+pub fn image_with_colors(user_texture_id: sys::ImTextureID, size: ImVec2, uv0: Option<ImVec2>, uv1: Option<ImVec2>, tint_col: Option<ImVec4>, border_col: Option<ImVec4>) {
     unsafe {
         sys::igImage(user_texture_id, size,
             uv0.unwrap_or(vec2(0.0, 0.0)),
@@ -106,8 +108,8 @@ pub fn image(user_texture_id: sys::ImTextureID, size: ImVec2, uv0: Option<ImVec2
     }
 }
 
-pub fn image_with_size(user_texture_id: sys::ImTextureID, size: ImVec2) {
-    image(user_texture_id, size, None, None, None, None)
+pub fn image(user_texture_id: sys::ImTextureID, size: ImVec2) {
+    image_with_colors(user_texture_id, size, None, None, None, None)
 }
 
 pub fn get_window_content_region_max() -> ImVec2 {
@@ -115,6 +117,57 @@ pub fn get_window_content_region_max() -> ImVec2 {
         sys::igGetContentRegionAvail_nonUDT2().into()
     }
 }
+
+pub fn set_next_window_size_constraints(size_min: ImVec2, size_max: ImVec2, custom_callback: Option<fn(data: &mut sys::ImGuiSizeCallbackData)>) {
+    unsafe {
+        // @NOTE I don't even know, dude
+        sys::igSetNextWindowSizeConstraints(size_min, size_max, Some(imgui_size_callback_trampoline),
+            opt_mut_ptr(custom_callback.map(|cb| std::mem::transmute::<*mut std::ffi::c_void, &mut std::ffi::c_void>(cb as *mut std::ffi::c_void))));
+    }
+}
+
+// @TODO make this use a closure instead at some point :P
+unsafe extern "C" fn imgui_size_callback_trampoline(data: *mut sys::ImGuiSizeCallbackData) {
+    if !(*data).UserData.is_null() {
+        let real_callback = std::mem::transmute::<_, fn(data: &mut sys::ImGuiSizeCallbackData)>((*data).UserData);
+        (*data).UserData = std::ptr::null_mut(); // temporarily remove it
+        real_callback(std::mem::transmute(data));
+        (*data).UserData = std::mem::transmute::<*mut std::ffi::c_void, &mut std::ffi::c_void>(real_callback as *mut std::ffi::c_void);
+    }
+}
+
+pub fn push_style_var_float(idx: StyleVar, val: f32) {
+    unsafe {
+        sys::igPushStyleVarFloat(idx.bits() as _, val);
+    }
+}
+
+pub fn push_style_var_vec2(idx: StyleVar, val: ImVec2) {
+    unsafe {
+        sys::igPushStyleVarVec2(idx.bits() as _, val);
+    }
+}
+
+pub fn pop_style_var(count: i32) {
+    unsafe {
+        sys::igPopStyleVar(count)
+    }
+}
+
+pub fn set_next_window_content_size(size: ImVec2) {
+    unsafe {
+        sys::igSetNextWindowContentSize(size)
+    }
+}
+
+pub fn is_window_focused(flags: FocusedFlags) -> bool {
+    unsafe {
+        sys::igIsWindowFocused(flags.bits() as _)
+    }
+}
+
+// typedef void (*ImGuiSizeCallback)(ImGuiSizeCallbackData* data);
+// IMGUI_API void          SetNextWindowSizeConstraints(const ImVec2& size_min, const ImVec2& size_max, ImGuiSizeCallback custom_callback = NULL, void* custom_callback_data = NULL); // set next window size limits. use -1,-1 on either X/Y axis to preserve the current size. Sizes will be rounded down. Use callback to apply non-trivial programmatic constraints.
 
 /////////////////////////////////////////////
 //
@@ -233,7 +286,7 @@ mod tests {
     fn check_version_and_data_layout() {
         use std::mem::size_of;
         assert_eq!(super::debug_version_and_data_layout(
-            super::sys::get_version(),
+            super::get_version(),
             size_of::<super::sys::ImGuiIO>(),
             size_of::<super::sys::ImGuiStyle>(),
             size_of::<super::sys::ImVec2>(),
