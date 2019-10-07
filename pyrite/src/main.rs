@@ -11,7 +11,7 @@ fn main() {
 }
 
 fn run_emulator() -> i32 {
-    let mut window = platform::glutin::window::Window::new("Pyrite", 480.0, 320.0);
+    let mut window = platform::glutin::window::Window::new("Pyrite", 240.0 * 3.0, 160.0 * 3.0);
     if let Err(_) = window.set_position_center() {
         log::error!("failed to place the window in the center of the screen");
     }
@@ -45,24 +45,9 @@ fn run_emulator() -> i32 {
     }
 
     let mut imgui_ui = gba_imgui::GbaImGui::new(gba, window.glutin_window());
-
-    // let mut fps_counter = FPSCounter::new();
-    // let mut title_buffer = "Pyrite (NO FPS)".to_string();
     while !window.close_requested() {
-        // if let Some(fps) = fps_counter.frame() {
-        //     {
-        //         use std::io::Write;
-        //         title_buffer.clear();
-        //         let mut cursor = std::io::Cursor::new(title_buffer.into_bytes());
-        //         write!(&mut cursor, "Pyrite ({:.02} FPS)", fps).expect("failed to write title");
-        //         title_buffer = unsafe { String::from_utf8_unchecked(cursor.into_inner()) };
-        //     }
-        //     window.set_title(&title_buffer);
-        // }
-
         window.handle_events_with_handler(|window, event| imgui_ui.handle_event(window, event));
         imgui_ui.render_frame(window.glutin_window());
-
         window.flip();
     }
 
@@ -78,39 +63,3 @@ fn load_binary<P: AsRef<std::path::Path>>(path: P) -> std::io::Result<Vec<u8>> {
     f.read_to_end(&mut binary)?;
     return Ok(binary);
 }
-
-// struct FPSCounter {
-//     last_frame_start: std::time::Instant,
-//     frame_time_acc: std::time::Duration,
-//     frames_since_last_check: u32,
-// }
-
-// impl FPSCounter {
-//     pub fn new() -> FPSCounter {
-//         FPSCounter {
-//             last_frame_start: std::time::Instant::now(),
-//             frame_time_acc: std::time::Duration::from_millis(0),
-//             frames_since_last_check: 0,
-//         }
-//     }
-
-//     pub fn frame(&mut self) -> Option<f64> {
-//         let current_frame_start = std::time::Instant::now();
-//         let last_frame_time = current_frame_start.duration_since(self.last_frame_start);
-//         self.frame_time_acc += last_frame_time;
-//         self.last_frame_start = current_frame_start;
-
-//         let mut ret = None;
-//         if self.frame_time_acc.as_micros() >= 1000000 {
-//             let seconds = self.frame_time_acc.as_secs_f64() + (self.frame_time_acc.subsec_nanos() as f64 / 1000000000.0);
-//             let fps = (self.frames_since_last_check as f64) / seconds;
-//             self.frames_since_last_check = 0;
-//             self.frame_time_acc = std::time::Duration::from_millis(0);
-//             ret = Some(fps);
-//         }
-
-//         self.frames_since_last_check += 1;
-        
-//         return ret;
-//     }
-// }

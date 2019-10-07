@@ -760,6 +760,7 @@ dependencies = [
  "glutin 0.21.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "imgui 0.1.0",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pyrite-common 0.1.0",
  "pyrite-gba 0.1.0",
 ]
 

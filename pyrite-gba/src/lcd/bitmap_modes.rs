@@ -22,7 +22,7 @@ use super::super::memory::read16_le;
 pub fn mode3(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     let pixel_data_start = 480 * line as usize;
     for pixel_offset in 0..240 {
-        let pixel = read16_le(&memory.mem_vram, pixel_data_start + (pixel_offset * 2));
+        let pixel = read16_le(&memory.mem_vram, pixel_data_start + (pixel_offset * 2)) | 0x8000;
         out[pixel_offset as usize] = pixel;
     }
 }

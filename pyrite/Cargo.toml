@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 pyrite-gba = { path = "../pyrite-gba" }
+pyrite-common = { path = "../pyrite-common" }
 gl = "0.13.0"
 glutin = "0.21.1"
 log = { version = "0.4", features = ["std"] }

@@ -79,7 +79,7 @@
 //! 
 //! The size and VRAM base address of the separate BG maps for BG0-3 are set up by BG0CNT-BG3CNT registers.
 
-use super::Line;
+use super::{ Line, obj };
 use super::super::GbaMemory;
 use super::super::memory::ioreg::{ RegBGxCNT, RegBGxHOFS, RegBGxVOFS };
 use super::super::memory::palette::Palette;
@@ -87,8 +87,12 @@ use super::super::memory::read16_le;
 // use super::super::memory::palette::u16_to_pixel;
 
 pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
+    let backdrop = memory.palette.get_bg256(0) | 0x8000;
+
     // first we clear the background completely.
-    for p in out.iter_mut() { *p = 0x8000; }
+    for p in out.iter_mut() { *p = backdrop; }
+
+    let mut pixel_priority_mask = [4u8; 240];
 
     for priority in 0u16..=3u16 {
         for bg_idx in 0usize..=3usize {
@@ -108,20 +112,24 @@ pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
             let bg = TextBG::new(cnt, xoffset, yoffset);
 
             if cnt.pal256() {
-                draw_bg_text_mode_16bit(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    if (col & 0x8000) != 0 {
+                draw_bg_text_mode_8bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
+                    if (col & 0x8000) != 0 && pixel_priority_mask[off] > priority as u8 {
+                        pixel_priority_mask[off] = priority as u8;
                         out[off] = col;
                     }
                 });
             } else {
-                draw_bg_text_mode_4bit(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    if (col & 0x8000) != 0 {
+                draw_bg_text_mode_4bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
+                    if (col & 0x8000) != 0 && pixel_priority_mask[off] > priority as u8 {
+                        pixel_priority_mask[off] = priority as u8;
                         out[off] = col;
                     }
                 });
             }
         }
     }
+
+    obj::draw_objects(line, &memory.mem_vram, &memory.palette, 0x10000, out, &mut pixel_priority_mask);
 }
 
 pub fn mode1(_line: u32, _out: &mut Line, _memory: &mut GbaMemory) {
@@ -144,7 +152,7 @@ const TEXT_MODE_SCREEN_SIZE: [(u32, u32); 4] = [
     (512, 512),
 ];
 
-fn draw_bg_text_mode_4bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u8], palette: &Palette, mut poke: F) {
+fn draw_bg_text_mode_4bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u8], palette: &Palette, mut poke: F) {
     let scx = bg.xoffset & (bg.width - 1);
     let scy = (bg.yoffset + line) % bg.height;
 
@@ -275,7 +283,7 @@ fn draw_bg_text_mode_4bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
     }
 }
 
-fn draw_bg_text_mode_16bit<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u8], palette: &Palette, mut poke: F) {
+fn draw_bg_text_mode_8bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u8], palette: &Palette, mut poke: F) {
     let scx = bg.xoffset & (bg.width - 1);
     let scy = (bg.yoffset + line) % bg.height;
 
