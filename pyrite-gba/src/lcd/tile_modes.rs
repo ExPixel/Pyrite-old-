@@ -129,7 +129,7 @@ pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
         }
     }
 
-    obj::draw_objects(line, &memory.mem_vram, &memory.palette, 0x10000, out, &mut pixel_priority_mask);
+    obj::draw_objects(line, &memory.mem_vram, &memory.mem_oam, &memory.palette, 0x10000, out, &mut pixel_priority_mask);
 }
 
 pub fn mode1(_line: u32, _out: &mut Line, _memory: &mut GbaMemory) {

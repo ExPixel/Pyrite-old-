@@ -4,13 +4,13 @@ use super::super::GbaMemory;
 use super::super::memory::palette::Palette;
 // use super::super::memory::read16_le;
 
-pub fn draw_objects(line: u32, vram: &[u8], palette: &Palette, tile_data_start: u32, out: &mut Line, priority_mask: &mut [u8; 240]) {
+pub fn draw_objects(line: u32, vram: &[u8], oam: &[u8], palette: &Palette, tile_data_start: u32, out: &mut Line, priority_mask: &mut [u8; 240]) {
     for obj_idx in 0..128 {
-        let obj_all_attrs = read48_le(vram, obj_idx as usize * 8);
+        let obj_all_attrs = read48_le(oam, obj_idx as usize * 8);
         let attr = ObjAttr::new(obj_all_attrs as u16, (obj_all_attrs >> 16) as u16, (obj_all_attrs >> 32) as u16);
 
-        // bounds check the object
-        if (attr.y as u32) > line || ((attr.y + attr.height) as u32) < line { continue; }
+        // check if the object is disabled or out of bounds
+        if attr.disabled || (attr.y as u32) > line || ((attr.y + attr.height) as u32) < line { continue; }
     }
 }
 
@@ -78,7 +78,7 @@ pub struct ObjAttr {
     pub y: u8,
     pub rot_scal: bool,
     pub double_size: bool,
-    pub disable: bool,
+    pub disabled: bool,
     pub mode: ObjMode,
     pub mosaic: bool,
     pub pal256: bool,
@@ -107,7 +107,7 @@ impl ObjAttr {
             y: bits!(attr0, 0, 7) as u8,
             rot_scal: rot_scal,
             double_size: if rot_scal { bits_b!(attr0, 9) } else { false },
-            disable: if !rot_scal { bits_b!(attr0, 9) } else { false },
+            disabled: if !rot_scal { bits_b!(attr0, 9) } else { false },
             mode: ObjMode::from(bits!(attr0, 10, 11) as u8),
             mosaic: bits_b!(attr0, 12),
             pal256: bits_b!(attr0, 13),
