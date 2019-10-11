@@ -160,17 +160,9 @@ fn draw_bg_text_mode_4bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
     let align_start = if scx % 8 != 0 { 8 - (scx % 8) } else { 0 }; // start at the next whole tile on screen
     let align_end = if align_start != 0 { 8 - align_start } else { 0 };
 
-    let area_y = scy % 256;
-    let area_ty = area_y / 8;
-
     let mut dx = align_start;
     while dx <= (240 - 8 - align_end) {
-        let scx = (scx + dx) & (bg.width - 1); // shadow scx in here
-        let area_idx = (scy/256)*(bg.width/256) + (scx/256);
-        let area_x = scx % 256;
-        let area_tx = area_x / 8;
-
-        let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
+        let tile_info_offset = get_tile_info_offset(&bg, scx + dx, scy);
         if tile_info_offset >= 0x10000 { // this is in object VRAM
             dx += 8;
             continue;
@@ -213,11 +205,7 @@ fn draw_bg_text_mode_4bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
         // @NOTE I couldn't think of a better way to break out of a block wihout a whole bunch of nested
         // if statements...
         'left_edge: loop {
-            let scx = scx & (bg.width - 1);
-            let area_idx = (scy/256)*(bg.width/256) + (scx/256);
-            let area_x = scx % 256;
-            let area_tx = area_x / 8;
-            let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
+            let tile_info_offset = get_tile_info_offset(&bg, scx, scy);
             if tile_info_offset >= 0x10000 { // this is in object VRAM
                 break 'left_edge;
             }
@@ -248,11 +236,7 @@ fn draw_bg_text_mode_4bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
         }
 
         'right_edge: loop {
-            let scx = (scx + 240 - align_end) & (bg.width - 1);
-            let area_idx = (scy/256)*(bg.width/256) + (scx/256);
-            let area_x = scx % 256;
-            let area_tx = area_x / 8;
-            let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
+            let tile_info_offset = get_tile_info_offset(&bg, scx + 240 - align_end, scy);
             if tile_info_offset >= 0x10000 { // this is in object VRAM
                 break 'right_edge;
             }
@@ -291,17 +275,9 @@ fn draw_bg_text_mode_8bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
     let align_start = if scx % 8 != 0 { 8 - (scx % 8) } else { 0 }; // start at the next whole tile on screen
     let align_end = if align_start != 0 { 8 - align_start } else { 0 };
 
-    let area_y = scy % 256;
-    let area_ty = area_y / 8;
-
     let mut dx = align_start;
     while dx <= (240 - 8 - align_end) {
-        let scx = (scx + dx) & (bg.width - 1); // shadow scx in here
-        let area_idx = (scy/256)*(bg.width/256) + (scx/256);
-        let area_x = scx % 256;
-        let area_tx = area_x / 8;
-
-        let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
+        let tile_info_offset = get_tile_info_offset(&bg, scx + dx, scy);
         if tile_info_offset >= 0x10000 { // this is in object VRAM
             dx += 8;
             continue;
@@ -336,11 +312,7 @@ fn draw_bg_text_mode_8bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
     if align_start != 0 {
         // Left Edge
         'left_edge: loop {
-            let scx = scx & (bg.width - 1);
-            let area_idx = (scy/256)*(bg.width/256) + (scx/256);
-            let area_x = scx % 256;
-            let area_tx = area_x / 8;
-            let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
+            let tile_info_offset = get_tile_info_offset(&bg, scx, scy);
             if tile_info_offset >= 0x10000 { // this is in object VRAM
                 break 'left_edge;
             }
@@ -367,11 +339,7 @@ fn draw_bg_text_mode_8bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
 
         // Right Edge
         'right_edge: loop {
-            let scx = (scx + 240 - align_end) & (bg.width - 1);
-            let area_idx = (scy/256)*(bg.width/256) + (scx/256);
-            let area_x = scx % 256;
-            let area_tx = area_x / 8;
-            let tile_info_offset = bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
+            let tile_info_offset = get_tile_info_offset(&bg, scx + 240 - align_end, scy);
             if tile_info_offset >= 0x10000 { // this is in object VRAM
                 break 'right_edge;
             }
@@ -395,6 +363,17 @@ fn draw_bg_text_mode_8bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
             break 'right_edge;
         }
     }
+}
+
+#[inline(always)]
+fn get_tile_info_offset(bg: &TextBG, scx: u32, scy: u32) -> u32 {
+    let area_y  = scy % 256;
+    let area_ty = area_y / 8;
+    let scx = scx & (bg.width - 1); // @NOTE: this relies on bg.width being a power of 2
+    let area_idx = (scy/256)*(bg.width/256) + (scx/256);
+    let area_x = scx % 256;
+    let area_tx = area_x / 8;
+    return bg.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
 }
 
 struct TextBG {
