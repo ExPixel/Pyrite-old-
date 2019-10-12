@@ -16,6 +16,12 @@ static mut g: GlobalGlutinState = GlobalGlutinState {
     mouse_pressed:  [false; 3],
 };
 
+pub fn frame_start_time() -> Option<std::time::Instant> {
+    unsafe {
+        g.time
+    }
+}
+
 pub fn process_window_event(gl_window: &glutin::Window, event: &Event) -> bool {
     let mut io = imgui::get_io().unwrap();
     match event {
