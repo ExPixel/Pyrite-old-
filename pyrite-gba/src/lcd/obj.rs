@@ -4,13 +4,42 @@ use super::super::GbaMemory;
 use super::super::memory::palette::Palette;
 // use super::super::memory::read16_le;
 
-pub fn draw_objects(line: u32, vram: &[u8], oam: &[u8], palette: &Palette, tile_data_start: u32, out: &mut Line, priority_mask: &mut [u8; 240]) {
+pub fn draw_objects(line: u32, one_dimensional: bool, vram: &[u8], oam: &[u8], palette: &Palette, tile_data_start: u32, out: &mut Line, priority_mask: &mut [u8; 240]) {
     for obj_idx in 0..128 {
         let obj_all_attrs = read48_le(oam, obj_idx as usize * 8);
         let attr = ObjAttr::new(obj_all_attrs as u16, (obj_all_attrs >> 16) as u16, (obj_all_attrs >> 32) as u16);
 
         // check if the object is disabled or out of bounds
-        if attr.disabled || (attr.y as u32) > line || ((attr.y + attr.height) as u32) < line { continue; }
+        let (top, bottom) = (attr.y as u32, attr.y.wrapping_add(attr.height) as u8 as u32);
+        // the second condition correctly handles an object wrapping vertically around the screen.
+        let in_bounds = (top <= line && bottom >= line) || (top > line && bottom >= line  && bottom < top);
+        if attr.disabled || !in_bounds { continue }
+
+        let obj_line = bottom - line;
+        let (start_obj_x, end_obj_x) = if attr.x >= 240 {
+            let obj_right = attr.x.wrapping_add(attr.width) & 0x1FF; // this is going to be the right pixel + 1
+            if  obj_right >= 1 && obj_right <= 240 {
+                (attr.width - obj_right, attr.width)
+            } else {
+                // object is out of bounds
+                continue
+            }
+        } else {
+            (0, std::cmp::min(attr.width, 240 - attr.x))
+        };
+
+        if one_dimensional {
+            for obj_x in start_obj_x..end_obj_x {
+                let screen_x = attr.x.wrapping_add(obj_x) & 0x1FF;
+
+                // in theory we should never go out of bounds here.
+                unsafe {
+                    *out.get_unchecked_mut(screen_x as usize) = ((obj_x & 0xFF) << 8) | (obj_line as u16) | 0x8000;
+                }
+            }
+        } else {
+            // eprintln!("{}: two dimensional objects are not yet implemented.", line);
+        }
     }
 }
 
@@ -75,7 +104,7 @@ pub fn read48_le(mem: &[u8], offset: usize) -> u64 {
 ///   12-15 Palette Number   (0-15) (Not used in 256 color/1 palette mode)
 pub struct ObjAttr {
     // attr 0
-    pub y: u8,
+    pub y: u16,
     pub rot_scal: bool,
     pub double_size: bool,
     pub disabled: bool,
@@ -89,8 +118,8 @@ pub struct ObjAttr {
     pub rot_scal_param: u8,
     pub horizontal_flip: bool,
     pub vertical_flip: bool,
-    pub width: u8,
-    pub height: u8,
+    pub width: u16,
+    pub height: u16,
 
     // attr 2
     pub tile_number: u16,
@@ -104,7 +133,8 @@ impl ObjAttr {
         let shape = ObjShape::from(bits!(attr0, 14, 15) as u8);
         let (width, height) = obj_size(shape, bits!(attr1, 14, 15));
         ObjAttr {
-            y: bits!(attr0, 0, 7) as u8,
+            // sign extend the y value to get it into range [-128, 127]
+            y: bits!(attr0, 0, 7),
             rot_scal: rot_scal,
             double_size: if rot_scal { bits_b!(attr0, 9) } else { false },
             disabled: if !rot_scal { bits_b!(attr0, 9) } else { false },
@@ -113,6 +143,7 @@ impl ObjAttr {
             pal256: bits_b!(attr0, 13),
             shape: shape,
 
+            // sign extend the x value to get it into range [-256, 255]
             x: bits!(attr1, 0, 8),
             rot_scal_param: if rot_scal { bits!(attr1, 9, 13) as u8 } else { 0 },
             horizontal_flip: if rot_scal { bits_b!(attr1, 12) } else { false },
@@ -167,7 +198,7 @@ impl From<u8> for ObjShape {
     }
 }
 
-fn obj_size(shape: ObjShape, size_val: u16) -> (u8, u8) {
+fn obj_size(shape: ObjShape, size_val: u16) -> (u16, u16) {
     match (shape, size_val) {
         (ObjShape::Square, 0) => ( 8,  8),
         (ObjShape::Square, 1) => (16, 16),
