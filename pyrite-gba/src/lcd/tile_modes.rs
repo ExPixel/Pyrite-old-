@@ -129,7 +129,15 @@ pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
         }
     }
 
-    obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.palette, 0x10000, out, &mut pixel_priority_mask);
+    obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.palette, 0x10000, |off, col, priority| {
+        if (col & 0x8000) != 0 && pixel_priority_mask[off] >= priority {
+            // offset should never be out of bounds here
+            unsafe {
+                *pixel_priority_mask.get_unchecked_mut(off) = priority;
+                *out.get_unchecked_mut(off) = col;
+            }
+        }
+    });
 }
 
 pub fn mode1(_line: u32, _out: &mut Line, _memory: &mut GbaMemory) {

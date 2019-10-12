@@ -4,7 +4,7 @@ use super::super::GbaMemory;
 use super::super::memory::palette::Palette;
 // use super::super::memory::read16_le;
 
-pub fn draw_objects(line: u32, one_dimensional: bool, vram: &[u8], oam: &[u8], palette: &Palette, tile_data_start: u32, out: &mut Line, priority_mask: &mut [u8; 240]) {
+pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, vram: &[u8], oam: &[u8], palette: &Palette, tile_data_start: u32, mut poke: F) {
     for obj_idx in 0..128 {
         let obj_all_attrs = read48_le(oam, obj_idx as usize * 8);
         let attr = ObjAttr::new(obj_all_attrs as u16, (obj_all_attrs >> 16) as u16, (obj_all_attrs >> 32) as u16);
@@ -15,7 +15,12 @@ pub fn draw_objects(line: u32, one_dimensional: bool, vram: &[u8], oam: &[u8], p
         let in_bounds = (top <= line && bottom >= line) || (top > line && bottom >= line  && bottom < top);
         if attr.disabled || !in_bounds { continue }
 
-        let obj_line = bottom - line;
+        let obj_line = if attr.vertical_flip {
+            bottom - line
+        } else {
+            attr.height as u32 - (bottom - line)
+        };
+
         let (start_obj_x, end_obj_x) = if attr.x >= 240 {
             let obj_right = attr.x.wrapping_add(attr.width) & 0x1FF; // this is going to be the right pixel + 1
             if  obj_right >= 1 && obj_right <= 240 {
@@ -28,19 +33,98 @@ pub fn draw_objects(line: u32, one_dimensional: bool, vram: &[u8], oam: &[u8], p
             (0, std::cmp::min(attr.width, 240 - attr.x))
         };
 
+        let tile_data = &vram[(tile_data_start as usize)..];
+
         if one_dimensional {
             for obj_x in start_obj_x..end_obj_x {
                 let screen_x = attr.x.wrapping_add(obj_x) & 0x1FF;
 
-                // in theory we should never go out of bounds here.
-                unsafe {
-                    *out.get_unchecked_mut(screen_x as usize) = ((obj_x & 0xFF) << 8) | (obj_line as u16) | 0x8000;
-                }
+                let obj_x = if attr.horizontal_flip {
+                    attr.width - obj_x
+                } else {
+                    obj_x
+                };
+
+                // @TODO check palette outside of the loop, don't want more branches in here
+                let color = if attr.pal256 {
+                    get_obj_pixel_8bpp_one_dimensional(obj_x as usize, obj_line as usize, attr.width as usize, attr.height as usize, attr.tile_number as usize, tile_data, palette)
+                } else {
+                    get_obj_pixel_4bpp_one_dimensional(obj_x as usize, obj_line as usize, attr.width as usize, attr.height as usize, attr.tile_number as usize, tile_data, attr.palette_index, palette)
+                };
+
+                // screen_x should always be in bounds [0, 240)
+                poke(screen_x as usize, color, attr.priority);
             }
         } else {
-            // eprintln!("{}: two dimensional objects are not yet implemented.", line);
+            for obj_x in start_obj_x..end_obj_x {
+                let screen_x = attr.x.wrapping_add(obj_x) & 0x1FF;
+
+                let obj_x = if attr.horizontal_flip {
+                    attr.width - obj_x
+                } else {
+                    obj_x
+                };
+
+                // @TODO check palette outside of the loop, don't want more branches in here
+                let color = if attr.pal256 {
+                    get_obj_pixel_8bpp_two_dimensional(obj_x as usize, obj_line as usize, attr.width as usize, attr.height as usize, attr.tile_number as usize, tile_data, palette)
+                } else {
+                    get_obj_pixel_4bpp_two_dimensional(obj_x as usize, obj_line as usize, attr.width as usize, attr.height as usize, attr.tile_number as usize, tile_data, attr.palette_index, palette)
+                };
+
+                // screen_x should always be in bounds [0, 240)
+                poke(screen_x as usize, color, attr.priority);
+            }
         }
     }
+}
+
+#[inline]
+pub fn get_obj_pixel_4bpp_one_dimensional(x: usize, y: usize, width: usize, height: usize, first_tile: usize, tile_data: &[u8], palette_index: u8, palette: &Palette) -> u16 {
+    let tile = (first_tile * 32) + ((y / 8) * (width / 8)) + (x/8);
+    let pixel_offset = (tile * 32) + ((y % 8) * 4) + ((x % 8) / 2);
+    let palette_entry = if x % 2 == 0 {
+        tile_data[pixel_offset] & 0xF
+    } else {
+        tile_data[pixel_offset] >> 4
+    };
+    palette.get_obj16(palette_index, palette_entry)
+}
+
+#[inline]
+pub fn get_obj_pixel_8bpp_one_dimensional(x: usize, y: usize, width: usize, height: usize, first_tile: usize, tile_data: &[u8], palette: &Palette) -> u16 {
+    let tile = (first_tile * 64) + ((y / 8) * (width / 8)) + (x/8);
+    let pixel_offset = (tile * 64) + ((y % 8) * 8) + (x % 8);
+    let palette_entry = if x % 2 == 0 {
+        tile_data[pixel_offset] & 0xF
+    } else {
+        tile_data[pixel_offset] >> 4
+    };
+    palette.get_obj256(palette_entry)
+}
+
+#[inline]
+pub fn get_obj_pixel_4bpp_two_dimensional(x: usize, y: usize, width: usize, height: usize, first_tile: usize, tile_data: &[u8], palette_index: u8, palette: &Palette) -> u16 {
+    let tile = (first_tile * 32) + ((y / 8) * 32) + (x/8);
+    let pixel_offset = (tile * 32) + ((y % 8) * 4) + ((x % 8) / 2);
+    let palette_entry = if x % 2 == 0 {
+        tile_data[pixel_offset] & 0xF
+    } else {
+        tile_data[pixel_offset] >> 4
+    };
+    palette.get_obj16(palette_index, palette_entry)
+}
+
+#[inline]
+pub fn get_obj_pixel_8bpp_two_dimensional(x: usize, y: usize, widht: usize, height: usize, first_tile: usize, tile_data: &[u8], palette: &Palette) -> u16 {
+    let tile = (first_tile * 64) + ((y / 8) * 32) + (x/8);
+    let pixel_offset = (tile * 64) + ((y % 8) * 8) + (x % 8);
+    let palette_entry = if x % 2 == 0 {
+        tile_data[pixel_offset] & 0xF
+    } else {
+        tile_data[pixel_offset] >> 4
+    };
+    palette.get_obj256(palette_entry)
 }
 
 /// Reads a u32 from a byte array in little endian byte order.
@@ -146,14 +230,14 @@ impl ObjAttr {
             // sign extend the x value to get it into range [-256, 255]
             x: bits!(attr1, 0, 8),
             rot_scal_param: if rot_scal { bits!(attr1, 9, 13) as u8 } else { 0 },
-            horizontal_flip: if rot_scal { bits_b!(attr1, 12) } else { false },
-            vertical_flip: if rot_scal { bits_b!(attr1, 13) } else { false },
+            horizontal_flip: if !rot_scal { bits_b!(attr1, 12) } else { false },
+            vertical_flip: if !rot_scal { bits_b!(attr1, 13) } else { false },
             width: width,
             height: height,
 
             tile_number: bits!(attr2, 0, 9),
-            priority: bits!(10, 11) as u8,
-            palette_index: bits!(12, 15) as u8,
+            priority: bits!(attr2, 10, 11) as u8,
+            palette_index: bits!(attr2, 12, 15) as u8,
         }
     }
 }
