@@ -5,6 +5,14 @@ use super::super::memory::palette::Palette;
 // use super::super::memory::read16_le;
 
 pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, vram: &[u8], oam: &[u8], palette: &Palette, tile_data_start: u32, mut poke: F) {
+    macro_rules! conditional_negate {
+        ($Condition:expr, $Value:expr) => {{
+            let value = $Value;
+            let icondition = (if $Condition { 1 } else { 0 }) + (value & 0);// I add (value & 0) for type information
+            (value ^ (!icondition).wrapping_add(1)).wrapping_add(icondition)
+        }}
+    }
+
     for obj_idx in 0..128 {
         let obj_all_attrs = read48_le(oam, obj_idx as usize * 8);
         let attr = ObjAttr::new(obj_all_attrs as u16, (obj_all_attrs >> 16) as u16, (obj_all_attrs >> 32) as u16);
@@ -35,42 +43,46 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
 
         let tile_data = &vram[(tile_data_start as usize)..];
 
-        if one_dimensional {
+        let tile_stride = if one_dimensional {
+            (attr.width / 8) as usize
+        } else {
+            32usize
+        };
+
+        let hflip_add = if attr.horizontal_flip { attr.width - 1 } else { 0 };
+
+        if attr.pal256 {
+            const BYTES_PER_TILE: usize = 64;
+            const BYTES_PER_LINE: usize = 8;
+
             for obj_x in start_obj_x..end_obj_x {
                 let screen_x = attr.x.wrapping_add(obj_x) & 0x1FF;
-
-                let obj_x = if attr.horizontal_flip {
-                    attr.width - obj_x
-                } else {
-                    obj_x
-                };
-
-                // @TODO check palette outside of the loop, don't want more branches in here
-                let color = if attr.pal256 {
-                    get_obj_pixel_8bpp_one_dimensional(obj_x as usize, obj_line as usize, attr.width as usize, attr.height as usize, attr.tile_number as usize, tile_data, palette)
-                } else {
-                    get_obj_pixel_4bpp_one_dimensional(obj_x as usize, obj_line as usize, attr.width as usize, attr.height as usize, attr.tile_number as usize, tile_data, attr.palette_index, palette)
-                };
+                // becomes (width - x - 1) if horizontal_flip is true, or just x if horizontal_flip
+                // is false
+                let obj_x = conditional_negate!(attr.horizontal_flip, obj_x).wrapping_add(hflip_add) as usize;
+                let tile = (attr.tile_number as usize * BYTES_PER_TILE) + ((obj_line as usize / 8) * tile_stride) + (obj_x/8);
+                let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_line as usize % 8) * BYTES_PER_LINE) + (obj_x % 8);
+                let palette_entry = tile_data[pixel_offset];
+                let color = palette.get_obj256(palette_entry);
 
                 // screen_x should always be in bounds [0, 240)
                 poke(screen_x as usize, color, attr.priority);
             }
         } else {
+            const BYTES_PER_TILE: usize = 32;
+            const BYTES_PER_LINE: usize = 4;
+
             for obj_x in start_obj_x..end_obj_x {
                 let screen_x = attr.x.wrapping_add(obj_x) & 0x1FF;
-
-                let obj_x = if attr.horizontal_flip {
-                    attr.width - obj_x
+                let obj_x = conditional_negate!(attr.horizontal_flip, obj_x).wrapping_add(hflip_add) as usize;
+                let tile = (attr.tile_number as usize * BYTES_PER_TILE) + ((obj_line as usize / 8) * tile_stride) + (obj_x/8);
+                let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_line as usize % 8) * BYTES_PER_LINE) + ((obj_x % 8) / 2);
+                let palette_entry = if obj_x % 2 == 0 {
+                    tile_data[pixel_offset] & 0xF
                 } else {
-                    obj_x
+                    tile_data[pixel_offset] >> 4
                 };
-
-                // @TODO check palette outside of the loop, don't want more branches in here
-                let color = if attr.pal256 {
-                    get_obj_pixel_8bpp_two_dimensional(obj_x as usize, obj_line as usize, attr.width as usize, attr.height as usize, attr.tile_number as usize, tile_data, palette)
-                } else {
-                    get_obj_pixel_4bpp_two_dimensional(obj_x as usize, obj_line as usize, attr.width as usize, attr.height as usize, attr.tile_number as usize, tile_data, attr.palette_index, palette)
-                };
+                let color = palette.get_obj16(attr.palette_index, palette_entry);
 
                 // screen_x should always be in bounds [0, 240)
                 poke(screen_x as usize, color, attr.priority);
