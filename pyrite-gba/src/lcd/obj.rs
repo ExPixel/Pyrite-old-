@@ -1,6 +1,4 @@
 use pyrite_common::{bits, bits_b};
-use super::Line;
-use super::super::GbaMemory;
 use super::super::memory::palette::Palette;
 // use super::super::memory::read16_le;
 
@@ -89,54 +87,6 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
             }
         }
     }
-}
-
-#[inline]
-pub fn get_obj_pixel_4bpp_one_dimensional(x: usize, y: usize, width: usize, height: usize, first_tile: usize, tile_data: &[u8], palette_index: u8, palette: &Palette) -> u16 {
-    let tile = (first_tile * 32) + ((y / 8) * (width / 8)) + (x/8);
-    let pixel_offset = (tile * 32) + ((y % 8) * 4) + ((x % 8) / 2);
-    let palette_entry = if x % 2 == 0 {
-        tile_data[pixel_offset] & 0xF
-    } else {
-        tile_data[pixel_offset] >> 4
-    };
-    palette.get_obj16(palette_index, palette_entry)
-}
-
-#[inline]
-pub fn get_obj_pixel_8bpp_one_dimensional(x: usize, y: usize, width: usize, height: usize, first_tile: usize, tile_data: &[u8], palette: &Palette) -> u16 {
-    let tile = (first_tile * 64) + ((y / 8) * (width / 8)) + (x/8);
-    let pixel_offset = (tile * 64) + ((y % 8) * 8) + (x % 8);
-    let palette_entry = if x % 2 == 0 {
-        tile_data[pixel_offset] & 0xF
-    } else {
-        tile_data[pixel_offset] >> 4
-    };
-    palette.get_obj256(palette_entry)
-}
-
-#[inline]
-pub fn get_obj_pixel_4bpp_two_dimensional(x: usize, y: usize, width: usize, height: usize, first_tile: usize, tile_data: &[u8], palette_index: u8, palette: &Palette) -> u16 {
-    let tile = (first_tile * 32) + ((y / 8) * 32) + (x/8);
-    let pixel_offset = (tile * 32) + ((y % 8) * 4) + ((x % 8) / 2);
-    let palette_entry = if x % 2 == 0 {
-        tile_data[pixel_offset] & 0xF
-    } else {
-        tile_data[pixel_offset] >> 4
-    };
-    palette.get_obj16(palette_index, palette_entry)
-}
-
-#[inline]
-pub fn get_obj_pixel_8bpp_two_dimensional(x: usize, y: usize, widht: usize, height: usize, first_tile: usize, tile_data: &[u8], palette: &Palette) -> u16 {
-    let tile = (first_tile * 64) + ((y / 8) * 32) + (x/8);
-    let pixel_offset = (tile * 64) + ((y % 8) * 8) + (x % 8);
-    let palette_entry = if x % 2 == 0 {
-        tile_data[pixel_offset] & 0xF
-    } else {
-        tile_data[pixel_offset] >> 4
-    };
-    palette.get_obj256(palette_entry)
 }
 
 /// Reads a u32 from a byte array in little endian byte order.
