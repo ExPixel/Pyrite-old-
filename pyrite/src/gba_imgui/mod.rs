@@ -4,7 +4,7 @@ use crate::platform::opengl::GbaTexture;
 
 pub struct GbaImGui {
     gba: Gba,
-    emulator_display: widgets::EmulatorDisplayWidget,
+    main_emulator_gui: widgets::EmulatorGUI,
     gba_texture: GbaTexture,
 }
 
@@ -12,7 +12,7 @@ impl GbaImGui {
     pub fn new(gba: Gba, window: &glutin::Window) -> GbaImGui {
         let mut ret = GbaImGui {
             gba: gba,
-            emulator_display: widgets::EmulatorDisplayWidget::new(),
+            main_emulator_gui: widgets::EmulatorGUI::new(),
             gba_texture: GbaTexture::new(),
         };
         ret.init(window);
@@ -64,7 +64,7 @@ impl GbaImGui {
 
         match window_event {
             glutin::WindowEvent::KeyboardInput { input, .. } => {
-                if self.emulator_display.is_focused() {
+                if self.main_emulator_gui.is_gba_display_focused() {
                     let pressed = match input.state {
                         glutin::ElementState::Pressed => true,
                         glutin::ElementState::Released => false,
@@ -109,17 +109,19 @@ impl GbaImGui {
     }
 
     pub fn render_frame(&mut self, window: &glutin::Window) {
+        let frame_start_time = std::time::Instant::now();
+        self.render_gba_frame();
+        self.main_emulator_gui.set_gba_frame_delay(frame_start_time.elapsed());
+
         // clear the screen
         unsafe {
             gl::ClearColor((0xC4 as f32)/255.0, (0x3D as f32)/255.0, (0x5F as f32)/255.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
         }
 
-        self.render_gba_frame();
-
         // initialize imgui frame
         imgui::impls::opengl3::new_frame();
-        imgui::impls::glutin::new_frame(window);
+        imgui::impls::glutin::new_frame_with_time(window, frame_start_time);
         imgui::new_frame();
 
         // Send ImGui commands and build the current frame here:
@@ -132,9 +134,7 @@ impl GbaImGui {
     }
 
     fn render_gui(&mut self) {
-        if self.emulator_display.open {
-            self.emulator_display.draw(&self.gba_texture);
-        }
+        self.main_emulator_gui.render(&mut self.gba, &self.gba_texture);
     }
 }
 

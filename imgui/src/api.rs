@@ -14,6 +14,16 @@ pub use crate::sys::{
     ImGuiSizeCallbackData,
 };
 
+static mut GLOBAL_FORMATTING_BUFFER: [u8; 1025] = [0u8; 1025];
+
+/// Returns a global text buffer that can be used for formatting without allocations.
+/// At the moment this is not thread safe and should be done on the same thread as ImGui.
+pub fn global_fmt_buffer() -> &'static mut [u8] {
+    unsafe {
+        &mut GLOBAL_FORMATTING_BUFFER
+    }
+}
+
 pub fn get_version() -> &'static ImStr {
     unsafe {
         ImStr::from_ptr(sys::igGetVersion())
@@ -166,8 +176,72 @@ pub fn is_window_focused(flags: FocusedFlags) -> bool {
     }
 }
 
-// typedef void (*ImGuiSizeCallback)(ImGuiSizeCallbackData* data);
-// IMGUI_API void          SetNextWindowSizeConstraints(const ImVec2& size_min, const ImVec2& size_max, ImGuiSizeCallback custom_callback = NULL, void* custom_callback_data = NULL); // set next window size limits. use -1,-1 on either X/Y axis to preserve the current size. Sizes will be rounded down. Use callback to apply non-trivial programmatic constraints.
+pub fn begin_main_menu_bar() -> bool {
+    unsafe {
+        sys::igBeginMainMenuBar()
+    }
+}
+
+pub fn end_main_menu_bar() {
+    unsafe {
+        sys::igEndMainMenuBar()
+    }
+}
+
+pub fn begin_menu_bar() -> bool {
+    unsafe {
+        sys::igBeginMenuBar()
+    }
+}
+
+pub fn end_menu_bar() {
+    unsafe {
+        sys::igEndMenuBar()
+    }
+}
+
+pub fn begin_menu(label: &ImStr, enabled: bool) -> bool {
+    unsafe {
+        sys::igBeginMenu(label.as_ptr(), enabled)
+    }
+}
+
+pub fn end_menu() {
+    unsafe {
+        sys::igEndMenu()
+    }
+}
+
+pub fn menu_item(label: &ImStr) -> bool {
+    unsafe {
+        sys::igMenuItemBool(label.as_ptr(), std::ptr::null(), false, true)
+    }
+}
+
+pub fn menu_item_ex(label: &ImStr, shortcut: Option<&ImStr>, selected: bool, enabled: bool) -> bool {
+    unsafe {
+        sys::igMenuItemBool(label.as_ptr(), opt_str_ptr(shortcut), selected, enabled)
+    }
+}
+
+pub fn plot_histogram(label: &ImStr, values: &[f32], offset: i32) {
+    plot_histogram_ex(label, values, offset, None, std::f32::MAX, std::f32::MAX, vec2(0.0, 0.0), -1);
+}
+
+pub fn plot_histogram_ex(label: &ImStr, values: &[f32], offset: i32, overlay_text: Option<&ImStr>, scale_min: f32, scale_max: f32, graph_size: ImVec2, stride: i32) {
+    unsafe {
+        sys::igPlotHistogramFloatPtr(
+            label.as_ptr(), values.as_ptr(), values.len() as i32, offset,
+            opt_str_ptr(overlay_text), scale_min, scale_max, graph_size,
+            if stride < 0 { std::mem::size_of::<f32>() as i32 } else { stride })
+    }
+}
+
+pub fn text(s: &ImStr) {
+    unsafe {
+        sys::igText(s.as_ptr())
+    }
+}
 
 /////////////////////////////////////////////
 //
@@ -277,6 +351,14 @@ fn opt_mut_ptr<T>(opt: Option<&mut T>) -> *mut T {
         t as *mut T
     } else {
         std::ptr::null_mut()
+    }
+}
+
+fn opt_str_ptr(opt: Option<&ImStr>) -> *const i8 {
+    if let Some(s) = opt {
+        s.as_ptr()
+    } else {
+        std::ptr::null()
     }
 }
 

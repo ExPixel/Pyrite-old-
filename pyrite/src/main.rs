@@ -1,5 +1,6 @@
 #[allow(dead_code)] mod platform;
 mod gba_imgui;
+#[allow(dead_code)] mod util;
 
 use pyrite_gba::Gba;
 

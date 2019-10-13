@@ -157,18 +157,20 @@ pub fn shutdown() {
 }
 
 pub fn new_frame(gl_window: &glutin::Window) {
+    new_frame_with_time(gl_window, Instant::now())
+}
+
+pub fn new_frame_with_time(gl_window: &glutin::Window, now: Instant) {
     let mut io = imgui::get_io().unwrap();
     if let Some(last_time) = unsafe { g.time.take() } {
-        let now = Instant::now();
         let dur = now.duration_since(last_time);
-        let seconds = (dur.as_secs() as f64) + (dur.subsec_micros() as f64 / 1000000.0f64);
-        io.DeltaTime = seconds as f32;
+        io.DeltaTime = dur.as_secs_f32();
         unsafe {
             g.time = Some(now);
         }
     } else {
         unsafe {
-            g.time = Some(Instant::now());
+            g.time = Some(now);
         }
         io.DeltaTime = 1.0f32 / 60.0f32;
     }
