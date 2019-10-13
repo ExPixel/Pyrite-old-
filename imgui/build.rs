@@ -20,6 +20,7 @@ pub fn main() {
 
     let bindings = bindgen::Builder::default()
         .header("wrapper.hpp")
+        .rustfmt_bindings(true)
         .generate()
         .expect("Unable to generate bindings");
 
