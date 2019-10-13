@@ -140,7 +140,61 @@ pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     });
 }
 
-pub fn mode1(_line: u32, _out: &mut Line, _memory: &mut GbaMemory) {
+pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
+    let backdrop = memory.palette.get_bg256(0) | 0x8000;
+
+    // first we clear the background completely.
+    for p in out.iter_mut() { *p = backdrop; }
+
+    let mut pixel_priority_mask = [4u8; 240];
+
+    for priority in 0u16..=3u16 {
+        for bg_idx in 0usize..=2usize {
+            let cnt = memory.ioregs.bg_cnt[bg_idx];
+            if cnt.priority() != priority { continue; }
+            let enabled = match bg_idx {
+                0 => memory.ioregs.dispcnt.screen_display_bg0(),
+                1 => memory.ioregs.dispcnt.screen_display_bg1(),
+                2 => memory.ioregs.dispcnt.screen_display_bg2(),
+                3 => memory.ioregs.dispcnt.screen_display_bg3(),
+                _ => unreachable!(),
+            };
+            if !enabled { continue; }
+
+            let xoffset = memory.ioregs.bg_hofs[bg_idx];
+            let yoffset = memory.ioregs.bg_vofs[bg_idx];
+            let bg = TextBG::new(cnt, xoffset, yoffset);
+
+            if bg_idx == 2 {
+            } else {
+                if cnt.pal256() {
+                    draw_bg_text_mode_8bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
+                        if (col & 0x8000) != 0 && pixel_priority_mask[off] > priority as u8 {
+                            pixel_priority_mask[off] = priority as u8;
+                            out[off] = col;
+                        }
+                    });
+                } else {
+                    draw_bg_text_mode_4bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
+                        if (col & 0x8000) != 0 && pixel_priority_mask[off] > priority as u8 {
+                            pixel_priority_mask[off] = priority as u8;
+                            out[off] = col;
+                        }
+                    });
+                }
+            }
+        }
+    }
+
+    obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.palette, 0x10000, |off, col, priority| {
+        if (col & 0x8000) != 0 && pixel_priority_mask[off] >= priority {
+            // offset should never be out of bounds here
+            unsafe {
+                *pixel_priority_mask.get_unchecked_mut(off) = priority;
+                *out.get_unchecked_mut(off) = col;
+            }
+        }
+    });
 }
 
 pub fn mode2(_line: u32, _out: &mut Line, _memory: &mut GbaMemory) {
@@ -159,6 +213,9 @@ const TEXT_MODE_SCREEN_SIZE: [(u32, u32); 4] = [
     (256, 512),
     (512, 512),
 ];
+
+fn draw_affine_bg<F: FnMut(usize, u16)>(line: u32, bg: AffineBG, vram: &[u8], palette: Palette, mut poke: F) {
+}
 
 fn draw_bg_text_mode_4bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u8], palette: &Palette, mut poke: F) {
     let scx = bg.xoffset & (bg.width - 1);
@@ -407,4 +464,7 @@ impl TextBG {
             yoffset:    bg_vofs.offset() as u32,
         }
     }
+}
+
+struct AffineBG {
 }
