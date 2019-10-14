@@ -844,6 +844,10 @@ impl ArmMemory for GbaMemory {
         self.read_byte(addr)
     }
 
+    fn view8(&self, addr: u32) -> u8 {
+        self.read_byte(addr)
+    }
+
     fn store8(&mut self, addr: u32, value: u8) {
         self.write_byte(addr, value);
     }
@@ -852,11 +856,19 @@ impl ArmMemory for GbaMemory {
         self.read_halfword(addr)
     }
 
+    fn view16(&self, addr: u32) -> u16 {
+        self.read_halfword(addr)
+    }
+
     fn store16(&mut self, addr: u32, value: u16) {
         self.write_halfword(addr, value);
     }
 
     fn load32(&mut self, addr: u32) -> u32 {
+        self.read_word(addr)
+    }
+
+    fn view32(&self, addr: u32) -> u32 {
         self.read_word(addr)
     }
 

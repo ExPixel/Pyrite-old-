@@ -348,14 +348,19 @@ pub const EXCEPTION_ADDRESS_EXCEEDS_26BIT: CpuExceptionInfo = CpuExceptionInfo::
 pub trait ArmMemory {
     // NOTE: reading from certain addresses (e.g. IO) can change their state,
     // so loads still require a mutable `ArmMemory`.
-    fn load8(&mut self, addr: u32) -> u8;
-    fn store8(&mut self, addr: u32, value: u8);
-
+    fn  load8(&mut self, addr: u32) ->  u8;
     fn load16(&mut self, addr: u32) -> u16;
-    fn store16(&mut self, addr: u32, value: u16);
-
     fn load32(&mut self, addr: u32) -> u32;
+
+    fn  store8(&mut self, addr: u32, value:  u8);
+    fn store16(&mut self, addr: u32, value: u16);
     fn store32(&mut self, addr: u32, value: u32);
+
+    // NOTE: this set of functions, unlike the loadX functions, are used for debugging
+    //       and should not mutate the memory on read.
+    fn  view8(&self, addr: u32) ->  u8;
+    fn view16(&self, addr: u32) -> u16;
+    fn view32(&self, addr: u32) -> u32;
 
     fn code_access_seq8(&self, addr: u32) -> u32;
     fn data_access_seq8(&self, addr: u32) -> u32;

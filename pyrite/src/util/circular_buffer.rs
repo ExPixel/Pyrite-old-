@@ -26,7 +26,7 @@ macro_rules! impl_circular_buffer {
 
                     uninit_buffer
 
-                    // This doesn't work because Rust is dumb, so we just do it the bad way.
+                    // // This doesn't work because Rust is dumb, so we just do it the bad way.
                     // // create an array of uninitialized memory
                     // let mut uninit_buffer: [MaybeUninit<T>; $N] = unsafe {
                     //     MaybeUninit::uninit().assume_init()
