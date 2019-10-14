@@ -33,15 +33,6 @@ pub struct IORegisters {
     pub bldalpha: Reg16,
     pub bldy: Reg16,
 
-    // Internal reference point registers which are copied from the reference point registers
-    // (BG2X, BG2Y, BG3X, and BG3Y) at the end of the vblank period. Writing to the original
-    // reference point registers during VDRAW will immediately write them into the internal
-    // registers.
-    pub internal_bg2x: u32,
-    pub internal_bg2y: u32,
-    pub internal_bg3x: u32,
-    pub internal_bg3y: u32,
-
     // Sound Registers
     pub sound1cnt_l: Reg16,
     pub sound1cnt_h: Reg16,
@@ -389,26 +380,14 @@ impl IORegisters {
             0x0022 => self.bg2pb.inner = value,
             0x0024 => self.bg2pc.inner = value,
             0x0026 => self.bg2pd.inner = value,
-            0x0028 | 0x002A => {
-                self.bg2x.inner = set_halfword_of_word(self.bg2x.inner, aligned_addr, value);
-                if !self.dispstat.vblank() { self.internal_bg2x = self.bg2x.inner; }
-            }
-            0x002C | 0x002E =>{ 
-                self.bg2y.inner = set_halfword_of_word(self.bg2y.inner, aligned_addr, value);
-                if !self.dispstat.vblank() { self.internal_bg2y = self.bg2y.inner; }
-            },
+            0x0028 | 0x002A => self.bg2x.inner = set_halfword_of_word(self.bg2x.inner, aligned_addr, value),
+            0x002C | 0x002E => self.bg2y.inner = set_halfword_of_word(self.bg2y.inner, aligned_addr, value),
             0x0030 => self.bg3pa.inner = value,
             0x0032 => self.bg3pb.inner = value,
             0x0034 => self.bg3pc.inner = value,
             0x0036 => self.bg3pd.inner = value,
-            0x0038 | 0x003A => {
-                self.bg3x.inner = set_halfword_of_word(self.bg3x.inner, aligned_addr, value);
-                if !self.dispstat.vblank() { self.internal_bg3x = self.bg3x.inner; }
-            },
-            0x003C | 0x003E => {
-                self.bg3y.inner = set_halfword_of_word(self.bg3y.inner, aligned_addr, value);
-                if !self.dispstat.vblank() { self.internal_bg3y = self.bg3y.inner; }
-            }
+            0x0038 | 0x003A => self.bg3x.inner = set_halfword_of_word(self.bg3x.inner, aligned_addr, value),
+            0x003C | 0x003E => self.bg3y.inner = set_halfword_of_word(self.bg3y.inner, aligned_addr, value),
             0x0040 => self.win0h.inner = value,
             0x0042 => self.win1h.inner = value,
             0x0044 => self.win0v.inner = value,

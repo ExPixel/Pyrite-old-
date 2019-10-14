@@ -88,21 +88,10 @@ impl GbaLCD {
             memory.ioregs.dispstat.set_vblank(true);
         } else {
             memory.ioregs.dispstat.set_vblank(false);
-            self.copy_bg_reference_point_registers(memory);
         }
 
         memory.ioregs.dispstat.set_vcounter(self.line_number as u16 == memory.ioregs.dispstat.vcount_setting());
         memory.ioregs.vcount.set_current_scanline(self.line_number as u16);
-    }
-
-    /// Copies the BG2 and BG3 reference point registers into the internal reference point
-    /// registers.
-    #[inline]
-    fn copy_bg_reference_point_registers(&self, memory: &mut GbaMemory) {
-        memory.ioregs.internal_bg2x = memory.ioregs.bg2x.inner;
-        memory.ioregs.internal_bg2y = memory.ioregs.bg2y.inner;
-        memory.ioregs.internal_bg3x = memory.ioregs.bg3x.inner;
-        memory.ioregs.internal_bg3y = memory.ioregs.bg3y.inner;
     }
 
     fn render_line(&mut self, memory: &mut GbaMemory) {
