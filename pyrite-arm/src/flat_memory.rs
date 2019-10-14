@@ -86,12 +86,12 @@ impl ArmMemory for FlatMemory {
 
     #[inline]
     fn load16(&mut self, addr: u32) -> u16 {
-        (self.load8(addr) as u16) | ((self.load8(addr) as u16) << 8)
+        (self.load8(addr) as u16) | ((self.load8(addr + 1) as u16) << 8)
     }
 
     #[inline]
     fn view16(&self, addr: u32) -> u16 {
-        (self.view8(addr) as u16) | ((self.view8(addr) as u16) << 8)
+        (self.view8(addr) as u16) | ((self.view8(addr + 1) as u16) << 8)
     }
 
     #[inline]
@@ -102,12 +102,12 @@ impl ArmMemory for FlatMemory {
 
     #[inline]
     fn load32(&mut self, addr: u32) -> u32 {
-        (self.load16(addr) as u32) | ((self.load16(addr) as u32) << 16)
+        (self.load16(addr) as u32) | ((self.load16(addr + 2) as u32) << 16)
     }
 
     #[inline]
     fn view32(&self, addr: u32) -> u32 {
-        (self.view16(addr) as u32) | ((self.view16(addr) as u32) << 16)
+        (self.view16(addr) as u32) | ((self.view16(addr + 2) as u32) << 16)
     }
 
     #[inline]
