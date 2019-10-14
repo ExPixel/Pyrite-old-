@@ -315,8 +315,74 @@ impl GbaMemory {
         }
     }
 
-    /// Read an 8bit byte from an address.
-    pub fn read_byte(&self, addr: u32) -> u8 {
+    /// Called after a bad read has occurred.
+    #[cold]
+    fn bad_read(&self, addr: u32, width: u8, message: &str) {
+        let width_str = match width {
+            8 => " 8bit",
+            16 => " 16bit",
+            32 => " 32bit",
+            _ => "",
+        };
+
+        if message.len() > 0 {
+            gba_error!("bad{} read from 0x{:08X}: {}", width_str, addr, message);
+        } else {
+            gba_error!("bad{} read from 0x{:08X}", width_str, addr);
+        }
+    }
+
+    /// Called after a bad write has occurred.
+    #[cold]
+    fn bad_write(&self, addr: u32, value: u32, width: u8, mut message: &str) {
+        if message.len() == 0 {
+            message = "unknown cause";
+        }
+
+        match width {
+            8 => {
+                gba_error!("bad 8-bit write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
+            },
+
+            16 => {
+                gba_error!("bad 16-bit write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
+            },
+
+            32 => {
+                gba_error!("bad 32-bit write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
+            },
+
+            _ => {
+                gba_error!("bad (unknown width???) write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
+            },
+        }
+    }
+
+    /// When this returns true, both internal and external work RAM are disabled and
+    /// return the previously prefetched instruction when read.
+    #[inline]
+    pub fn is_ram_disabled(&self) -> bool {
+        self.ioregs.internal_memory_control.ram_disabled()
+    }
+
+    /// When this returns true, external word ram becomes a mirror of internal work ram.
+    #[inline]
+    pub fn is_external_ram_disabled(&self) -> bool {
+        !self.ioregs.internal_memory_control.external_ram_enabled()
+    }
+
+    /// Set the recent prefetch values that the memory should use when returning the value
+    /// of invalid reads.
+    pub fn set_prefetch(&mut self, prefetch_addr: u32, prefetch_value: u32) {
+        self.recent_prefetch = prefetch_value;
+        if prefetch_addr < 0x00004000 {
+            self.recent_bios_prefetch = prefetch_value;
+        }
+    }
+}
+
+impl ArmMemory for GbaMemory {
+    fn load8(&mut self, addr: u32) -> u8 {
         match region_of(addr) {
             REGION_BIOS if addr < 0x00004000 => {
                 if self.bios_readable {
@@ -392,9 +458,155 @@ impl GbaMemory {
         }
     }
 
-    /// Read a 16bit halfword at an address.
-    /// This function will always halfword align its argument (`addr & 0xFFFFFFFE`)
-    pub fn read_halfword(&self, unaligned_addr: u32) -> u16 {
+    fn view8(&self, addr: u32) -> u8 {
+        match region_of(addr) {
+            REGION_BIOS if addr < 0x00004000 => {
+                if self.bios_readable {
+                    self.mem_bios[addr as usize]
+                } else {
+                    // The BIOS memory is protected against reading, the GBA allows to read opcodes
+                    // or data only if the program counter is located inside of the BIOS area. If
+                    // the program counter is not in the BIOS area, reading will return the most
+                    // recent successfully fetched BIOS opcode.
+                    get_byte_of_word(self.recent_bios_prefetch, addr)
+                }
+            },
+
+            REGION_UNUSED | REGION_BIOS => {
+                // Accessing unused memory at 00004000h-01FFFFFFh, and 10000000h-FFFFFFFFh (and
+                // 02000000h-03FFFFFFh when RAM is disabled via Port 4000800h) returns the recently
+                // pre-fetched opcode.
+                get_byte_of_word(self.recent_prefetch, addr)
+            },
+
+            REGION_EWRAM => {
+                if self.is_ram_disabled() {
+                    get_byte_of_word(self.recent_prefetch, addr)
+                } else if self.is_external_ram_disabled() {
+                    self.mem_iwram[(addr as usize) % REGION_IWRAM_LEN]
+                } else {
+                    self.mem_ewram[(addr as usize) % REGION_EWRAM_LEN]
+                }
+            },
+
+            REGION_IWRAM => {
+                if self.is_ram_disabled() {
+                    get_byte_of_word(self.recent_prefetch, addr)
+                } else {
+                    self.mem_iwram[(addr as usize) % REGION_IWRAM_LEN]
+                }
+            },
+
+            REGION_IOREG => {
+                if let Some(byte) = self.ioregs.read_byte(addr) {
+                    byte
+                } else {
+                    get_byte_of_word(self.recent_prefetch, addr)
+                }
+            },
+
+            REGION_PAL => {
+                self.palette.load8(addr % REGION_PAL_LEN32)
+            },
+
+            REGION_VRAM => {
+                self.mem_vram[to_vram_physical_addr(addr)]
+            },
+
+            REGION_OAM => {
+                self.mem_oam[(addr as usize) % REGION_OAM_LEN]
+            },
+
+            REGION_CART0_L | REGION_CART0_H |
+            REGION_CART1_L | REGION_CART1_H |
+            REGION_CART2_L | REGION_CART2_H   => {
+                self.gamepak.read_byte(addr)
+            },
+
+            REGION_SRAM => {
+                unimplemented!("GbaMemory::read_byte(REGION_SRAM)");
+            },
+
+            _ => {
+                self.bad_read(addr, 8, "bad region");
+                get_byte_of_word(self.recent_prefetch, addr)
+            },
+        }
+    }
+
+    fn store8(&mut self, addr: u32, value: u8) {
+        match region_of(addr) {
+            REGION_BIOS if addr < 0x00004000 => {
+                self.bad_write(addr, value as u32, 8, "attempt to write byte to readonly BIOS memory");
+            },
+
+            REGION_UNUSED | REGION_BIOS => {
+                self.bad_write(addr, value as u32, 8, "attempt to write byte to unused memory region");
+            },
+
+            REGION_EWRAM => {
+                if self.is_ram_disabled() {
+                    self.bad_write(addr, value as u32, 8, "attempt to write to External RAM while RAM is disabled");
+                } else if self.is_external_ram_disabled() {
+                    self.mem_iwram[(addr as usize) % REGION_IWRAM_LEN] = value;
+                } else {
+                    self.mem_ewram[(addr as usize) % REGION_EWRAM_LEN] = value;
+                }
+            },
+
+            REGION_IWRAM => {
+                if self.is_ram_disabled() {
+                    self.bad_write(addr, value as u32, 8, "attempt to write to Internal RAM while RAM is disabled");
+                } else {
+                    self.mem_iwram[(addr as usize) % REGION_IWRAM_LEN] = value;
+                }
+            },
+
+            REGION_IOREG => {
+                if let Err(msg) = self.ioregs.write_byte(addr, value) {
+                    self.bad_write(addr, value as u32, 8, msg);
+                } else {
+                    if align32(addr) == 0x4000204 {
+                        // if this is the WAITCNT register
+                        self.update_gamepak_sram_waitstates();
+                    } else if (align32(addr) & 0x0F00FFFF) == 0x04000800 {
+                        // if this is the Internal Memory Control
+                        self.update_ram_waitstates();
+                    }
+                }
+            },
+
+            REGION_PAL => {
+                self.palette.store8(addr % REGION_PAL_LEN32, value);
+            },
+
+            REGION_VRAM => {
+                self.mem_vram[to_vram_physical_addr(addr)] = value;
+            },
+
+            REGION_OAM => {
+                self.mem_oam[(addr as usize) % REGION_OAM_LEN] = value;
+            },
+
+            REGION_CART0_L | REGION_CART0_H |
+            REGION_CART1_L | REGION_CART1_H |
+            REGION_CART2_L | REGION_CART2_H   => {
+                if let Err(message) = self.gamepak.write_byte(addr, value) {
+                    self.bad_write(addr, value as u32, 8, message);
+                }
+            },
+
+            REGION_SRAM => {
+                unimplemented!("GbaMemory::write_byte(REGION_SRAM)");
+            },
+
+            _ => {
+                self.bad_write(addr, value as u32, 8, "bad region");
+            }
+        }
+    }
+
+    fn load16(&mut self, unaligned_addr: u32) -> u16 {
         let aligned_addr = align16(unaligned_addr);
         match region_of(aligned_addr) {
             REGION_BIOS if aligned_addr < 0x00004000 => {
@@ -471,9 +683,157 @@ impl GbaMemory {
         }
     }
 
-    /// Read a 32bit word at an address.
-    /// This function will always word align its argument (`addr & 0xFFFFFFFC`)
-    pub fn read_word(&self, unaligned_addr: u32) -> u32 {
+    fn view16(&self, unaligned_addr: u32) -> u16 {
+        let aligned_addr = align16(unaligned_addr);
+        match region_of(aligned_addr) {
+            REGION_BIOS if aligned_addr < 0x00004000 => {
+                if self.bios_readable {
+                    read16_le(&self.mem_bios, aligned_addr as usize)
+                } else {
+                    // The BIOS memory is protected against reading, the GBA allows to read opcodes
+                    // or data only if the program counter is located inside of the BIOS area. If
+                    // the program counter is not in the BIOS area, reading will return the most
+                    // recent successfully fetched BIOS opcode.
+                    get_halfword_of_word(self.recent_bios_prefetch, aligned_addr)
+                }
+            },
+
+            REGION_UNUSED | REGION_BIOS => {
+                // Accessing unused memory at 00004000h-01FFFFFFh, and 10000000h-FFFFFFFFh (and
+                // 02000000h-03FFFFFFh when RAM is disabled via Port 4000800h) returns the recently
+                // pre-fetched opcode.
+                get_halfword_of_word(self.recent_prefetch, aligned_addr)
+            },
+
+            REGION_EWRAM => {
+                if self.is_ram_disabled() {
+                    get_halfword_of_word(self.recent_prefetch, aligned_addr)
+                } else if self.is_external_ram_disabled() {
+                    read16_le(&self.mem_iwram, (aligned_addr as usize) % REGION_IWRAM_LEN)
+                } else {
+                    read16_le(&self.mem_ewram, (aligned_addr as usize) % REGION_EWRAM_LEN)
+                }
+            },
+
+            REGION_IWRAM => {
+                if self.is_ram_disabled() {
+                    get_halfword_of_word(self.recent_prefetch, aligned_addr)
+                } else {
+                    read16_le(&self.mem_iwram, (aligned_addr as usize) % REGION_IWRAM_LEN)
+                }
+            },
+
+            REGION_IOREG => {
+                if let Some(byte) = self.ioregs.read_halfword(aligned_addr) {
+                    byte
+                } else {
+                    get_halfword_of_word(self.recent_prefetch, aligned_addr)
+                }
+            },
+
+            REGION_PAL => {
+                self.palette.load16(aligned_addr % REGION_PAL_LEN32)
+            },
+
+            REGION_VRAM => {
+                read16_le(&self.mem_vram, to_vram_physical_addr(aligned_addr))
+            },
+
+            REGION_OAM => {
+                read16_le(&self.mem_oam, (aligned_addr as usize) % REGION_OAM_LEN)
+            },
+
+            REGION_CART0_L | REGION_CART0_H |
+            REGION_CART1_L | REGION_CART1_H |
+            REGION_CART2_L | REGION_CART2_H   => {
+                self.gamepak.read_halfword(aligned_addr)
+            },
+
+            REGION_SRAM => {
+                unimplemented!("GbaMemory::read_halfword(REGION_SRAM)");
+            },
+
+            _ => {
+                self.bad_read(aligned_addr, 16, "bad region");
+                get_halfword_of_word(self.recent_prefetch, aligned_addr)
+            },
+        }
+    }
+
+    fn store16(&mut self, unaligned_addr: u32, value: u16) {
+        let aligned_addr = align16(unaligned_addr);
+        match region_of(aligned_addr) {
+            REGION_BIOS if aligned_addr < 0x00004000 => {
+                self.bad_write(aligned_addr, value as u32, 16, "attempt to write byte to readonly BIOS memory");
+            },
+
+            REGION_UNUSED | REGION_BIOS => {
+                self.bad_write(aligned_addr, value as u32, 16, "attempt to write byte to unused memory region");
+            },
+
+            REGION_EWRAM => {
+                if self.is_ram_disabled() {
+                    self.bad_write(aligned_addr, value as u32, 16, "attempt to write to External RAM while RAM is disabled");
+                } else if self.is_external_ram_disabled() {
+                    write16_le(&mut self.mem_iwram, (aligned_addr as usize) % REGION_IWRAM_LEN, value);
+                } else {
+                    write16_le(&mut self.mem_ewram, (aligned_addr as usize) % REGION_EWRAM_LEN, value);
+                }
+            },
+
+            REGION_IWRAM => {
+                if self.is_ram_disabled() {
+                    self.bad_write(aligned_addr, value as u32, 16, "attempt to write to Internal RAM while RAM is disabled");
+                } else {
+                    write16_le(&mut self.mem_iwram, (aligned_addr as usize) % REGION_IWRAM_LEN, value);
+                }
+            },
+
+            REGION_IOREG => {
+                if let Err(msg) = self.ioregs.write_halfword(aligned_addr, value) {
+                    self.bad_write(aligned_addr, value as u32, 16, msg);
+                } else {
+                    if align32(aligned_addr) == 0x4000204 {
+                        // if this is the WAITCNT register
+                        self.update_gamepak_sram_waitstates();
+                    } else if (align32(aligned_addr) & 0x0F00FFFF) == 0x04000800 {
+                        // if this is the Internal Memory Control
+                        self.update_ram_waitstates();
+                    }
+                }
+            },
+
+            REGION_PAL => {
+                self.palette.store16(aligned_addr % REGION_PAL_LEN32, value);
+            },
+
+            REGION_VRAM => {
+                write16_le(&mut self.mem_vram, to_vram_physical_addr(aligned_addr), value);
+            },
+
+            REGION_OAM => {
+                write16_le(&mut self.mem_oam, (aligned_addr as usize) % REGION_OAM_LEN, value);
+            },
+
+            REGION_CART0_L | REGION_CART0_H |
+            REGION_CART1_L | REGION_CART1_H |
+            REGION_CART2_L | REGION_CART2_H   => {
+                if let Err(message) = self.gamepak.write_halfword(aligned_addr, value) {
+                    self.bad_write(aligned_addr, value as u32, 16, message);
+                }
+            },
+
+            REGION_SRAM => {
+                unimplemented!("GbaMemory::write_halfword(REGION_SRAM)");
+            },
+
+            _ => {
+                self.bad_write(aligned_addr, value as u32, 16, "bad region");
+            }
+        }
+    }
+
+    fn load32(&mut self, unaligned_addr: u32) -> u32 {
         let aligned_addr = align32(unaligned_addr);
         match region_of(aligned_addr) {
             REGION_BIOS if aligned_addr < 0x00004000 => {
@@ -550,157 +910,84 @@ impl GbaMemory {
         }
     }
 
-    /// Write an 8bit value to an address.
-    pub fn write_byte(&mut self, addr: u32, value: u8) {
-        match region_of(addr) {
-            REGION_BIOS if addr < 0x00004000 => {
-                self.bad_write(addr, value as u32, 8, "attempt to write byte to readonly BIOS memory");
-            },
-
-            REGION_UNUSED | REGION_BIOS => {
-                self.bad_write(addr, value as u32, 8, "attempt to write byte to unused memory region");
-            },
-
-            REGION_EWRAM => {
-                if self.is_ram_disabled() {
-                    self.bad_write(addr, value as u32, 8, "attempt to write to External RAM while RAM is disabled");
-                } else if self.is_external_ram_disabled() {
-                    self.mem_iwram[(addr as usize) % REGION_IWRAM_LEN] = value;
-                } else {
-                    self.mem_ewram[(addr as usize) % REGION_EWRAM_LEN] = value;
-                }
-            },
-
-            REGION_IWRAM => {
-                if self.is_ram_disabled() {
-                    self.bad_write(addr, value as u32, 8, "attempt to write to Internal RAM while RAM is disabled");
-                } else {
-                    self.mem_iwram[(addr as usize) % REGION_IWRAM_LEN] = value;
-                }
-            },
-
-            REGION_IOREG => {
-                if let Err(msg) = self.ioregs.write_byte(addr, value) {
-                    self.bad_write(addr, value as u32, 8, msg);
-                } else {
-                    if align32(addr) == 0x4000204 {
-                        // if this is the WAITCNT register
-                        self.update_gamepak_sram_waitstates();
-                    } else if (align32(addr) & 0x0F00FFFF) == 0x04000800 {
-                        // if this is the Internal Memory Control
-                        self.update_ram_waitstates();
-                    }
-                }
-            },
-
-            REGION_PAL => {
-                self.palette.store8(addr % REGION_PAL_LEN32, value);
-            },
-
-            REGION_VRAM => {
-                self.mem_vram[to_vram_physical_addr(addr)] = value;
-            },
-
-            REGION_OAM => {
-                self.mem_oam[(addr as usize) % REGION_OAM_LEN] = value;
-            },
-
-            REGION_CART0_L | REGION_CART0_H |
-            REGION_CART1_L | REGION_CART1_H |
-            REGION_CART2_L | REGION_CART2_H   => {
-                if let Err(message) = self.gamepak.write_byte(addr, value) {
-                    self.bad_write(addr, value as u32, 8, message);
-                }
-            },
-
-            REGION_SRAM => {
-                unimplemented!("GbaMemory::write_byte(REGION_SRAM)");
-            },
-
-            _ => {
-                self.bad_write(addr, value as u32, 8, "bad region");
-            }
-        }
-    }
-
-    /// Write a 16bit halfword to an address.
-    /// This function will always halfword align the address (`addr & 0xFFFFFFFE`)
-    pub fn write_halfword(&mut self, unaligned_addr: u32, value: u16) {
-        let aligned_addr = align16(unaligned_addr);
+    fn view32(&self, unaligned_addr: u32) -> u32 {
+        let aligned_addr = align32(unaligned_addr);
         match region_of(aligned_addr) {
             REGION_BIOS if aligned_addr < 0x00004000 => {
-                self.bad_write(aligned_addr, value as u32, 16, "attempt to write byte to readonly BIOS memory");
+                if self.bios_readable {
+                    read32_le(&self.mem_bios, aligned_addr as usize)
+                } else {
+                    // The BIOS memory is protected against reading, the GBA allows to read opcodes
+                    // or data only if the program counter is located inside of the BIOS area. If
+                    // the program counter is not in the BIOS area, reading will return the most
+                    // recent successfully fetched BIOS opcode.
+                    self.recent_bios_prefetch
+                }
             },
 
             REGION_UNUSED | REGION_BIOS => {
-                self.bad_write(aligned_addr, value as u32, 16, "attempt to write byte to unused memory region");
+                // Accessing unused memory at 00004000h-01FFFFFFh, and 10000000h-FFFFFFFFh (and
+                // 02000000h-03FFFFFFh when RAM is disabled via Port 4000800h) returns the recently
+                // pre-fetched opcode.
+                self.recent_prefetch
             },
 
             REGION_EWRAM => {
                 if self.is_ram_disabled() {
-                    self.bad_write(aligned_addr, value as u32, 16, "attempt to write to External RAM while RAM is disabled");
-                } else if self.is_external_ram_disabled() {
-                    write16_le(&mut self.mem_iwram, (aligned_addr as usize) % REGION_IWRAM_LEN, value);
+                    self.recent_prefetch
+                } else if self.is_ram_disabled() {
+                    read32_le(&self.mem_iwram, (aligned_addr as usize) % REGION_IWRAM_LEN)
                 } else {
-                    write16_le(&mut self.mem_ewram, (aligned_addr as usize) % REGION_EWRAM_LEN, value);
+                    read32_le(&self.mem_ewram, (aligned_addr as usize) % REGION_EWRAM_LEN)
                 }
             },
 
             REGION_IWRAM => {
                 if self.is_ram_disabled() {
-                    self.bad_write(aligned_addr, value as u32, 16, "attempt to write to Internal RAM while RAM is disabled");
+                    self.recent_prefetch
                 } else {
-                    write16_le(&mut self.mem_iwram, (aligned_addr as usize) % REGION_IWRAM_LEN, value);
+                    read32_le(&self.mem_iwram, (aligned_addr as usize) % REGION_IWRAM_LEN)
                 }
             },
 
             REGION_IOREG => {
-                if let Err(msg) = self.ioregs.write_halfword(aligned_addr, value) {
-                    self.bad_write(aligned_addr, value as u32, 16, msg);
+                if let Some(byte) = self.ioregs.read_word(aligned_addr) {
+                    byte
                 } else {
-                    if align32(aligned_addr) == 0x4000204 {
-                        // if this is the WAITCNT register
-                        self.update_gamepak_sram_waitstates();
-                    } else if (align32(aligned_addr) & 0x0F00FFFF) == 0x04000800 {
-                        // if this is the Internal Memory Control
-                        self.update_ram_waitstates();
-                    }
+                    self.recent_prefetch
                 }
             },
 
             REGION_PAL => {
-                self.palette.store16(aligned_addr % REGION_PAL_LEN32, value);
+                self.palette.load32(aligned_addr % REGION_PAL_LEN32)
             },
 
             REGION_VRAM => {
-                write16_le(&mut self.mem_vram, to_vram_physical_addr(aligned_addr), value);
+                read32_le(&self.mem_vram, to_vram_physical_addr(aligned_addr))
             },
 
             REGION_OAM => {
-                write16_le(&mut self.mem_oam, (aligned_addr as usize) % REGION_OAM_LEN, value);
+                read32_le(&self.mem_oam, (aligned_addr as usize) % REGION_OAM_LEN)
             },
 
             REGION_CART0_L | REGION_CART0_H |
             REGION_CART1_L | REGION_CART1_H |
             REGION_CART2_L | REGION_CART2_H   => {
-                if let Err(message) = self.gamepak.write_halfword(aligned_addr, value) {
-                    self.bad_write(aligned_addr, value as u32, 16, message);
-                }
+                self.gamepak.read_word(aligned_addr)
             },
 
             REGION_SRAM => {
-                unimplemented!("GbaMemory::write_halfword(REGION_SRAM)");
+                unimplemented!("GbaMemory::read_word(REGION_SRAM)");
             },
 
             _ => {
-                self.bad_write(aligned_addr, value as u32, 16, "bad region");
-            }
+                self.bad_read(aligned_addr, 32, "bad region");
+                self.recent_prefetch
+            },
         }
     }
 
-    /// Write a 32bit word to an address.
-    /// This function will always word align the address (`addr & 0xFFFFFFFC`)
-    pub fn write_word(&mut self, unaligned_addr: u32, value: u32) {
+    fn store32(&mut self, unaligned_addr: u32, value: u32) {
         let aligned_addr = align32(unaligned_addr);
         match region_of(aligned_addr) {
             REGION_BIOS if aligned_addr < 0x00004000 => {
@@ -771,109 +1058,6 @@ impl GbaMemory {
                 self.bad_write(aligned_addr, value, 32, "bad region");
             }
         }
-    }
-
-    /// Called after a bad read has occurred.
-    #[cold]
-    fn bad_read(&self, addr: u32, width: u8, message: &str) {
-        let width_str = match width {
-            8 => " 8bit",
-            16 => " 16bit",
-            32 => " 32bit",
-            _ => "",
-        };
-
-        if message.len() > 0 {
-            gba_error!("bad{} read from 0x{:08X}: {}", width_str, addr, message);
-        } else {
-            gba_error!("bad{} read from 0x{:08X}", width_str, addr);
-        }
-    }
-
-    /// Called after a bad write has occurred.
-    #[cold]
-    fn bad_write(&self, addr: u32, value: u32, width: u8, mut message: &str) {
-        if message.len() == 0 {
-            message = "unknown cause";
-        }
-
-        match width {
-            8 => {
-                gba_error!("bad 8-bit write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
-            },
-
-            16 => {
-                gba_error!("bad 16-bit write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
-            },
-
-            32 => {
-                gba_error!("bad 32-bit write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
-            },
-
-            _ => {
-                gba_error!("bad (unknown width???) write to 0x{:08X} of value 0x{:02X}: {}", addr, value, message);
-            },
-        }
-    }
-
-    /// When this returns true, both internal and external work RAM are disabled and
-    /// return the previously prefetched instruction when read.
-    #[inline]
-    pub fn is_ram_disabled(&self) -> bool {
-        self.ioregs.internal_memory_control.ram_disabled()
-    }
-
-    /// When this returns true, external word ram becomes a mirror of internal work ram.
-    #[inline]
-    pub fn is_external_ram_disabled(&self) -> bool {
-        !self.ioregs.internal_memory_control.external_ram_enabled()
-    }
-
-    /// Set the recent prefetch values that the memory should use when returning the value
-    /// of invalid reads.
-    pub fn set_prefetch(&mut self, prefetch_addr: u32, prefetch_value: u32) {
-        self.recent_prefetch = prefetch_value;
-        if prefetch_addr < 0x00004000 {
-            self.recent_bios_prefetch = prefetch_value;
-        }
-    }
-}
-
-impl ArmMemory for GbaMemory {
-    fn load8(&mut self, addr: u32) -> u8 {
-        self.read_byte(addr)
-    }
-
-    fn view8(&self, addr: u32) -> u8 {
-        self.read_byte(addr)
-    }
-
-    fn store8(&mut self, addr: u32, value: u8) {
-        self.write_byte(addr, value);
-    }
-
-    fn load16(&mut self, addr: u32) -> u16 {
-        self.read_halfword(addr)
-    }
-
-    fn view16(&self, addr: u32) -> u16 {
-        self.read_halfword(addr)
-    }
-
-    fn store16(&mut self, addr: u32, value: u16) {
-        self.write_halfword(addr, value);
-    }
-
-    fn load32(&mut self, addr: u32) -> u32 {
-        self.read_word(addr)
-    }
-
-    fn view32(&self, addr: u32) -> u32 {
-        self.read_word(addr)
-    }
-
-    fn store32(&mut self, addr: u32, value: u32) {
-        self.write_word(addr, value);
     }
 
     fn code_access_seq8(&self, addr: u32) -> u32 {
@@ -1067,6 +1251,7 @@ pub fn write32_le(mem: &mut [u8], offset: usize, value: u32) {
 #[cfg(test)]
 mod test {
     use super::*;
+    use pyrite_arm::ArmMemory;
 
     // macro_rules! assert_hex_eq {
     //     ($lhs:expr, $rhs:expr) => {
@@ -1083,12 +1268,12 @@ mod test {
         check_mirrors(&mut memory, REGION_VRAM, 1024 * 128, 0xDEADBEEF);
         check_mirrors(&mut memory, REGION_OAM, REGION_OAM_LEN, 0xDEADBEEF);
 
-        memory.write_word(start_of_region(REGION_EWRAM), 0xDEADBEEF);
+        memory.store32(start_of_region(REGION_EWRAM), 0xDEADBEEF);
         memory.ioregs.internal_memory_control.set_external_ram_enabled(false);
-        memory.write_word(start_of_region(REGION_EWRAM), 0xBEEFDEAD);
-        assert_eq!(0xBEEFDEAD, memory.read_word(start_of_region(REGION_IWRAM)));
+        memory.store32(start_of_region(REGION_EWRAM), 0xBEEFDEAD);
+        assert_eq!(0xBEEFDEAD, memory.load32(start_of_region(REGION_IWRAM)));
         memory.ioregs.internal_memory_control.set_external_ram_enabled(true);
-        assert_eq!(0xDEADBEEF, memory.read_word(start_of_region(REGION_EWRAM)));
+        assert_eq!(0xDEADBEEF, memory.load32(start_of_region(REGION_EWRAM)));
 
         fn check_mirrors(memory: &mut GbaMemory, region: u32, region_len: usize, value: u32) {
             let region_len = region_len as u32;
@@ -1101,9 +1286,9 @@ mod test {
             let value_middle = value.wrapping_mul(value);
             let value_end = value_middle.wrapping_mul(value);
 
-            memory.write_word(addr_start, value_start);
-            memory.write_word(addr_middle, value_middle);
-            memory.write_word(addr_end, value_end);
+            memory.store32(addr_start, value_start);
+            memory.store32(addr_middle, value_middle);
+            memory.store32(addr_end, value_end);
 
             for mirror in 0..3 {
                 println!("checking mirror #{} of region 0x{:02X}", mirror, region);
@@ -1112,17 +1297,17 @@ mod test {
                 let addr_mirror_middle = addr_mirror_start + (region_len / 2);
                 let addr_mirror_end = addr_mirror_start + region_len - 4;
 
-                assert_eq!(memory.read_word(addr_mirror_start), value_start);
-                assert_eq!(memory.read_word(addr_mirror_middle), value_middle);
-                assert_eq!(memory.read_word(addr_mirror_end), value_end);
+                assert_eq!(memory.load32(addr_mirror_start), value_start);
+                assert_eq!(memory.load32(addr_mirror_middle), value_middle);
+                assert_eq!(memory.load32(addr_mirror_end), value_end);
 
-                assert_eq!(memory.read_halfword(addr_mirror_start), value_start as u16);
-                assert_eq!(memory.read_halfword(addr_mirror_middle), value_middle as u16);
-                assert_eq!(memory.read_halfword(addr_mirror_end), value_end as u16);
+                assert_eq!(memory.load16(addr_mirror_start), value_start as u16);
+                assert_eq!(memory.load16(addr_mirror_middle), value_middle as u16);
+                assert_eq!(memory.load16(addr_mirror_end), value_end as u16);
 
-                assert_eq!(memory.read_byte(addr_mirror_start), value_start as u8);
-                assert_eq!(memory.read_byte(addr_mirror_middle), value_middle as u8);
-                assert_eq!(memory.read_byte(addr_mirror_end), value_end as u8);
+                assert_eq!(memory.load8(addr_mirror_start), value_start as u8);
+                assert_eq!(memory.load8(addr_mirror_middle), value_middle as u8);
+                assert_eq!(memory.load8(addr_mirror_end), value_end as u8);
             }
         }
     }
@@ -1139,26 +1324,26 @@ mod test {
         assert_eq!(2, 15 - memory.ioregs.internal_memory_control.external_ram_wait());
 
         // Simple IO register write:
-        memory.write_halfword(0x04000008, 0xFBEA);
-        assert_eq!(memory.read_halfword(0x04000008), 0xFBEA);
+        memory.store16(0x04000008, 0xFBEA);
+        assert_eq!(memory.load16(0x04000008), 0xFBEA);
         assert_eq!(memory.ioregs.bg_cnt[0].inner, 0xFBEA);
 
         // Writing to 2 IO registers at once:
-        memory.write_word(0x04000014, 0xBEE5CABE);
-        assert_eq!(memory.read_halfword(0x04000014), 0xCABE);
-        assert_eq!(memory.read_halfword(0x04000016), 0xBEE5);
+        memory.store32(0x04000014, 0xBEE5CABE);
+        assert_eq!(memory.load16(0x04000014), 0xCABE);
+        assert_eq!(memory.load16(0x04000016), 0xBEE5);
         assert_eq!(memory.ioregs.bg_hofs[1].inner, 0xCABE);
         assert_eq!(memory.ioregs.bg_vofs[1].inner, 0xBEE5);
 
         // Partial Register Write:
-        memory.write_byte(0x04000018, 0xDD);
-        assert_eq!(memory.read_byte(0x04000018), 0xDD);
+        memory.store8(0x04000018, 0xDD);
+        assert_eq!(memory.load8(0x04000018), 0xDD);
         assert_eq!(memory.ioregs.bg_hofs[2].inner as u8, 0xDD);
 
         // Partial Register Read
-        memory.write_halfword(0x04000018, 0xEFBE);
-        assert_eq!(memory.read_byte(0x04000018), 0xBE);
-        assert_eq!(memory.read_byte(0x04000019), 0xEF);
+        memory.store16(0x04000018, 0xEFBE);
+        assert_eq!(memory.load8(0x04000018), 0xBE);
+        assert_eq!(memory.load8(0x04000019), 0xEF);
     }
 
     #[test]
@@ -1170,25 +1355,25 @@ mod test {
 
         // Reading from BIOS without permission:
         memory.bios_readable = true;
-        assert_ne!(memory.read_word(0), 0xCECECECE);
+        assert_ne!(memory.load32(0), 0xCECECECE);
         memory.bios_readable = false;
-        assert_eq!(memory.read_word(0), 0xCECECECE);
+        assert_eq!(memory.load32(0), 0xCECECECE);
 
         // Reading from unused region:
-        assert_eq!(memory.read_word(0x01000000), 0xFEFEFEFE);
+        assert_eq!(memory.load32(0x01000000), 0xFEFEFEFE);
 
         // Reading from empty cartridge:
         let addr_empty_cartridge = 0x0800FCCC;
-        assert_eq!(memory.read_halfword(addr_empty_cartridge), (addr_empty_cartridge / 2) as u16);
+        assert_eq!(memory.load16(addr_empty_cartridge), (addr_empty_cartridge / 2) as u16);
 
         // Reading from unused IO port:
         //
         // Returns last prefetched instruction when the entire 32bit memory fragment is
         // Unused (eg. 0E0h) and/or Write-Only (eg.  DMA0SAD). And otherwise, returns
         // zero if the lower 16bit fragment is readable (eg.  04Ch=MOSAIC, 04Eh=NOTUSED/ZERO).
-        memory.write_halfword(0x0400004C, 0xBEEF);
-        assert_eq!(memory.read_halfword(0x0400004E), 0xFEFE);
-        assert_eq!(memory.read_word(0x0400004C), 0);
+        memory.store16(0x0400004C, 0xBEEF);
+        assert_eq!(memory.load16(0x0400004E), 0xFEFE);
+        assert_eq!(memory.load32(0x0400004C), 0);
     }
 
     fn start_of_region(region: u32) -> u32 {
