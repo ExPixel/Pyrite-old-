@@ -110,13 +110,13 @@ impl ArmRegisters {
     }
 
     /// Reads and returns the value of a general purpose register.
-    #[inline]
+    #[inline(always)]
     pub fn read(&self, register: u32) -> u32 {
         self.gp_registers[register as usize]
     }
 
     /// Writes a value to a register.
-    #[inline]
+    #[inline(always)]
     pub fn write(&mut self, register: u32, value: u32) {
         self.gp_registers[register as usize] = value;
     }

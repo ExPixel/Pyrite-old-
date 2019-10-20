@@ -72,6 +72,10 @@ impl EmulatorGUI {
     pub fn set_gba_frame_delay(&mut self, duration: std::time::Duration) {
         self.stats_window.gba_frame_duration = duration;
     }
+
+    pub fn set_gui_frame_delay(&mut self, duration: std::time::Duration) {
+        self.stats_window.gui_frame_duration = duration;
+    }
 }
 
 pub struct GbaDisplayWindow {
@@ -115,8 +119,10 @@ pub struct EmulatorStatsWindow {
 
     emu_delay_history: crate::util::circular_buffer::CircularBuffer32<f32>,
     gba_delay_history: crate::util::circular_buffer::CircularBuffer32<f32>,
+    gui_delay_history: crate::util::circular_buffer::CircularBuffer32<f32>,
 
     gba_frame_duration: std::time::Duration,
+    gui_frame_duration: std::time::Duration,
 }
 
 impl EmulatorStatsWindow {
@@ -126,8 +132,10 @@ impl EmulatorStatsWindow {
 
             emu_delay_history: crate::util::circular_buffer::CircularBuffer32::new(),
             gba_delay_history: crate::util::circular_buffer::CircularBuffer32::new(),
+            gui_delay_history: crate::util::circular_buffer::CircularBuffer32::new(),
 
             gba_frame_duration: std::time::Duration::from_millis(0),
+            gui_frame_duration: std::time::Duration::from_millis(0),
         }
     }
 
@@ -137,6 +145,7 @@ impl EmulatorStatsWindow {
 
             let emu_frame_delay = io.DeltaTime * 1000.0;
             let gba_frame_delay = (self.gba_frame_duration.as_secs_f64() * 1000.0) as f32;
+            let gui_frame_delay = (self.gui_frame_duration.as_secs_f64() * 1000.0) as f32;
 
 
             // BEGIN EMU FRAME TIMES
@@ -157,9 +166,9 @@ impl EmulatorStatsWindow {
             imgui::plot_histogram_ex(imgui::str!("Emulator Frame Delay"),
                 &self.emu_delay_history.get_internal_buffer(), self.emu_delay_history.get_internal_head() as i32,
                 None, 0.0, emu_scale_max, imgui::vec2(0.0, 0.0), -1);
-            imgui::text(imgui::str_gbuf!("    Average: {:.02}", emu_average_frame_delay));
-            imgui::text(imgui::str_gbuf!("        Min: {:.02}", emu_min_frame_delay));
-            imgui::text(imgui::str_gbuf!("        Max: {:.02}", emu_max_frame_delay));
+            imgui::text(imgui::str_gbuf!("    Average: {:.02} ({:.02} FPS)", emu_average_frame_delay, 1000.0 / emu_average_frame_delay));
+            imgui::text(imgui::str_gbuf!("        Min: {:.02} ({:.02} FPS)", emu_min_frame_delay, 1000.0 / emu_min_frame_delay));
+            imgui::text(imgui::str_gbuf!("        Max: {:.02} ({:.02} FPS)", emu_max_frame_delay, 1000.0 / emu_max_frame_delay));
 
 
             // BEGIN GBA FRAME TIMES
@@ -192,6 +201,39 @@ impl EmulatorStatsWindow {
                 100.0
             } else {
                 (gba_average_frame_delay * 100.0) / emu_average_frame_delay 
+            };
+            imgui::text(imgui::str_gbuf!("    Frame %%: {:.02}%% ({:.0}%% average)", frame_percentage, average_frame_percentage));
+
+            // BEGIN IMGUI FRAME TIMES
+            // =====================
+            self.gui_delay_history.push_back_overwrite(gui_frame_delay);
+            let mut gui_max_frame_delay = std::f32::MIN;
+            let mut gui_min_frame_delay = std::f32::MAX;
+
+            let gui_average_frame_delay = self.gui_delay_history.get_internal_buffer().iter()
+                .fold(0.0, |acc, &x| {
+                    if x > gui_max_frame_delay { gui_max_frame_delay = x; }
+                    if x < gui_min_frame_delay { gui_min_frame_delay = x; }
+                    acc + x
+                }) / self.gui_delay_history.len() as f32;
+
+            let gui_scale_max = if emu_max_frame_delay > 32.0 { emu_max_frame_delay } else { 18.0 };
+
+            imgui::plot_histogram_ex(imgui::str!("ImGUI Frame Delay"),
+                &self.gui_delay_history.get_internal_buffer(), self.gui_delay_history.get_internal_head() as i32,
+                None, 0.0, gui_scale_max, imgui::vec2(0.0, 0.0), -1);
+            imgui::text(imgui::str_gbuf!("    Average: {:.02}", gui_average_frame_delay));
+            imgui::text(imgui::str_gbuf!("        Min: {:.02}", gui_min_frame_delay));
+            imgui::text(imgui::str_gbuf!("        Max: {:.02}", gui_max_frame_delay));
+            let frame_percentage = if gui_frame_delay >= emu_frame_delay {
+                100.0
+            } else {
+                (gui_frame_delay * 100.0) / emu_frame_delay
+            };
+            let average_frame_percentage = if gui_average_frame_delay >= emu_average_frame_delay {
+                100.0
+            } else {
+                (gui_average_frame_delay * 100.0) / emu_average_frame_delay 
             };
             imgui::text(imgui::str_gbuf!("    Frame %%: {:.02}%% ({:.0}%% average)", frame_percentage, average_frame_percentage));
         }

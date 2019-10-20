@@ -109,15 +109,19 @@ impl GbaImGui {
     }
 
     pub fn render_frame(&mut self, window: &glutin::Window) {
-        let frame_start_time = std::time::Instant::now();
-        self.render_gba_frame();
-        self.main_emulator_gui.set_gba_frame_delay(frame_start_time.elapsed());
-
+        // @NOTE moved to the top because it takes a really long time on some machines (openGL
+        // synchronization?) and I don't want to measure that because it basically takes as long as
+        // a full frame to complete.
         // clear the screen
         unsafe {
             gl::ClearColor((0xC4 as f32)/255.0, (0x3D as f32)/255.0, (0x5F as f32)/255.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
         }
+
+        let frame_start_time = std::time::Instant::now();
+        self.render_gba_frame();
+        let frame_gba_end_time = std::time::Instant::now();
+
 
         // initialize imgui frame
         imgui::impls::opengl3::new_frame();
@@ -131,6 +135,14 @@ impl GbaImGui {
         imgui::render();
 
         imgui::impls::opengl3::render_draw_data(imgui::get_draw_data());
+        let frame_gui_end_time = std::time::Instant::now();
+
+        let gba_frame_delay = frame_gba_end_time.duration_since(frame_start_time);
+        let gui_frame_delay = frame_gui_end_time.duration_since(frame_gba_end_time);
+
+        // these will be used on the next frame:
+        self.main_emulator_gui.set_gui_frame_delay(gui_frame_delay);
+        self.main_emulator_gui.set_gba_frame_delay(gba_frame_delay);
     }
 
     fn render_gui(&mut self) {

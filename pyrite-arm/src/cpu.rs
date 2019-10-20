@@ -113,27 +113,20 @@ impl ArmCpu {
         let opcode_col = bits!(opcode,  4,  7);
         let opcode_idx = (opcode_row * 16) + opcode_col;
 
-        if opcode_idx < 4096 {
-            if check_condition((opcode >> 28) & 0xF, &self.registers) {
-                let arm_fn = arm::ARM_OPCODE_TABLE[opcode_idx as usize];
-                arm_fn(self, memory, opcode);
-            } else {
-                self.cycles += clock::cycles_prefetch(memory, false, self.registers.read(15));
-            }
-
-            let pc = self.registers.read(15);
-            if self.registers.getf_t() {
-                self.fetched = memory.load16(pc) as u32;
-                self.registers.write(15, pc + 2);
-            } else {
-                self.fetched = memory.load32(pc);
-                self.registers.write(15, pc + 4);
-            }
+        if check_condition((opcode >> 28) & 0xF, &self.registers) {
+            let arm_fn = arm::ARM_OPCODE_TABLE[opcode_idx as usize];
+            arm_fn(self, memory, opcode);
         } else {
-            unreachable!(
-                "decoded ARM opcode was out of range. (idx: {}, row: {}, col: {})",
-                opcode_idx, opcode_row, opcode_col
-            );
+            self.cycles += clock::cycles_prefetch(memory, false, self.registers.read(15));
+        }
+
+        let pc = self.registers.read(15);
+        if self.registers.getf_t() {
+            self.fetched = memory.load16(pc) as u32;
+            self.registers.write(15, pc + 2);
+        } else {
+            self.fetched = memory.load32(pc);
+            self.registers.write(15, pc + 4);
         }
     }
 
@@ -145,23 +138,16 @@ impl ArmCpu {
         let opcode_col = bits!(opcode, 8,  11);
         let opcode_idx = (opcode_row * 16) + opcode_col;
 
-        if opcode_idx < 256 {
-            let thumb_fn = thumb::THUMB_OPCODE_TABLE[opcode_idx as usize];
-            thumb_fn(self, memory, opcode);
+        let thumb_fn = thumb::THUMB_OPCODE_TABLE[opcode_idx as usize];
+        thumb_fn(self, memory, opcode);
 
-            let pc = self.registers.read(15);
-            if self.registers.getf_t() {
-                self.fetched = memory.load16(pc) as u32;
-                self.registers.write(15, pc + 2);
-            } else {
-                self.fetched = memory.load32(pc);
-                self.registers.write(15, pc + 4);
-            }
+        let pc = self.registers.read(15);
+        if self.registers.getf_t() {
+            self.fetched = memory.load16(pc) as u32;
+            self.registers.write(15, pc + 2);
         } else {
-            unreachable!(
-                "decoded THUMB opcode was out of range. (idx: {}, row: {}, col: {})",
-                opcode_idx, opcode_row, opcode_col
-           );
+            self.fetched = memory.load32(pc);
+            self.registers.write(15, pc + 4);
         }
     }
 

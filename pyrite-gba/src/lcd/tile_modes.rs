@@ -214,8 +214,72 @@ pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     });
 }
 
-pub fn mode2(_line: u32, _out: &mut Line, _memory: &mut GbaMemory) {
-    unimplemented!("mode2 not yet implemented");
+pub fn mode2(line: u32, out: &mut Line, memory: &mut GbaMemory) {
+    let backdrop = memory.palette.get_bg256(0) | 0x8000;
+
+    // first we clear the background completely.
+    for p in out.iter_mut() { *p = backdrop; }
+
+    let mut pixel_priority_mask = [4u8; 240];
+
+    for priority in 0u16..=3u16 {
+        for bg_idx in 2usize..=3usize {
+            let cnt = memory.ioregs.bg_cnt[bg_idx];
+            if cnt.priority() != priority { continue; }
+            let enabled = match bg_idx {
+                0 => memory.ioregs.dispcnt.screen_display_bg0(),
+                1 => memory.ioregs.dispcnt.screen_display_bg1(),
+                2 => memory.ioregs.dispcnt.screen_display_bg2(),
+                3 => memory.ioregs.dispcnt.screen_display_bg3(),
+                _ => unreachable!(),
+            };
+            if !enabled { continue; }
+
+            if bg_idx == 2 {
+                let bg = AffineBG::new(cnt,
+                    memory.ioregs.internal_bg2x,
+                    memory.ioregs.internal_bg2y,
+                    memory.ioregs.bg2pa,
+                    memory.ioregs.bg2pc);
+
+                draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
+                    if (col & 0x8000) != 0 && pixel_priority_mask[off] > priority as u8 {
+                        pixel_priority_mask[off] = priority as u8;
+                        out[off] = col;
+                    }
+                });
+
+                memory.ioregs.internal_bg2x.inner = (memory.ioregs.internal_bg2x.inner.wrapping_add(memory.ioregs.bg2pb.inner as i16 as i32 as u32) << 4) >> 4;
+                memory.ioregs.internal_bg2y.inner = (memory.ioregs.internal_bg2y.inner.wrapping_add(memory.ioregs.bg2pd.inner as i16 as i32 as u32) << 4) >> 4;
+            } else if bg_idx == 3 {
+                let bg = AffineBG::new(cnt,
+                    memory.ioregs.internal_bg3x,
+                    memory.ioregs.internal_bg3y,
+                    memory.ioregs.bg3pa,
+                    memory.ioregs.bg3pc);
+
+                draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
+                    if (col & 0x8000) != 0 && pixel_priority_mask[off] > priority as u8 {
+                        pixel_priority_mask[off] = priority as u8;
+                        out[off] = col;
+                    }
+                });
+
+                memory.ioregs.internal_bg3x.inner = (memory.ioregs.internal_bg3x.inner.wrapping_add(memory.ioregs.bg3pb.inner as i16 as i32 as u32) << 4) >> 4;
+                memory.ioregs.internal_bg3y.inner = (memory.ioregs.internal_bg3y.inner.wrapping_add(memory.ioregs.bg3pd.inner as i16 as i32 as u32) << 4) >> 4;
+            }
+        }
+    }
+
+    obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.palette, 0x10000, |off, col, priority| {
+        if (col & 0x8000) != 0 && pixel_priority_mask[off] >= priority {
+            // offset should never be out of bounds here
+            unsafe {
+                *pixel_priority_mask.get_unchecked_mut(off) = priority;
+                *out.get_unchecked_mut(off) = col;
+            }
+        }
+    });
 }
 
 /// Internal Screen Size (dots) and size of BG Map (bytes):
