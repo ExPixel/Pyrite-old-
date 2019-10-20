@@ -132,17 +132,11 @@ pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
 
             if cnt.pal256() {
                 draw_bg_text_mode_8bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    if (col & 0x8000) != 0 && pixel_info[off].priority > priority as u8 {
-                        pixel_info[off].priority = priority as u8;
-                        out[off] = col;
-                    }
+                    poke_bg_pixel(off, col, priority as u8, out, &mut pixel_info);
                 });
             } else {
                 draw_bg_text_mode_4bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    if (col & 0x8000) != 0 && pixel_info[off].priority > priority as u8 {
-                        pixel_info[off].priority = priority as u8;
-                        out[off] = col;
-                    }
+                    poke_bg_pixel(off, col, priority as u8, out, &mut pixel_info);
                 });
             }
         }
@@ -150,13 +144,7 @@ pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
 
     if memory.ioregs.dispcnt.screen_display_obj() {
         obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.palette, 0x10000, |off, col, priority| {
-            if (col & 0x8000) != 0 && pixel_info[off].priority >= priority {
-                // offset should never be out of bounds here
-                unsafe {
-                    (*pixel_info.get_unchecked_mut(off)).priority = priority;
-                    *out.get_unchecked_mut(off) = col;
-                }
-            }
+            poke_obj_pixel(off, col, priority, out, &mut pixel_info);
         });
     }
 }
@@ -195,10 +183,7 @@ pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
                     memory.ioregs.bg2pc);
 
                 draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    if (col & 0x8000) != 0 && pixel_info[off].priority > priority as u8 {
-                        pixel_info[off].priority = priority as u8;
-                        out[off] = col;
-                    }
+                    poke_bg_pixel(off, col, priority as u8, out, &mut pixel_info);
                 });
 
                 memory.ioregs.internal_bg2x.inner = (memory.ioregs.internal_bg2x.inner.wrapping_add(memory.ioregs.bg2pb.inner as i16 as i32 as u32) << 4) >> 4;
@@ -210,17 +195,11 @@ pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
 
                 if cnt.pal256() {
                     draw_bg_text_mode_8bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                        if (col & 0x8000) != 0 && pixel_info[off].priority > priority as u8 {
-                            pixel_info[off].priority = priority as u8;
-                            out[off] = col;
-                        }
+                        poke_bg_pixel(off, col, priority as u8, out, &mut pixel_info);
                     });
                 } else {
                     draw_bg_text_mode_4bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                        if (col & 0x8000) != 0 && pixel_info[off].priority > priority as u8 {
-                            pixel_info[off].priority = priority as u8;
-                            out[off] = col;
-                        }
+                        poke_bg_pixel(off, col, priority as u8, out, &mut pixel_info);
                     });
                 }
             }
@@ -228,13 +207,7 @@ pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     }
 
     obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.palette, 0x10000, |off, col, priority| {
-        if (col & 0x8000) != 0 && pixel_info[off].priority >= priority {
-            // offset should never be out of bounds here
-            unsafe {
-                (*pixel_info.get_unchecked_mut(off)).priority = priority;
-                *out.get_unchecked_mut(off) = col;
-            }
-        }
+        poke_obj_pixel(off, col, priority, out, &mut pixel_info);
     });
 }
 
@@ -271,10 +244,7 @@ pub fn mode2(line: u32, out: &mut Line, memory: &mut GbaMemory) {
                     memory.ioregs.bg2pc);
 
                 draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    if (col & 0x8000) != 0 && pixel_info[off].priority > priority as u8 {
-                        pixel_info[off].priority = priority as u8;
-                        out[off] = col;
-                    }
+                    poke_bg_pixel(off, col, priority as u8, out, &mut pixel_info);
                 });
 
                 memory.ioregs.internal_bg2x.inner = (memory.ioregs.internal_bg2x.inner.wrapping_add(memory.ioregs.bg2pb.inner as i16 as i32 as u32) << 4) >> 4;
@@ -287,10 +257,7 @@ pub fn mode2(line: u32, out: &mut Line, memory: &mut GbaMemory) {
                     memory.ioregs.bg3pc);
 
                 draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    if (col & 0x8000) != 0 && pixel_info[off].priority > priority as u8 {
-                        pixel_info[off].priority = priority as u8;
-                        out[off] = col;
-                    }
+                    poke_bg_pixel(off, col, priority as u8, out, &mut pixel_info);
                 });
 
                 memory.ioregs.internal_bg3x.inner = (memory.ioregs.internal_bg3x.inner.wrapping_add(memory.ioregs.bg3pb.inner as i16 as i32 as u32) << 4) >> 4;
@@ -300,13 +267,7 @@ pub fn mode2(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     }
 
     obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.palette, 0x10000, |off, col, priority| {
-        if (col & 0x8000) != 0 && pixel_info[off].priority >= priority {
-            // offset should never be out of bounds here
-            unsafe {
-                (*pixel_info.get_unchecked_mut(off)).priority = priority;
-                *out.get_unchecked_mut(off) = col;
-            }
-        }
+        poke_obj_pixel(off, col, priority, out, &mut pixel_info);
     });
 }
 
@@ -651,7 +612,21 @@ impl AffineBG {
     }
 }
 
-// #[inline]
-// pub const fn rgb16(r: u8, g: u8, b: u8) -> u16 {
-//     0x8000 | (r as u16 & 0x1F) | ((g as u16 & 0x1F) << 5) | ((b as u16 & 0x1F) << 10)
-// }
+#[inline]
+fn poke_bg_pixel(offset: usize, color: u16, bg_priority: u8, out: &mut Line, pixel_info: &mut [PixelInfo; 240]) {
+    if (color & 0x8000) != 0 && pixel_info[offset].priority > bg_priority {
+        pixel_info[offset].priority = bg_priority;
+        out[offset] = color;
+    }
+}
+
+#[inline]
+fn poke_obj_pixel(offset: usize, color: u16, obj_priority: u8, out: &mut Line, pixel_info: &mut [PixelInfo; 240]) {
+    if (color & 0x8000) != 0 && pixel_info[offset].priority >= obj_priority {
+        // offset should never be out of bounds here
+        unsafe {
+            (*pixel_info.get_unchecked_mut(offset)).priority = obj_priority;
+            *out.get_unchecked_mut(offset) = color;
+        }
+    }
+}
