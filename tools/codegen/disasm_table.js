@@ -1,56 +1,68 @@
 const ARM_TABLE = [
-    ["____00__________________________", "ARMInstrType::DataProcessing",                "Data Processing / PSR Transfer"],
-    ["____000000______________1001____", "ARMInstrType::Multiply",                      "Multiply"],
-    ["____00001_______________1001____", "ARMInstrType::MultiplyLong",                 "Multiply Long"],
-    ["____00010_00________00001001____", "ARMInstrType::SingleDataSwap",                "Single Data Swap"],
-    ["____000100101111111111110001____", "ARMInstrType::BranchAndExchange",             "Branch and Exchange"],
-    ["____000__0__________00001__1____", "ARMInstrType::HalfwordDataTransfer",          "Halfword Data Transfer (register offset)"],
-    ["____000__1______________1__1____", "ARMInstrType::HalfwordDataTransfer",          "Halfword Data Transfer (immediate offset)"],
-    ["____01__________________________", "ARMInstrType::SingleDataTransfer",            "Single Data Transfer"],
-    ["____011____________________1____", "ARMInstrType::Undefined",                     "Undefined"],
-    ["____100_________________________", "ARMInstrType::BlockDataTransfer",             "Block Data Transfer"],
-    ["____101_________________________", "ARMInstrType::Branch",                        "Branch"],
-    ["____110_________________________", "ARMInstrType::CoprocessorDataTransfer",       "Coprocessor Data Transfer"],
-    ["____1110___________________0____", "ARMInstrType::CoprocessorDataOperation",      "Coprocessor Data Operation"],
-    ["____1110___________________1____", "ARMInstrType::CoprocessorRegisterTransfer",   "Coprocessor Register Transfer"],
-    ["____1111________________________", "ARMInstrType::SoftwareInterrupt",             "Software Interrupt"],
+    ["____00__________________________", "DataProcessing",               "Data Processing / PSR Transfer"],
+    ["____000000______________1001____", "Multiply",                     "Multiply"],
+    ["____00001_______________1001____", "MultiplyLong",                "Multiply Long"],
+    ["____00010_00________00001001____", "SingleDataSwap",              "Single Data Swap"],
+    ["____000100101111111111110001____", "BranchAndExchange",           "Branch and Exchange"],
+    ["____000__0__________00001__1____", "HalfwordDataTransfer",        "Halfword Data Transfer (register offset)"],
+    ["____000__1______________1__1____", "HalfwordDataTransfer",        "Halfword Data Transfer (immediate offset)"],
+    ["____01__________________________", "SingleDataTransfer",          "Single Data Transfer"],
+    ["____011____________________1____", "Undefined",                   "Undefined"],
+    ["____100_________________________", "BlockDataTransfer",           "Block Data Transfer"],
+    ["____101_________________________", "Branch",                      "Branch"],
+    ["____110_________________________", "CoprocessorDataTransfer",     "Coprocessor Data Transfer"],
+    ["____1110___________________0____", "CoprocessorDataOperation",    "Coprocessor Data Operation"],
+    ["____1110___________________1____", "CoprocessorRegisterTransfer", "Coprocessor Register Transfer"],
+    ["____1111________________________", "SoftwareInterrupt",           "Software Interrupt"],
 ];
 
 const THUMB_TABLE = [
-    ["000_____________", "THUMBInstrType::MoveShiftedRegister",         "Move Shifted Register"],
-    ["00011___________", "THUMBInstrType::AddSubtract",                 "Add / Subtract"],
-    ["001_____________", "THUMBInstrType::MoveCompareAddSubtractImm",   "Move/ Compare/ Add/ Subtract Immediate"],
-    ["010000__________", "THUMBInstrType::ALUOperations",               "ALU Operations"],
-    ["010001__________", "THUMBInstrType::HiRegisterOperations",        "Hi Register Operations / Branch Exchange"],
-    ["01001___________", "THUMBInstrType::PCRelativeLoad",              "PC-relative Load"],
-    ["0101__0_________", "THUMBInstrType::LoadStoreWithRegisterOffset", "Load/Store with register offset"],
-    ["0101__1_________", "THUMBInstrType::LoadStoreSignHalfwordByte",   "Load/Store Sign-Extended Byte/Halfword"],
-    ["911_____________", "THUMBInstrType::LoadStoreWithImmOffset",      "Load/Store with Immediate Offset"],
-    ["1000____________", "THUMBInstrType::LoadStoreHalfword",           "Load/Store Halfword"],
-    ["1001____________", "THUMBInstrType::SPRelativeLoadStore",         "SP-relative Load/Store"],
-    ["1010____________", "THUMBInstrType::LoadAddress",                 "Load Address"],
-    ["10110000________", "THUMBInstrType::AddOffsetToStackPointer",     "Add Offset to Stack Pointer"],
-    ["1011_10_________", "THUMBInstrType::PushPopRegisters",            "Push/Pop Registers"],
-    ["1100____________", "THUMBInstrType::MultipleLoadStore",           "Multiple Load/Store"],
-    ["1101____________", "THUMBInstrType::ConditionalBranch",           "Conditional Branch"],
-    ["11011111________", "THUMBInstrType::SoftwareInterrupt",           "Software Interrupt"],
+    ["000_____________", "MoveShiftedRegister",         "Move Shifted Register"],
+    ["00011___________", "AddSubtract",                 "Add / Subtract"],
+    ["001_____________", "MoveCompareAddSubtractImm",   "Move/ Compare/ Add/ Subtract Immediate"],
+    ["010000__________", "ALUOperations",               "ALU Operations"],
+    ["010001__________", "HiRegisterOperations",        "Hi Register Operations / Branch Exchange"],
+    ["01001___________", "PCRelativeLoad",              "PC-relative Load"],
+    ["0101__0_________", "LoadStoreWithRegisterOffset", "Load/Store with register offset"],
+    ["0101__1_________", "LoadStoreSignHalfwordByte",   "Load/Store Sign-Extended Byte/Halfword"],
+    ["911_____________", "LoadStoreWithImmOffset",      "Load/Store with Immediate Offset"],
+    ["1000____________", "LoadStoreHalfword",           "Load/Store Halfword"],
+    ["1001____________", "SPRelativeLoadStore",         "SP-relative Load/Store"],
+    ["1010____________", "LoadAddress",                 "Load Address"],
+    ["10110000________", "AddOffsetToStackPointer",     "Add Offset to Stack Pointer"],
+    ["1011_10_________", "PushPopRegisters",            "Push/Pop Registers"],
+    ["1100____________", "MultipleLoadStore",           "Multiple Load/Store"],
+    ["1101____________", "ConditionalBranch",           "Conditional Branch"],
+    ["11011111________", "SoftwareInterrupt",           "Software Interrupt"],
 ];
 
 
-function createDisassemblyTable(tableName, opcodeBits, stringTable) {
-    const tableString = stringTable.map(([bitString, enumName, description]) => {
+function createDisassemblyTable(tableName, opcodeBits, stringTable, enumName) {
+    const uniqueEnumVariants = new Set();
+    const tableString = stringTable.map(([bitString, enumVariant, description]) => {
         const significantSelectMask = createSignificantBitsSelectMask(bitString);
         const significantMask = createSignificantBitsMask(bitString);
         const significantBitsCount = countSignificantBits(bitString);
-        return { significantMask, significantSelectMask, significantBitsCount, enumName, description };
+        return { significantMask, significantSelectMask, significantBitsCount, enumVariant, description };
     }).sort((a, b) => {
         return b.significantBitsCount - a.significantBitsCount;
     }).reduce((dest, instrType) => {
-        dest += `    (${toHex(instrType.significantSelectMask, opcodeBits)}, ${toHex(instrType.significantMask, opcodeBits)}), // ${instrType.description}\n`;
+        uniqueEnumVariants.add(instrType.enumVariant);
+        const selectMaskHex = toHex(instrType.significantSelectMask, opcodeBits); 
+        const diffMaskHex = toHex(instrType.significantMask, opcodeBits); 
+        dest += `\t(${selectMaskHex}, ${diffMaskHex}, ${enumName}::${instrType.enumVariant}), // ${instrType.description}\n`;
         return dest;
     }, "");
 
-    return `const ${tableName}: [(u32, u32, ARMInstrType); ${stringTable.length}] = [\n${tableString}\n];`;
+    let enumVariantsString = "";
+    uniqueEnumVariants.forEach(variant => {
+        enumVariantsString += `\t${variant},\n`;
+    });
+
+    const tableCode = `const ${tableName}: [(u32, u32, ARMInstrType); ${stringTable.length}] = [\n${tableString}\n];`;
+    const enumCode = `pub enum ${enumName} {\n${enumVariantsString}}`;
+
+    return [tableCode, enumCode];
 }
 
 function toHex(value, bits) {
@@ -102,15 +114,23 @@ function countSignificantBits(bitString) {
     return count;
 }
 
+function fixTabs(s) {
+    return s.replace(/\t/g, '    ');
+}
+
 function main() {
-    const armTable = createDisassemblyTable("ARM_OPCODE_TABLE", 32, ARM_TABLE);
-    console.log("// ARM TABLE");
-    console.log(armTable);
+    const [armTable, armEnum] = createDisassemblyTable("ARM_OPCODE_TABLE", 32, ARM_TABLE, "ARMInstrType");
+    console.log("// ARM");
+    console.log(fixTabs(armTable));
+    console.log();
+    console.log(fixTabs(armEnum));
 
     console.log("\n");
 
-    const thumbTable = createDisassemblyTable("THUMB_OPCODE_TABLE", 16, THUMB_TABLE);
-    console.log("// THUMB TABLE");
-    console.log(thumbTable);
+    const [thumbTable, thumbEnum] = createDisassemblyTable("THUMB_OPCODE_TABLE", 16, THUMB_TABLE, "THUMBInstrType");
+    console.log("// THUMB");
+    console.log(fixTabs(thumbTable));
+    console.log();
+    console.log(fixTabs(thumbEnum));
 }
 main();
