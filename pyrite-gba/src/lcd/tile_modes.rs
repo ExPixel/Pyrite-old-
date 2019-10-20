@@ -86,13 +86,32 @@ use super::super::memory::palette::Palette;
 use super::super::memory::read16_le;
 // use super::super::memory::palette::u16_to_pixel;
 
+/// Contains priority and blending information about a pixel.
+#[derive(Copy, Clone)]
+struct PixelInfo {
+    /// This is true if the current pixel at this position is selected as a first target pixel in
+    /// the color special effects register.
+    is_first_target:        bool,
+
+    /// This is true if the highest second target pixel has already been blended with the first
+    /// target pixel in this location.
+    second_target_blended:  bool,
+
+    /// The priority assigned to the current pixel in this position.
+    priority:               u8,
+}
+
 pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     let backdrop = memory.palette.get_bg256(0) | 0x8000;
 
     // first we clear the background completely.
     for p in out.iter_mut() { *p = backdrop; }
 
-    let mut pixel_priority_mask = [4u8; 240];
+    let mut pixel_info = [PixelInfo {
+        is_first_target: false,
+        second_target_blended: false,
+        priority: 4,
+    }; 240];
 
     for priority in 0u16..=3u16 {
         for bg_idx in 0usize..=3usize {
@@ -113,15 +132,15 @@ pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
 
             if cnt.pal256() {
                 draw_bg_text_mode_8bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    if (col & 0x8000) != 0 && pixel_priority_mask[off] > priority as u8 {
-                        pixel_priority_mask[off] = priority as u8;
+                    if (col & 0x8000) != 0 && pixel_info[off].priority > priority as u8 {
+                        pixel_info[off].priority = priority as u8;
                         out[off] = col;
                     }
                 });
             } else {
                 draw_bg_text_mode_4bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    if (col & 0x8000) != 0 && pixel_priority_mask[off] > priority as u8 {
-                        pixel_priority_mask[off] = priority as u8;
+                    if (col & 0x8000) != 0 && pixel_info[off].priority > priority as u8 {
+                        pixel_info[off].priority = priority as u8;
                         out[off] = col;
                     }
                 });
@@ -131,10 +150,10 @@ pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
 
     if memory.ioregs.dispcnt.screen_display_obj() {
         obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.palette, 0x10000, |off, col, priority| {
-            if (col & 0x8000) != 0 && pixel_priority_mask[off] >= priority {
+            if (col & 0x8000) != 0 && pixel_info[off].priority >= priority {
                 // offset should never be out of bounds here
                 unsafe {
-                    *pixel_priority_mask.get_unchecked_mut(off) = priority;
+                    (*pixel_info.get_unchecked_mut(off)).priority = priority;
                     *out.get_unchecked_mut(off) = col;
                 }
             }
@@ -148,7 +167,12 @@ pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     // first we clear the background completely.
     for p in out.iter_mut() { *p = backdrop; }
 
-    let mut pixel_priority_mask = [4u8; 240];
+    let mut pixel_info = [PixelInfo {
+        is_first_target: false,
+        second_target_blended: false,
+        priority: 4,
+    }; 240];
+
 
     for priority in 0u16..=3u16 {
         for bg_idx in 0usize..=2usize {
@@ -171,8 +195,8 @@ pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
                     memory.ioregs.bg2pc);
 
                 draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    if (col & 0x8000) != 0 && pixel_priority_mask[off] > priority as u8 {
-                        pixel_priority_mask[off] = priority as u8;
+                    if (col & 0x8000) != 0 && pixel_info[off].priority > priority as u8 {
+                        pixel_info[off].priority = priority as u8;
                         out[off] = col;
                     }
                 });
@@ -186,15 +210,15 @@ pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
 
                 if cnt.pal256() {
                     draw_bg_text_mode_8bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                        if (col & 0x8000) != 0 && pixel_priority_mask[off] > priority as u8 {
-                            pixel_priority_mask[off] = priority as u8;
+                        if (col & 0x8000) != 0 && pixel_info[off].priority > priority as u8 {
+                            pixel_info[off].priority = priority as u8;
                             out[off] = col;
                         }
                     });
                 } else {
                     draw_bg_text_mode_4bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                        if (col & 0x8000) != 0 && pixel_priority_mask[off] > priority as u8 {
-                            pixel_priority_mask[off] = priority as u8;
+                        if (col & 0x8000) != 0 && pixel_info[off].priority > priority as u8 {
+                            pixel_info[off].priority = priority as u8;
                             out[off] = col;
                         }
                     });
@@ -204,10 +228,10 @@ pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     }
 
     obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.palette, 0x10000, |off, col, priority| {
-        if (col & 0x8000) != 0 && pixel_priority_mask[off] >= priority {
+        if (col & 0x8000) != 0 && pixel_info[off].priority >= priority {
             // offset should never be out of bounds here
             unsafe {
-                *pixel_priority_mask.get_unchecked_mut(off) = priority;
+                (*pixel_info.get_unchecked_mut(off)).priority = priority;
                 *out.get_unchecked_mut(off) = col;
             }
         }
@@ -220,7 +244,11 @@ pub fn mode2(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     // first we clear the background completely.
     for p in out.iter_mut() { *p = backdrop; }
 
-    let mut pixel_priority_mask = [4u8; 240];
+    let mut pixel_info = [PixelInfo {
+        is_first_target: false,
+        second_target_blended: false,
+        priority: 4,
+    }; 240];
 
     for priority in 0u16..=3u16 {
         for bg_idx in 2usize..=3usize {
@@ -243,8 +271,8 @@ pub fn mode2(line: u32, out: &mut Line, memory: &mut GbaMemory) {
                     memory.ioregs.bg2pc);
 
                 draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    if (col & 0x8000) != 0 && pixel_priority_mask[off] > priority as u8 {
-                        pixel_priority_mask[off] = priority as u8;
+                    if (col & 0x8000) != 0 && pixel_info[off].priority > priority as u8 {
+                        pixel_info[off].priority = priority as u8;
                         out[off] = col;
                     }
                 });
@@ -259,8 +287,8 @@ pub fn mode2(line: u32, out: &mut Line, memory: &mut GbaMemory) {
                     memory.ioregs.bg3pc);
 
                 draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    if (col & 0x8000) != 0 && pixel_priority_mask[off] > priority as u8 {
-                        pixel_priority_mask[off] = priority as u8;
+                    if (col & 0x8000) != 0 && pixel_info[off].priority > priority as u8 {
+                        pixel_info[off].priority = priority as u8;
                         out[off] = col;
                     }
                 });
@@ -272,10 +300,10 @@ pub fn mode2(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     }
 
     obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.palette, 0x10000, |off, col, priority| {
-        if (col & 0x8000) != 0 && pixel_priority_mask[off] >= priority {
+        if (col & 0x8000) != 0 && pixel_info[off].priority >= priority {
             // offset should never be out of bounds here
             unsafe {
-                *pixel_priority_mask.get_unchecked_mut(off) = priority;
+                (*pixel_info.get_unchecked_mut(off)).priority = priority;
                 *out.get_unchecked_mut(off) = col;
             }
         }
