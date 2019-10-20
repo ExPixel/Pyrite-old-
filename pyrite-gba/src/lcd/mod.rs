@@ -40,26 +40,33 @@ impl GbaLCD {
         video.pre_frame();
     }
 
+    #[inline(always)]
     pub fn step(&mut self, cycles: u32, cpu: &mut ArmCpu, memory: &mut GbaMemory, video: &mut dyn GbaVideoOutput) {
         self.end_of_frame = false;
         if cycles >= self.cycles_remaining {
-            if cycles > self.cycles_remaining {
-                self.cycles_remaining = cycles - self.cycles_remaining;
-            } else {
-                self.cycles_remaining = 0;
-            }
-
-            if self.in_hblank {
-                self.enter_next_line_hdraw(cpu, memory, video);
-                self.in_hblank = false;
-                self.cycles_remaining += HDRAW_CYCLES;
-            } else {
-                self.enter_hblank(cpu, memory, video);
-                self.in_hblank = true;
-                self.cycles_remaining += HBLANK_CYCLES;
-            }
+            // #NOTE: having this in a separate function and forcing the compiler to inline this
+            // one increased performance by like 5-10%
+            self.fire(cycles, cpu, memory, video);
         } else {
             self.cycles_remaining -= cycles;
+        }
+    }
+
+    fn fire(&mut self, cycles: u32, cpu: &mut ArmCpu, memory: &mut GbaMemory, video: &mut dyn GbaVideoOutput) {
+        if cycles > self.cycles_remaining {
+            self.cycles_remaining = cycles - self.cycles_remaining;
+        } else {
+            self.cycles_remaining = 0;
+        }
+
+        if self.in_hblank {
+            self.enter_next_line_hdraw(cpu, memory, video);
+            self.in_hblank = false;
+            self.cycles_remaining += HDRAW_CYCLES;
+        } else {
+            self.enter_hblank(cpu, memory, video);
+            self.in_hblank = true;
+            self.cycles_remaining += HBLANK_CYCLES;
         }
     }
 
@@ -83,12 +90,16 @@ impl GbaLCD {
         if self.line_number >= (VDRAW_LINES + VBLANK_LINES) {
             self.line_number = 0;
             memory.ioregs.dispstat.set_vblank(false);
+
+            // on VDRAW start (VBLANK end) we copy the internal point registers into the
+            // internal reference point registers for affine BGs.
+            self.copy_bg_reference_point_registers(memory);
+
             video.pre_frame();
         } else if self.line_number >= VDRAW_LINES {
             memory.ioregs.dispstat.set_vblank(true);
         } else {
             memory.ioregs.dispstat.set_vblank(false);
-            self.copy_bg_reference_point_registers(memory);
         }
 
         memory.ioregs.dispstat.set_vcounter(self.line_number as u16 == memory.ioregs.dispstat.vcount_setting());
@@ -99,10 +110,10 @@ impl GbaLCD {
     /// registers.
     #[inline]
     fn copy_bg_reference_point_registers(&self, memory: &mut GbaMemory) {
-        memory.ioregs.internal_bg2x = memory.ioregs.bg2x.inner;
-        memory.ioregs.internal_bg2y = memory.ioregs.bg2y.inner;
-        memory.ioregs.internal_bg3x = memory.ioregs.bg3x.inner;
-        memory.ioregs.internal_bg3y = memory.ioregs.bg3y.inner;
+        memory.ioregs.internal_bg2x.inner = memory.ioregs.bg2x.inner;
+        memory.ioregs.internal_bg2y.inner = memory.ioregs.bg2y.inner;
+        memory.ioregs.internal_bg3x.inner = memory.ioregs.bg3x.inner;
+        memory.ioregs.internal_bg3y.inner = memory.ioregs.bg3y.inner;
     }
 
     fn render_line(&mut self, memory: &mut GbaMemory) {

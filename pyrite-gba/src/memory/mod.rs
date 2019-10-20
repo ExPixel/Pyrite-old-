@@ -1171,13 +1171,13 @@ const fn get_byte_of_word(word: u32, addr: u32) -> u8 {
 // ```
 #[inline(always)]
 const fn get_halfword_of_word(word: u32, addr: u32) -> u16 {
-    (word >> ((addr & 0x2) * 4)) as u16
+    (word >> ((addr & 0x2) * 8)) as u16
 }
 
 // see: `get_halfword_of_word`
 #[inline(always)]
 fn set_halfword_of_word(word: u32, addr: u32, value: u16) -> u32 {
-    let off = (addr & 0x2) * 4;
+    let off = (addr & 0x2) * 8;
     (word & !(0xFFFF << off)) | ((value as u32) << off)
 }
 

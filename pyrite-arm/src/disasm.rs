@@ -18,7 +18,7 @@ const ARM_OPCODE_TABLE: [(u32, u32); 15] = [
     (0x0c000000, 0x04000000), // Single Data Transfer
 ];
 
-const THUMB_OPCODE_TABLE: [(u32, u32); 17] = [
+const THUMB_OPCODE_TABLE: [(u16, u16); 17] = [
     (0xff00, 0xb000), // Add Offset to Stack Pointer
     (0xff00, 0xdf00), // Software Interrupt
     (0xfc00, 0x4000), // ALU Operations
@@ -36,8 +36,24 @@ const THUMB_OPCODE_TABLE: [(u32, u32); 17] = [
     (0xe000, 0x0000), // Move Shifted Register
     (0xe000, 0x2000), // Move/ Compare/ Add/ Subtract Immediate
     (0xe000, 0x6000), // Load/Store with Immediate Offset
-
 ];
 
 pub fn disassemble(thumb: bool, address: u32, memory: &dyn ArmMemory) {
+    if thumb {
+        let opcode = memory.view16(address);
+        for (select_bits, diff) in THUMB_OPCODE_TABLE.iter() {
+            if ((opcode & select_bits) ^ diff) == 0 {
+                unimplemented!("thumb disassembly");
+            }
+        }
+        unimplemented!("thumb undefined");
+    } else {
+        let opcode = memory.view32(address);
+        for (select_bits, diff) in ARM_OPCODE_TABLE.iter() {
+            if ((opcode & select_bits) ^ diff) == 0 {
+                unimplemented!("arm disassembly");
+            }
+        }
+        unimplemented!("arm undefined");
+    }
 }

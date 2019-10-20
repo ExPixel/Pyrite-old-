@@ -10,18 +10,18 @@ pub struct IORegisters {
     pub bg_cnt:  [RegBGxCNT; 4],
     pub bg_hofs: [RegBGxHOFS; 4], 
     pub bg_vofs: [RegBGxVOFS; 4], 
-    pub bg2pa: Reg16,
-    pub bg2pb: Reg16,
-    pub bg2pc: Reg16,
-    pub bg2pd: Reg16,
-    pub bg2x: Reg32,
-    pub bg2y: Reg32,
-    pub bg3pa: Reg16,
-    pub bg3pb: Reg16,
-    pub bg3pc: Reg16,
-    pub bg3pd: Reg16,
-    pub bg3x: Reg32,
-    pub bg3y: Reg32,
+    pub bg2pa: RegFixedPoint16,
+    pub bg2pb: RegFixedPoint16,
+    pub bg2pc: RegFixedPoint16,
+    pub bg2pd: RegFixedPoint16,
+    pub bg2x: RegFixedPoint28,
+    pub bg2y: RegFixedPoint28,
+    pub bg3pa: RegFixedPoint16,
+    pub bg3pb: RegFixedPoint16,
+    pub bg3pc: RegFixedPoint16,
+    pub bg3pd: RegFixedPoint16,
+    pub bg3x: RegFixedPoint28,
+    pub bg3y: RegFixedPoint28,
     pub win0h: Reg16,
     pub win1h: Reg16,
     pub win0v: Reg16,
@@ -37,10 +37,10 @@ pub struct IORegisters {
     // (BG2X, BG2Y, BG3X, and BG3Y) at the end of the vblank period. Writing to the original
     // reference point registers during VDRAW will immediately write them into the internal
     // registers.
-    pub internal_bg2x: u32,
-    pub internal_bg2y: u32,
-    pub internal_bg3x: u32,
-    pub internal_bg3y: u32,
+    pub internal_bg2x: RegFixedPoint28,
+    pub internal_bg2y: RegFixedPoint28,
+    pub internal_bg3x: RegFixedPoint28,
+    pub internal_bg3y: RegFixedPoint28,
 
     // Sound Registers
     pub sound1cnt_l: Reg16,
@@ -391,11 +391,11 @@ impl IORegisters {
             0x0026 => self.bg2pd.inner = value,
             0x0028 | 0x002A => {
                 self.bg2x.inner = set_halfword_of_word(self.bg2x.inner, aligned_addr, value);
-                if !self.dispstat.vblank() { self.internal_bg2x = self.bg2x.inner; }
+                if !self.dispstat.vblank() { self.internal_bg2x.inner = self.bg2x.inner; }
             }
             0x002C | 0x002E =>{ 
                 self.bg2y.inner = set_halfword_of_word(self.bg2y.inner, aligned_addr, value);
-                if !self.dispstat.vblank() { self.internal_bg2y = self.bg2y.inner; }
+                if !self.dispstat.vblank() { self.internal_bg2y.inner = self.bg2y.inner; }
             },
             0x0030 => self.bg3pa.inner = value,
             0x0032 => self.bg3pb.inner = value,
@@ -403,11 +403,11 @@ impl IORegisters {
             0x0036 => self.bg3pd.inner = value,
             0x0038 | 0x003A => {
                 self.bg3x.inner = set_halfword_of_word(self.bg3x.inner, aligned_addr, value);
-                if !self.dispstat.vblank() { self.internal_bg3x = self.bg3x.inner; }
+                if !self.dispstat.vblank() { self.internal_bg3x.inner = self.bg3x.inner; }
             },
             0x003C | 0x003E => {
                 self.bg3y.inner = set_halfword_of_word(self.bg3y.inner, aligned_addr, value);
-                if !self.dispstat.vblank() { self.internal_bg3y = self.bg3y.inner; }
+                if !self.dispstat.vblank() { self.internal_bg3y.inner = self.bg3y.inner; }
             }
             0x0040 => self.win0h.inner = value,
             0x0042 => self.win1h.inner = value,
@@ -817,7 +817,7 @@ ioreg! {
         mosaic, set_mosaic: bool = [6, 6],
         pal256, set_pal256: bool = [7, 7],
         screen_base_block, set_screen_base_block: u16 = [8, 12],
-        display_area_overflow, set_display_area_overflow: bool = [13, 13],
+        display_area_overflow_wrap, set_display_area_overflow_wrap: bool = [13, 13],
         screen_size, set_screen_size: u16 = [14, 15],
     }
 }
@@ -831,5 +831,22 @@ ioreg! {
 ioreg! {
     RegBGxVOFS: u16 {
         offset, set_offset: u16 = [0, 8],
+    }
+}
+
+ioreg! {
+    RegFixedPoint16: u16 {
+        fractional_portion, set_fractional_portion: u16 = [0, 7],
+        integer_portion, set_integer_portion: u16 = [8, 14],
+        sign, set_sign: bool = [15, 15],
+    }
+}
+
+ioreg! {
+    RegFixedPoint28: u32 {
+        fractional_portion, set_fractional_portion: u32 = [0, 7],
+        integer_portion, set_integer_portion: u32 = [8, 26],
+        sign, set_sign: bool = [27, 27],
+        used_portion, set_used_portion: u32 = [0, 27],
     }
 }

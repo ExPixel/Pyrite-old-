@@ -81,7 +81,7 @@
 
 use super::{ Line, obj };
 use super::super::GbaMemory;
-use super::super::memory::ioreg::{ RegBGxCNT, RegBGxHOFS, RegBGxVOFS };
+use super::super::memory::ioreg::{ RegBGxCNT, RegBGxHOFS, RegBGxVOFS, RegFixedPoint16, RegFixedPoint28 };
 use super::super::memory::palette::Palette;
 use super::super::memory::read16_le;
 // use super::super::memory::palette::u16_to_pixel;
@@ -129,15 +129,17 @@ pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
         }
     }
 
-    obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.palette, 0x10000, |off, col, priority| {
-        if (col & 0x8000) != 0 && pixel_priority_mask[off] >= priority {
-            // offset should never be out of bounds here
-            unsafe {
-                *pixel_priority_mask.get_unchecked_mut(off) = priority;
-                *out.get_unchecked_mut(off) = col;
+    if memory.ioregs.dispcnt.screen_display_obj() {
+        obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.palette, 0x10000, |off, col, priority| {
+            if (col & 0x8000) != 0 && pixel_priority_mask[off] >= priority {
+                // offset should never be out of bounds here
+                unsafe {
+                    *pixel_priority_mask.get_unchecked_mut(off) = priority;
+                    *out.get_unchecked_mut(off) = col;
+                }
             }
-        }
-    });
+        });
+    }
 }
 
 pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
@@ -161,12 +163,27 @@ pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
             };
             if !enabled { continue; }
 
-            let xoffset = memory.ioregs.bg_hofs[bg_idx];
-            let yoffset = memory.ioregs.bg_vofs[bg_idx];
-            let bg = TextBG::new(cnt, xoffset, yoffset);
-
             if bg_idx == 2 {
+                let bg = AffineBG::new(cnt,
+                    memory.ioregs.internal_bg2x,
+                    memory.ioregs.internal_bg2y,
+                    memory.ioregs.bg2pa,
+                    memory.ioregs.bg2pc);
+
+                draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
+                    if (col & 0x8000) != 0 && pixel_priority_mask[off] > priority as u8 {
+                        pixel_priority_mask[off] = priority as u8;
+                        out[off] = col;
+                    }
+                });
+
+                memory.ioregs.internal_bg2x.inner = (memory.ioregs.internal_bg2x.inner.wrapping_add(memory.ioregs.bg2pb.inner as i16 as i32 as u32) << 4) >> 4;
+                memory.ioregs.internal_bg2y.inner = (memory.ioregs.internal_bg2y.inner.wrapping_add(memory.ioregs.bg2pd.inner as i16 as i32 as u32) << 4) >> 4;
             } else {
+                let xoffset = memory.ioregs.bg_hofs[bg_idx];
+                let yoffset = memory.ioregs.bg_vofs[bg_idx];
+                let bg = TextBG::new(cnt, xoffset, yoffset);
+
                 if cnt.pal256() {
                     draw_bg_text_mode_8bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
                         if (col & 0x8000) != 0 && pixel_priority_mask[off] > priority as u8 {
@@ -198,15 +215,16 @@ pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
 }
 
 pub fn mode2(_line: u32, _out: &mut Line, _memory: &mut GbaMemory) {
+    unimplemented!("mode2 not yet implemented");
 }
 
 /// Internal Screen Size (dots) and size of BG Map (bytes):
 ///
-///   Value  Text Mode      Rotation/Scaling Mode
-///   0      256x256 (2K)   128x128   (256 bytes)
-///   1      512x256 (4K)   256x256   (1K)
-///   2      256x512 (4K)   512x512   (4K)
-///   3      512x512 (8K)   1024x1024 (16K)
+///   Value  Text Mode
+///   0      256x256 (2K)
+///   1      512x256 (4K)
+///   2      256x512 (4K)
+///   3      512x512 (8K)
 const TEXT_MODE_SCREEN_SIZE: [(u32, u32); 4] = [
     (256, 256),
     (512, 256),
@@ -214,9 +232,50 @@ const TEXT_MODE_SCREEN_SIZE: [(u32, u32); 4] = [
     (512, 512),
 ];
 
-fn draw_affine_bg<F: FnMut(usize, u16)>(line: u32, bg: AffineBG, vram: &[u8], palette: Palette, mut poke: F) {
+/// Internal Screen Size (dots) and size of BG Map (bytes):
+///
+///   Value  Rotation/Scaling Mode
+///   0      128x128   (256 bytes)
+///   1      256x256   (1K)
+///   2      512x512   (4K)
+///   3      1024x1024 (16K)
+const ROTSCAL_SCREEN_SIZE: [(u32, u32); 4] = [
+    (128, 128),
+    (256, 256),
+    (512, 512),
+    (1024, 1024),
+];
+
+fn draw_affine_bg<F: FnMut(usize, u16)>(_line: u32, bg: AffineBG, vram: &[u8], palette: &Palette, mut poke: F) {
+    let (x_mask, y_mask) = if bg.wraparound {
+        ((bg.width - 1) as i32, (bg.height - 1) as i32)
+    } else {
+        (0xFFFFFFFFu32 as i32, 0xFFFFFFFFu32 as i32)
+    };
+
+    for idx in 0..240 {
+        let x = (bg.ref_x.wrapping_add(bg.dx as i32 * idx as i32) << 4) >> 4;
+        let y = (bg.ref_y.wrapping_add(bg.dy as i32 * idx as i32) << 4) >> 4;
+
+        let real_x = ((x >> 8) & x_mask) as u32;
+        let real_y = ((y >> 8) & y_mask) as u32;
+
+        if (real_x < bg.width) & (real_y < bg.height) {
+            let tx = real_x / 8;
+            let ty = real_y / 8;
+            let tile_number = vram[(bg.screen_base + (ty * (bg.width / 8)) + tx) as usize];
+            let tile_pixel_data_offset = bg.char_base + (64 * tile_number as u32) + (8 * (real_y % 8)) + (real_x % 8);
+            let tile_pixel = palette.get_bg256(vram[tile_pixel_data_offset as usize]);
+            poke(idx, tile_pixel);
+        }
+    }
 }
 
+
+// @TODO I do a lot of work here in order to be able to draw tiles 8 pixels at a time, but I'm not
+// sure if the added complexity is worth it, or if I'm even getting better performance by doing it
+// this way because I never tried just mapping pixels to tile pixels the same way I do in
+// `draw_affine_bg`, so I think it would be worth it to explore doing that at some point.
 fn draw_bg_text_mode_4bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u8], palette: &Palette, mut poke: F) {
     let scx = bg.xoffset & (bg.width - 1);
     let scy = (bg.yoffset + line) % bg.height;
@@ -467,4 +526,40 @@ impl TextBG {
 }
 
 struct AffineBG {
+    char_base:      u32,
+    screen_base:    u32,
+    wraparound:     bool,
+    width:  u32,
+    height: u32,
+
+    ref_x:  i32,
+    ref_y:  i32,
+
+    dx:     i16,
+    dy:     i16,
 }
+
+impl AffineBG {
+    #[inline]
+    pub fn new(bg_cnt: RegBGxCNT, ref_x: RegFixedPoint28, ref_y: RegFixedPoint28, dx: RegFixedPoint16, dy: RegFixedPoint16) -> AffineBG {
+        AffineBG {
+            char_base:      bg_cnt.char_base_block() as u32 * (1024 * 16),
+            screen_base:    bg_cnt.screen_base_block() as u32 *  (1024 * 2),
+            wraparound:     bg_cnt.display_area_overflow_wrap(),
+            width:  ROTSCAL_SCREEN_SIZE[bg_cnt.screen_size() as usize].0,
+            height: ROTSCAL_SCREEN_SIZE[bg_cnt.screen_size() as usize].1,
+
+            // copies bit 27 to 28-31
+            ref_x:  ((ref_x.used_portion() as i32) << 4) >> 4,
+            ref_y:  ((ref_y.used_portion() as i32) << 4) >> 4,
+
+            dx:     dx.inner as i16,
+            dy:     dy.inner as i16,
+        }
+    }
+}
+
+// #[inline]
+// pub const fn rgb16(r: u8, g: u8, b: u8) -> u16 {
+//     0x8000 | (r as u16 & 0x1F) | ((g as u16 & 0x1F) << 5) | ((b as u16 & 0x1F) << 10)
+// }

@@ -88,5 +88,13 @@ fn gba_obj_benchmark(c: &mut Criterion) {
     black_box(gba);
 }
 
-criterion_group!(benches, gba_mode3_benchmark, gba_mode0_benchmark, gba_mode0_simple_blending_benchmark, gba_obj_benchmark);
+fn gba_affine_bg_benchmark(c: &mut Criterion) {
+    let mut gba = setup_gba("../roms/tonc/sbb_aff.gba");
+    draw_frames(&mut gba, 256);
+
+    c.bench_function("mode1 affine bg", |b| b.iter(|| draw_single_frame(&mut gba)));
+    black_box(gba);
+}
+
+criterion_group!(benches, gba_mode3_benchmark, gba_mode0_benchmark, gba_mode0_simple_blending_benchmark, gba_obj_benchmark, gba_affine_bg_benchmark);
 criterion_main!(benches);
