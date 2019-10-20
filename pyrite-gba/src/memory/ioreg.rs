@@ -28,7 +28,7 @@ pub struct IORegisters {
     pub win1v: Reg16,
     pub winin: Reg16,
     pub winout: Reg16,
-    pub mosaic: Reg16,
+    pub mosaic: RegMosaic,
     pub bldcnt: Reg16,
     pub bldalpha: Reg16,
     pub bldy: Reg16,
@@ -848,5 +848,14 @@ ioreg! {
         integer_portion, set_integer_portion: u32 = [8, 26],
         sign, set_sign: bool = [27, 27],
         used_portion, set_used_portion: u32 = [0, 27],
+    }
+}
+
+ioreg! {
+    RegMosaic: u16 {
+        bg_h_size, set_bg_h_size: u16 = [0, 3],
+        bg_v_size, set_bg_v_size: u16 = [4, 7],
+        obj_h_size, set_obj_h_size: u16 = [8, 11],
+        obj_v_size, set_obj_v_size: u16 = [12, 15],
     }
 }

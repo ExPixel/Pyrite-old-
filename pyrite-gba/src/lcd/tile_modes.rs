@@ -143,7 +143,7 @@ pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     }
 
     if memory.ioregs.dispcnt.screen_display_obj() {
-        obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.palette, 0x10000, |off, col, priority| {
+        obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x10000, |off, col, priority| {
             poke_obj_pixel(off, col, priority, out, &mut pixel_info);
         });
     }
@@ -206,7 +206,7 @@ pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
         }
     }
 
-    obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.palette, 0x10000, |off, col, priority| {
+    obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x10000, |off, col, priority| {
         poke_obj_pixel(off, col, priority, out, &mut pixel_info);
     });
 }
@@ -266,7 +266,7 @@ pub fn mode2(line: u32, out: &mut Line, memory: &mut GbaMemory) {
         }
     }
 
-    obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.palette, 0x10000, |off, col, priority| {
+    obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x10000, |off, col, priority| {
         poke_obj_pixel(off, col, priority, out, &mut pixel_info);
     });
 }
