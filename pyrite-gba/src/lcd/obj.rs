@@ -58,7 +58,7 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
                 // becomes (width - x - 1) if horizontal_flip is true, or just x if horizontal_flip
                 // is false
                 let obj_x = conditional_negate!(attr.horizontal_flip, obj_x).wrapping_add(hflip_add) as usize;
-                let tile = (attr.tile_number as usize * BYTES_PER_TILE) + ((obj_line as usize / 8) * tile_stride) + (obj_x/8);
+                let tile = (attr.tile_number as usize) + ((obj_line as usize / 8) * tile_stride) + (obj_x/8);
                 let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_line as usize % 8) * BYTES_PER_LINE) + (obj_x % 8);
                 let palette_entry = tile_data[pixel_offset];
                 let color = palette.get_obj256(palette_entry);
@@ -73,7 +73,7 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
             for obj_x in start_obj_x..end_obj_x {
                 let screen_x = attr.x.wrapping_add(obj_x) & 0x1FF;
                 let obj_x = conditional_negate!(attr.horizontal_flip, obj_x).wrapping_add(hflip_add) as usize;
-                let tile = (attr.tile_number as usize * BYTES_PER_TILE) + ((obj_line as usize / 8) * tile_stride) + (obj_x/8);
+                let tile = (attr.tile_number as usize) + ((obj_line as usize / 8) * tile_stride) + (obj_x/8);
                 let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_line as usize % 8) * BYTES_PER_LINE) + ((obj_x % 8) / 2);
                 let palette_entry = (tile_data[pixel_offset] >> ((obj_x % 2) << 2)) & 0xF;
                 let color = palette.get_obj16(attr.palette_index, palette_entry);
