@@ -81,7 +81,7 @@
 
 use super::{ Line, obj };
 use super::super::GbaMemory;
-use super::super::memory::ioreg::{ RegBGxCNT, RegBGxHOFS, RegBGxVOFS, RegFixedPoint16, RegFixedPoint28 };
+use super::super::memory::ioreg::{ RegBGxCNT, RegBGxHOFS, RegBGxVOFS, RegFixedPoint16, RegFixedPoint28, RegMosaic };
 use super::super::memory::palette::Palette;
 use super::super::memory::read16_le;
 // use super::super::memory::palette::u16_to_pixel;
@@ -128,7 +128,7 @@ pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
 
             let xoffset = memory.ioregs.bg_hofs[bg_idx];
             let yoffset = memory.ioregs.bg_vofs[bg_idx];
-            let bg = TextBG::new(cnt, xoffset, yoffset);
+            let bg = TextBG::new(cnt, xoffset, yoffset, memory.ioregs.mosaic);
 
             if cnt.pal256() {
                 draw_bg_text_mode_8bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
@@ -191,7 +191,7 @@ pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
             } else {
                 let xoffset = memory.ioregs.bg_hofs[bg_idx];
                 let yoffset = memory.ioregs.bg_vofs[bg_idx];
-                let bg = TextBG::new(cnt, xoffset, yoffset);
+                let bg = TextBG::new(cnt, xoffset, yoffset, memory.ioregs.mosaic);
 
                 if cnt.pal256() {
                     draw_bg_text_mode_8bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
@@ -561,11 +561,14 @@ struct TextBG {
     height:     u32,
     xoffset:    u32,
     yoffset:    u32,
+
+    mosaic_x:   u16,
+    mosaic_y:   u16,
 }
 
 impl TextBG {
     #[inline]
-    pub fn new(bg_cnt: RegBGxCNT, bg_hofs: RegBGxHOFS, bg_vofs: RegBGxVOFS) -> TextBG {
+    pub fn new(bg_cnt: RegBGxCNT, bg_hofs: RegBGxHOFS, bg_vofs: RegBGxVOFS, mosaic: RegMosaic) -> TextBG {
         TextBG {
             char_base:      bg_cnt.char_base_block() as u32 * (1024 * 16),
             screen_base:    bg_cnt.screen_base_block() as u32 *  (1024 * 2),
@@ -574,6 +577,9 @@ impl TextBG {
             height:     TEXT_MODE_SCREEN_SIZE[bg_cnt.screen_size() as usize].1,
             xoffset:    bg_hofs.offset() as u32,
             yoffset:    bg_vofs.offset() as u32,
+
+            mosaic_x:   if bg_cnt.mosaic() { mosaic.bg_h_size() + 1 } else { 0 },
+            mosaic_y:   if bg_cnt.mosaic() { mosaic.bg_v_size() + 1 } else { 0 },
         }
     }
 }
