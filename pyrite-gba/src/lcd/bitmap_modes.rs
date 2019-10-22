@@ -54,6 +54,19 @@ pub fn mode4(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     }
 }
 
-pub fn mode5(_line: u32, _out: &mut Line, _memory: &mut GbaMemory) {
-    unimplemented!("mode5 rendering");
+pub fn mode5(line: u32, out: &mut Line, memory: &mut GbaMemory) {
+    const FRAME1_OFFSET: usize = 0xA000;
+
+    if memory.ioregs.dispcnt.screen_display_bg2() && line < 128 {
+        let mosaic_x = if memory.ioregs.bg_cnt[2].mosaic() { memory.ioregs.mosaic.bg_h_size() as u32 + 1 } else { 0 };
+        let mosaic_y = if memory.ioregs.bg_cnt[2].mosaic() { memory.ioregs.mosaic.bg_v_size() as u32 + 1 } else { 0 };
+
+        let y = apply_mosaic(line, mosaic_y) as usize;
+        let pixel_data_start = 320*y + FRAME1_OFFSET*(memory.ioregs.dispcnt.frame() as usize);
+        for screen_x in 0..160 {
+            let pixel_offset = apply_mosaic(screen_x, mosaic_x) as usize;
+            let pixel = read16_le(&memory.mem_vram, pixel_data_start + (pixel_offset * 2)) | 0x8000;
+            out[screen_x as usize] = pixel;
+        }
+    }
 }
