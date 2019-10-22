@@ -38,7 +38,7 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
         // check if the object is disabled or out of bounds
         let (top, bottom) = (attr.y as u32, attr.y.wrapping_add(attr.height) as u8 as u32);
         // the second condition correctly handles an object wrapping vertically around the screen.
-        let in_bounds = (top <= line && bottom >= line) || (top > line && bottom >= line  && bottom < top);
+        let in_bounds = (top <= line && bottom > line) || (top > line && bottom > line  && bottom < top);
         if attr.disabled || !in_bounds { continue }
 
         let obj_line = if attr.vertical_flip {
