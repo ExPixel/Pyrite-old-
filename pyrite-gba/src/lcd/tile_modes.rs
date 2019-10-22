@@ -180,7 +180,8 @@ pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
                     memory.ioregs.internal_bg2x,
                     memory.ioregs.internal_bg2y,
                     memory.ioregs.bg2pa,
-                    memory.ioregs.bg2pc);
+                    memory.ioregs.bg2pc,
+                    memory.ioregs.mosaic);
 
                 draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
                     poke_bg_pixel(off, col, priority as u8, out, &mut pixel_info);
@@ -241,7 +242,8 @@ pub fn mode2(line: u32, out: &mut Line, memory: &mut GbaMemory) {
                     memory.ioregs.internal_bg2x,
                     memory.ioregs.internal_bg2y,
                     memory.ioregs.bg2pa,
-                    memory.ioregs.bg2pc);
+                    memory.ioregs.bg2pc,
+                    memory.ioregs.mosaic);
 
                 draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
                     poke_bg_pixel(off, col, priority as u8, out, &mut pixel_info);
@@ -254,7 +256,8 @@ pub fn mode2(line: u32, out: &mut Line, memory: &mut GbaMemory) {
                     memory.ioregs.internal_bg3x,
                     memory.ioregs.internal_bg3y,
                     memory.ioregs.bg3pa,
-                    memory.ioregs.bg3pc);
+                    memory.ioregs.bg3pc,
+                    memory.ioregs.mosaic);
 
                 draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
                     poke_bg_pixel(off, col, priority as u8, out, &mut pixel_info);
@@ -306,12 +309,20 @@ fn draw_affine_bg<F: FnMut(usize, u16)>(_line: u32, bg: AffineBG, vram: &[u8], p
         (0xFFFFFFFFu32 as i32, 0xFFFFFFFFu32 as i32)
     };
 
+    let apply_mosaic = |v: u32, mosaic: u16| -> u32 {
+        if mosaic > 0 {
+            v - (v % mosaic as u32)
+        } else {
+            v
+        }
+    };
+
     for idx in 0..240 {
         let x = (bg.ref_x.wrapping_add(bg.dx as i32 * idx as i32) << 4) >> 4;
         let y = (bg.ref_y.wrapping_add(bg.dy as i32 * idx as i32) << 4) >> 4;
 
-        let real_x = ((x >> 8) & x_mask) as u32;
-        let real_y = ((y >> 8) & y_mask) as u32;
+        let real_x = apply_mosaic(((x >> 8) & x_mask) as u32, bg.mosaic_x);
+        let real_y = apply_mosaic(((y >> 8) & y_mask) as u32, bg.mosaic_y);
 
         if (real_x < bg.width) & (real_y < bg.height) {
             let tx = real_x / 8;
@@ -337,10 +348,9 @@ fn draw_bg_text_mode_4bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
     };
     let ty = scy % 8;
 
-    let mosaic_x = bg.mosaic_x as u32;
     let apply_mosaic_x = |x: u32| -> u32 {
-        if mosaic_x > 0 {
-            x - (x % mosaic_x)
+        if bg.mosaic_x > 0 {
+            x - (x % bg.mosaic_x as u32)
         } else {
             x
         }
@@ -365,7 +375,7 @@ fn draw_bg_text_mode_4bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
         if pixel_offset > 0x10000 { dx += 1; continue }
 
         // try to do 8 pixels at a time if possible:
-        if mosaic_x == 0 && (scx % 8) == 0 && dx <= 231 {
+        if bg.mosaic_x == 0 && (scx % 8) == 0 && dx <= 231 {
             let pinc = if horizontal_flip { -1i32 as u32 } else { 1u32 };
             for _ in 0..4 {
                 let palette_entry = vram[pixel_offset as usize];
@@ -395,10 +405,9 @@ fn draw_bg_text_mode_8bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
     };
     let ty = scy % 8;
 
-    let mosaic_x = bg.mosaic_x as u32;
     let apply_mosaic_x = |x: u32| -> u32 {
-        if mosaic_x > 0 {
-            x - (x % mosaic_x)
+        if bg.mosaic_x > 0 {
+            x - (x % bg.mosaic_x as u32)
         } else {
             x
         }
@@ -422,7 +431,7 @@ fn draw_bg_text_mode_8bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
         if pixel_offset > 0x10000 { dx += 1; continue }
 
         // try to do 8 pixels at a time if possible:
-        if mosaic_x == 0 && (scx % 8) == 0 && dx <= 231 {
+        if bg.mosaic_x == 0 && (scx % 8) == 0 && dx <= 231 {
             let pinc = if horizontal_flip { -1i32 as u32 } else { 1u32 };
             for _ in 0..8 {
                 let palette_entry = vram[pixel_offset as usize];
@@ -492,11 +501,14 @@ struct AffineBG {
 
     dx:     i16,
     dy:     i16,
+
+    mosaic_x: u16,
+    mosaic_y: u16,
 }
 
 impl AffineBG {
     #[inline]
-    pub fn new(bg_cnt: RegBGxCNT, ref_x: RegFixedPoint28, ref_y: RegFixedPoint28, dx: RegFixedPoint16, dy: RegFixedPoint16) -> AffineBG {
+    pub fn new(bg_cnt: RegBGxCNT, ref_x: RegFixedPoint28, ref_y: RegFixedPoint28, dx: RegFixedPoint16, dy: RegFixedPoint16, mosaic: RegMosaic) -> AffineBG {
         AffineBG {
             char_base:      bg_cnt.char_base_block() as u32 * (1024 * 16),
             screen_base:    bg_cnt.screen_base_block() as u32 *  (1024 * 2),
@@ -510,6 +522,9 @@ impl AffineBG {
 
             dx:     dx.inner as i16,
             dy:     dy.inner as i16,
+
+            mosaic_x:   if bg_cnt.mosaic() { mosaic.bg_h_size() + 1 } else { 0 },
+            mosaic_y:   if bg_cnt.mosaic() { mosaic.bg_v_size() + 1 } else { 0 },
         }
     }
 }
