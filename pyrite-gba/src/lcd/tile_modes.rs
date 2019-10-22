@@ -324,220 +324,116 @@ fn draw_affine_bg<F: FnMut(usize, u16)>(_line: u32, bg: AffineBG, vram: &[u8], p
     }
 }
 
-
-// @TODO I do a lot of work here in order to be able to draw tiles 8 pixels at a time, but I'm not
-// sure if the added complexity is worth it, or if I'm even getting better performance by doing it
-// this way because I never tried just mapping pixels to tile pixels the same way I do in
-// `draw_affine_bg`, so I think it would be worth it to explore doing that at some point.
 fn draw_bg_text_mode_4bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u8], palette: &Palette, mut poke: F) {
-    let scx = bg.xoffset & (bg.width - 1);
-    let scy = (bg.yoffset + line) % bg.height;
+    pub const BYTES_PER_TILE: u32 = 32;
+    pub const BYTES_PER_LINE: u32 = 4;
 
+    let start_scx = bg.xoffset & (bg.width - 1);
+    let scy = if bg.mosaic_y > 0 {
+        let original_scy = (bg.yoffset + line) & (bg.height - 1);
+        original_scy - (original_scy % bg.mosaic_y as u32)
+    } else {
+        (bg.yoffset + line) & (bg.height - 1)
+    };
     let ty = scy % 8;
-    let align_start = if scx % 8 != 0 { 8 - (scx % 8) } else { 0 }; // start at the next whole tile on screen
-    let align_end = if align_start != 0 { 8 - align_start } else { 0 };
 
-    let mut dx = align_start;
-    while dx <= (240 - 8 - align_end) {
-        let tile_info_offset = get_tile_info_offset(&bg, scx + dx, scy);
-        if tile_info_offset >= 0x10000 { // this is in object VRAM
-            dx += 8;
-            continue;
+    let mosaic_x = bg.mosaic_x as u32;
+    let apply_mosaic_x = |x: u32| -> u32 {
+        if mosaic_x > 0 {
+            x - (x % mosaic_x)
+        } else {
+            x
         }
+    };
 
+    let mut dx = 0;
+    while dx < 240 {
+        let scx = apply_mosaic_x(start_scx + dx);
+        let tile_info_offset = get_tile_info_offset(&bg, scx, scy);
+        if tile_info_offset > 0x10000 { dx += 1; continue; }
         let tile_info = read16_le(vram, tile_info_offset as usize);
         let tile_number = (tile_info & 0x3FF) as u32;
         let tile_palette = ((tile_info >> 12) & 0xF) as u8;
         let horizontal_flip = (tile_info & 0x400) != 0;
         let vertical_flip = (tile_info & 0x800) != 0;
-        let tile_data_start = bg.char_base + (32 * tile_number) + (if vertical_flip { 28 - (4 * ty) } else { 4 * ty });
-        if tile_data_start >= 0x10000 { // this is in object VRAM
-            dx += 8;
-            continue;
-        }
 
-        if horizontal_flip {
-            for otx in 0..4 {
-                let tx = 3 - otx;
-                let tpixel = vram[(tile_data_start + tx) as usize];
-                let left = palette.get_bg16(tile_palette, tpixel & 0xF);
-                let right = palette.get_bg16(tile_palette, (tpixel >> 4) & 0xF);
-                poke((dx + otx*2) as usize, right);
-                poke((dx + otx*2 + 1) as usize, left);
+        let tx = if horizontal_flip { 7 - (scx % 8) } else { scx % 8 };
+        let ty = if vertical_flip { 7 - ty } else { ty };
+
+        let tile_data_start = bg.char_base + (BYTES_PER_TILE * tile_number);
+        let mut pixel_offset = tile_data_start + (ty * BYTES_PER_LINE) + tx/2;
+        if pixel_offset > 0x10000 { dx += 1; continue }
+
+        // try to do 8 pixels at a time if possible:
+        if mosaic_x == 0 && (scx % 8) == 0 && dx <= 231 {
+            let pinc = if horizontal_flip { -1i32 as u32 } else { 1u32 };
+            for _ in 0..4 {
+                let palette_entry = vram[pixel_offset as usize];
+                poke(dx as usize, palette.get_bg16(tile_palette, palette_entry & 0xF));
+                poke((dx + 1) as usize, palette.get_bg16(tile_palette, palette_entry >> 4));
+                dx += 2;
+                pixel_offset = pixel_offset.wrapping_add(pinc);
             }
         } else {
-            for tx in 0..4 {
-                let tpixel = vram[(tile_data_start + tx) as usize];
-                let left = palette.get_bg16(tile_palette, tpixel & 0xF);
-                let right = palette.get_bg16(tile_palette, (tpixel >> 4) & 0xF);
-                poke((dx + tx*2) as usize, left);
-                poke((dx + tx*2 + 1) as usize, right);
-            }
-        }
-
-        dx += 8;
-    }
-
-    if align_start != 0 {
-        // @NOTE I couldn't think of a better way to break out of a block wihout a whole bunch of nested
-        // if statements...
-        'left_edge: loop {
-            let tile_info_offset = get_tile_info_offset(&bg, scx, scy);
-            if tile_info_offset >= 0x10000 { // this is in object VRAM
-                break 'left_edge;
-            }
-
-            let tile_info = read16_le(vram, tile_info_offset as usize);
-            let tile_number = (tile_info & 0x3FF) as u32;
-            let tile_palette = ((tile_info >> 12) & 0xF) as u8;
-            let horizontal_flip = (tile_info & 0x400) != 0;
-            let vertical_flip = (tile_info & 0x800) != 0;
-            let tile_data_start = bg.char_base + (32 * tile_number) + (if vertical_flip { 28 - (4 * ty) } else { 4 * ty });
-            if tile_data_start >= 0x10000 { // this is in object VRAM
-                break 'left_edge;
-            }
-
-            let unalign_start = scx % 8;
-
-            for otx in unalign_start..8 {
-                let tx = if horizontal_flip { 7 - otx } else { otx };
-                let tpixel = vram[(tile_data_start + (tx / 2)) as usize];
-                if tx % 2 == 0 {
-                    poke((otx - unalign_start) as usize, palette.get_bg16(tile_palette, tpixel & 0xF));
-                } else {
-                    poke((otx - unalign_start) as usize, palette.get_bg16(tile_palette, (tpixel >> 4) & 0xF));
-                }
-            }
-
-            break 'left_edge;
-        }
-
-        'right_edge: loop {
-            let tile_info_offset = get_tile_info_offset(&bg, scx + 240 - align_end, scy);
-            if tile_info_offset >= 0x10000 { // this is in object VRAM
-                break 'right_edge;
-            }
-
-            let tile_info = read16_le(vram, tile_info_offset as usize);
-            let tile_number = (tile_info & 0x3FF) as u32;
-            let tile_palette = ((tile_info >> 12) & 0xF) as u8;
-            let horizontal_flip = (tile_info & 0x400) != 0;
-            let vertical_flip = (tile_info & 0x800) != 0;
-            let tile_data_start = bg.char_base + (32 * tile_number) + (if vertical_flip { 28 - (4 * ty) } else { 4 * ty });
-            if tile_data_start >= 0x10000 { // this is in object VRAM
-                break 'right_edge;
-            }
-
-            let unalign_start = 240 - align_end;
-            for otx in unalign_start..240 {
-                let tx = if horizontal_flip { 7 - (otx - unalign_start) } else { otx - unalign_start };
-                let tpixel = vram[(tile_data_start + (tx / 2)) as usize];
-                if tx % 2 == 0 {
-                    poke(otx as usize, palette.get_bg16(tile_palette, tpixel & 0xF));
-                } else {
-                    poke(otx as usize, palette.get_bg16(tile_palette, (tpixel >> 4) & 0xF));
-                }
-            }
-
-            break 'right_edge;
+            let palette_entry = (vram[pixel_offset as usize] >> ((tx % 2) << 2)) & 0xF;
+            poke(dx as usize, palette.get_bg16(tile_palette, palette_entry));
+            dx += 1;
         }
     }
 }
 
 fn draw_bg_text_mode_8bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u8], palette: &Palette, mut poke: F) {
-    let scx = bg.xoffset & (bg.width - 1);
-    let scy = (bg.yoffset + line) % bg.height;
+    pub const BYTES_PER_TILE: u32 = 64;
+    pub const BYTES_PER_LINE: u32 = 8;
 
+    let start_scx = bg.xoffset & (bg.width - 1);
+    let scy = if bg.mosaic_y > 0 {
+        let original_scy = (bg.yoffset + line) & (bg.height - 1);
+        original_scy - (original_scy % bg.mosaic_y as u32)
+    } else {
+        (bg.yoffset + line) & (bg.height - 1)
+    };
     let ty = scy % 8;
-    let align_start = if scx % 8 != 0 { 8 - (scx % 8) } else { 0 }; // start at the next whole tile on screen
-    let align_end = if align_start != 0 { 8 - align_start } else { 0 };
 
-    let mut dx = align_start;
-    while dx <= (240 - 8 - align_end) {
-        let tile_info_offset = get_tile_info_offset(&bg, scx + dx, scy);
-        if tile_info_offset >= 0x10000 { // this is in object VRAM
-            dx += 8;
-            continue;
+    let mosaic_x = bg.mosaic_x as u32;
+    let apply_mosaic_x = |x: u32| -> u32 {
+        if mosaic_x > 0 {
+            x - (x % mosaic_x)
+        } else {
+            x
         }
+    };
 
+    let mut dx = 0;
+    while dx < 240 {
+        let scx = apply_mosaic_x(start_scx + dx);
+        let tile_info_offset = get_tile_info_offset(&bg, scx, scy);
+        if tile_info_offset > 0x10000 { dx += 1; continue; }
         let tile_info = read16_le(vram, tile_info_offset as usize);
         let tile_number = (tile_info & 0x3FF) as u32;
         let horizontal_flip = (tile_info & 0x400) != 0;
         let vertical_flip = (tile_info & 0x800) != 0;
-        let tile_data_start = bg.char_base + (64 * tile_number) + (if vertical_flip { 56 - (8 * ty) } else { 8 * ty });
-        if tile_data_start >= 0x10000 { // this is in object VRAM
-            dx += 8;
-            continue;
-        }
 
-        if horizontal_flip {
-            for otx in 0..8 {
-                let tx = 7 - otx;
-                let tpixel = vram[(tile_data_start + tx) as usize];
-                poke((dx + otx) as usize, palette.get_bg256(tpixel));
+        let tx = if horizontal_flip { 7 - (scx % 8) } else { scx % 8 };
+        let ty = if vertical_flip { 7 - ty } else { ty };
+
+        let tile_data_start = bg.char_base + (BYTES_PER_TILE * tile_number);
+        let mut pixel_offset = tile_data_start + (ty * BYTES_PER_LINE) + tx;
+        if pixel_offset > 0x10000 { dx += 1; continue }
+
+        // try to do 8 pixels at a time if possible:
+        if mosaic_x == 0 && (scx % 8) == 0 && dx <= 231 {
+            let pinc = if horizontal_flip { -1i32 as u32 } else { 1u32 };
+            for _ in 0..8 {
+                let palette_entry = vram[pixel_offset as usize];
+                poke(dx as usize, palette.get_bg256(palette_entry));
+                dx += 1;
+                pixel_offset = pixel_offset.wrapping_add(pinc);
             }
         } else {
-            for tx in 0..8 {
-                let tpixel = vram[(tile_data_start + tx) as usize];
-                poke((dx + tx) as usize, palette.get_bg256(tpixel));
-            }
-        }
-
-        dx += 8;
-    }
-
-    if align_start != 0 {
-        // Left Edge
-        'left_edge: loop {
-            let tile_info_offset = get_tile_info_offset(&bg, scx, scy);
-            if tile_info_offset >= 0x10000 { // this is in object VRAM
-                break 'left_edge;
-            }
-
-            let tile_info = read16_le(vram, tile_info_offset as usize);
-            let tile_number = (tile_info & 0x3FF) as u32;
-            let horizontal_flip = (tile_info & 0x400) != 0;
-            let vertical_flip = (tile_info & 0x800) != 0;
-            let tile_data_start = bg.char_base + (64 * tile_number) + (if vertical_flip { 56 - (8 * ty) } else { 8 * ty });
-            if tile_data_start >= 0x10000 { // this is in object VRAM
-                break 'left_edge;
-            }
-
-            let unalign_start = scx % 8;
-
-            for otx in unalign_start..8 {
-                let tx = if horizontal_flip { 7 - otx } else { otx };
-                let tpixel = vram[(tile_data_start + (tx / 2)) as usize];
-                poke((otx - unalign_start) as usize, palette.get_bg256(tpixel));
-            }
-
-            break 'left_edge;
-        }
-
-        // Right Edge
-        'right_edge: loop {
-            let tile_info_offset = get_tile_info_offset(&bg, scx + 240 - align_end, scy);
-            if tile_info_offset >= 0x10000 { // this is in object VRAM
-                break 'right_edge;
-            }
-
-            let tile_info = read16_le(vram, tile_info_offset as usize);
-            let tile_number = (tile_info & 0x3FF) as u32;
-            let horizontal_flip = (tile_info & 0x400) != 0;
-            let vertical_flip = (tile_info & 0x800) != 0;
-            let tile_data_start = bg.char_base + (64 * tile_number) + (if vertical_flip { 56 - (8 * ty) } else { 8 * ty });
-            if tile_data_start >= 0x10000 { // this is in object VRAM
-                break 'right_edge;
-            }
-
-            let unalign_start = 240 - align_end;
-            for otx in unalign_start..240 {
-                let tx = if horizontal_flip { 7 - (otx - unalign_start) } else { otx - unalign_start };
-                let tpixel = vram[(tile_data_start + (tx / 2)) as usize];
-                poke(otx as usize, palette.get_bg256(tpixel));
-            }
-
-            break 'right_edge;
+            let palette_entry = vram[pixel_offset as usize];
+            poke(dx as usize, palette.get_bg256(palette_entry));
+            dx += 1;
         }
     }
 }
