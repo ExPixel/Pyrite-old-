@@ -1,6 +1,7 @@
 mod bitmap_modes;
 mod tile_modes;
-pub mod obj;
+mod effects;
+mod obj;
 
 use super::{ GbaVideoOutput, GbaMemory, ArmCpu };
 

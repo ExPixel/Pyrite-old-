@@ -1,6 +1,7 @@
 use pyrite_common::{bits, bits_b};
 use super::super::memory::palette::Palette;
 use super::super::memory::ioreg::IORegisters;
+use super::effects::apply_mosaic_cond;
 // use super::super::memory::read16_le;
 
 pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, vram: &[u8], oam: &[u8], ioregs: &IORegisters, palette: &Palette, tile_data_start: u32, mut poke: F) {
@@ -12,24 +13,8 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
         }}
     }
     
-    let mosaic_x = ioregs.mosaic.obj_h_size() as usize + 1;
-    let mosaic_y = ioregs.mosaic.obj_v_size() as usize + 1;
-
-    let apply_mosaic_x = |mosaic: bool, x: usize| -> usize {
-        if mosaic {
-            x - (x % mosaic_x)
-        } else {
-            x
-        }
-    };
-
-    let apply_mosaic_y = |mosaic: bool, y: usize| -> usize {
-        if mosaic {
-            y - (y % mosaic_y)
-        } else {
-            y
-        }
-    };
+    let mosaic_x = ioregs.mosaic.obj_h_size() as u32 + 1;
+    let mosaic_y = ioregs.mosaic.obj_v_size() as u32 + 1;
 
     for obj_idx in 0..128 {
         let obj_all_attrs = read48_le(oam, obj_idx as usize * 8);
@@ -42,9 +27,9 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
         if attr.disabled || !in_bounds { continue }
 
         let obj_line = if attr.vertical_flip {
-            apply_mosaic_y(attr.mosaic, (bottom - line) as usize)
+            apply_mosaic_cond(attr.mosaic, bottom - line, mosaic_y)
         } else {
-            apply_mosaic_y(attr.mosaic, attr.height as usize - (bottom - line) as usize)
+            apply_mosaic_cond(attr.mosaic, attr.height as u32 - (bottom - line), mosaic_y)
         };
 
         let (start_obj_x, end_obj_x) = if attr.x >= 240 {
@@ -77,10 +62,10 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
                 let screen_x = attr.x.wrapping_add(obj_x) & 0x1FF;
                 // becomes (width - x - 1) if horizontal_flip is true, or just x if horizontal_flip
                 // is false
-                let obj_x = conditional_negate!(attr.horizontal_flip, apply_mosaic_x(attr.mosaic, obj_x as usize)).wrapping_add(hflip_add as usize);
+                let obj_x = conditional_negate!(attr.horizontal_flip, apply_mosaic_cond(attr.mosaic, obj_x as u32, mosaic_x) as usize).wrapping_add(hflip_add as usize);
 
                 let tile = (attr.tile_number as usize) + ((obj_line as usize / 8) * tile_stride) + (obj_x/8);
-                let pixel_offset = (tile * BYTES_PER_TILE) + (apply_mosaic_y(attr.mosaic, obj_line as usize % 8) * BYTES_PER_LINE) + apply_mosaic_x(attr.mosaic, obj_x % 8);
+                let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_line as usize % 8) * BYTES_PER_LINE) + (obj_x % 8);
                 let palette_entry = tile_data[pixel_offset];
                 let color = palette.get_obj256(palette_entry);
 
@@ -94,10 +79,10 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
             for obj_x in start_obj_x..end_obj_x {
                 let screen_x = attr.x.wrapping_add(obj_x) & 0x1FF;
 
-                let obj_x = conditional_negate!(attr.horizontal_flip, apply_mosaic_x(attr.mosaic, obj_x as usize)).wrapping_add(hflip_add as usize);
+                let obj_x = conditional_negate!(attr.horizontal_flip, apply_mosaic_cond(attr.mosaic, obj_x as u32, mosaic_x) as usize).wrapping_add(hflip_add as usize);
 
                 let tile = (attr.tile_number as usize) + ((obj_line as usize / 8) * tile_stride) + (obj_x/8);
-                let pixel_offset = (tile * BYTES_PER_TILE) + (apply_mosaic_y(attr.mosaic, obj_line as usize % 8) * BYTES_PER_LINE) + (obj_x % 8)/2;
+                let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_line as usize % 8) * BYTES_PER_LINE) + (obj_x % 8)/2;
                 let palette_entry = (tile_data[pixel_offset] >> ((obj_x % 2) << 2)) & 0xF;
                 let color = palette.get_obj16(attr.palette_index, palette_entry);
 

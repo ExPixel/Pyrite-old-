@@ -80,26 +80,11 @@
 //! The size and VRAM base address of the separate BG maps for BG0-3 are set up by BG0CNT-BG3CNT registers.
 
 use super::{ Line, obj };
+use super::effects::{ apply_mosaic, PixelInfo };
 use super::super::GbaMemory;
 use super::super::memory::ioreg::{ RegBGxCNT, RegBGxHOFS, RegBGxVOFS, RegFixedPoint16, RegFixedPoint28, RegMosaic };
 use super::super::memory::palette::Palette;
 use super::super::memory::read16_le;
-// use super::super::memory::palette::u16_to_pixel;
-
-/// Contains priority and blending information about a pixel.
-#[derive(Copy, Clone)]
-struct PixelInfo {
-    /// This is true if the current pixel at this position is selected as a first target pixel in
-    /// the color special effects register.
-    is_first_target:        bool,
-
-    /// This is true if the highest second target pixel has already been blended with the first
-    /// target pixel in this location.
-    second_target_blended:  bool,
-
-    /// The priority assigned to the current pixel in this position.
-    priority:               u8,
-}
 
 pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     let backdrop = memory.palette.get_bg256(0) | 0x8000;
@@ -109,7 +94,7 @@ pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
 
     let mut pixel_info = [PixelInfo {
         is_first_target: false,
-        second_target_blended: false,
+        is_second_target: false,
         priority: 4,
     }; 240];
 
@@ -157,7 +142,7 @@ pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
 
     let mut pixel_info = [PixelInfo {
         is_first_target: false,
-        second_target_blended: false,
+        is_second_target: false,
         priority: 4,
     }; 240];
 
@@ -220,7 +205,7 @@ pub fn mode2(line: u32, out: &mut Line, memory: &mut GbaMemory) {
 
     let mut pixel_info = [PixelInfo {
         is_first_target: false,
-        second_target_blended: false,
+        is_second_target: false,
         priority: 4,
     }; 240];
 
@@ -309,20 +294,12 @@ fn draw_affine_bg<F: FnMut(usize, u16)>(_line: u32, bg: AffineBG, vram: &[u8], p
         (0xFFFFFFFFu32 as i32, 0xFFFFFFFFu32 as i32)
     };
 
-    let apply_mosaic = |v: u32, mosaic: u16| -> u32 {
-        if mosaic > 0 {
-            v - (v % mosaic as u32)
-        } else {
-            v
-        }
-    };
-
     for idx in 0..240 {
         let x = (bg.ref_x.wrapping_add(bg.dx as i32 * idx as i32) << 4) >> 4;
         let y = (bg.ref_y.wrapping_add(bg.dy as i32 * idx as i32) << 4) >> 4;
 
-        let real_x = apply_mosaic(((x >> 8) & x_mask) as u32, bg.mosaic_x);
-        let real_y = apply_mosaic(((y >> 8) & y_mask) as u32, bg.mosaic_y);
+        let real_x = apply_mosaic(((x >> 8) & x_mask) as u32, bg.mosaic_x as u32);
+        let real_y = apply_mosaic(((y >> 8) & y_mask) as u32, bg.mosaic_y as u32);
 
         if (real_x < bg.width) & (real_y < bg.height) {
             let tx = real_x / 8;
@@ -348,17 +325,9 @@ fn draw_bg_text_mode_4bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
     };
     let ty = scy % 8;
 
-    let apply_mosaic_x = |x: u32| -> u32 {
-        if bg.mosaic_x > 0 {
-            x - (x % bg.mosaic_x as u32)
-        } else {
-            x
-        }
-    };
-
     let mut dx = 0;
     while dx < 240 {
-        let scx = apply_mosaic_x(start_scx + dx);
+        let scx = apply_mosaic(start_scx + dx, bg.mosaic_x as u32);
         let tile_info_offset = get_tile_info_offset(&bg, scx, scy);
         if tile_info_offset > 0x10000 { dx += 1; continue; }
         let tile_info = read16_le(vram, tile_info_offset as usize);
@@ -405,17 +374,9 @@ fn draw_bg_text_mode_8bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
     };
     let ty = scy % 8;
 
-    let apply_mosaic_x = |x: u32| -> u32 {
-        if bg.mosaic_x > 0 {
-            x - (x % bg.mosaic_x as u32)
-        } else {
-            x
-        }
-    };
-
     let mut dx = 0;
     while dx < 240 {
-        let scx = apply_mosaic_x(start_scx + dx);
+        let scx = apply_mosaic(start_scx + dx, bg.mosaic_x as u32);
         let tile_info_offset = get_tile_info_offset(&bg, scx, scy);
         if tile_info_offset > 0x10000 { dx += 1; continue; }
         let tile_info = read16_le(vram, tile_info_offset as usize);
