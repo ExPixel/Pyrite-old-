@@ -87,11 +87,6 @@ use super::super::memory::palette::Palette;
 use super::super::memory::read16_le;
 
 pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
-    let backdrop = memory.palette.get_bg256(0) | 0x8000;
-
-    // first we clear the background completely.
-    for p in out.iter_mut() { *p = backdrop; }
-
     let mut pixel_info = [PixelInfo {
         is_first_target: false,
         is_second_target: false,
@@ -135,11 +130,6 @@ pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
 }
 
 pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
-    let backdrop = memory.palette.get_bg256(0) | 0x8000;
-
-    // first we clear the background completely.
-    for p in out.iter_mut() { *p = backdrop; }
-
     let mut pixel_info = [PixelInfo {
         is_first_target: false,
         is_second_target: false,
@@ -198,11 +188,6 @@ pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
 }
 
 pub fn mode2(line: u32, out: &mut Line, memory: &mut GbaMemory) {
-    let backdrop = memory.palette.get_bg256(0) | 0x8000;
-
-    // first we clear the background completely.
-    for p in out.iter_mut() { *p = backdrop; }
-
     let mut pixel_info = [PixelInfo {
         is_first_target: false,
         is_second_target: false,

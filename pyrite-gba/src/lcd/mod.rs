@@ -118,6 +118,10 @@ impl GbaLCD {
     }
 
     fn render_line(&mut self, memory: &mut GbaMemory) {
+        // first we clear the background completely.
+        let backdrop = memory.palette.get_bg256(0) | 0x8000;
+        for p in self.line_pixels.iter_mut() { *p = backdrop; }
+
         match memory.ioregs.dispcnt.bg_mode() {
             0 => tile_modes::mode0(self.line_number, &mut self.line_pixels, memory),
             1 => tile_modes::mode1(self.line_number, &mut self.line_pixels, memory),
