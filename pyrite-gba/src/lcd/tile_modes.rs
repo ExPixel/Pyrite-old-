@@ -478,14 +478,16 @@ impl AffineBG {
 #[inline]
 fn poke_bg_pixel(offset: usize, color: u16, bg_priority: u8, out: &mut Line, pixel_info: &mut [PixelInfo; 240]) {
     if (color & 0x8000) != 0 && pixel_info[offset].priority > bg_priority {
-        pixel_info[offset].priority = bg_priority;
+        pixel_info[offset].priority = bg_priority | (0xF0);
         out[offset] = color;
     }
 }
 
 #[inline]
 fn poke_obj_pixel(offset: usize, color: u16, obj_priority: u8, out: &mut Line, pixel_info: &mut [PixelInfo; 240]) {
-    if (color & 0x8000) != 0 && pixel_info[offset].priority >= obj_priority {
+    let is_bg = (pixel_info[offset].priority & 0xF0) != 0;
+    let current_priority = pixel_info[offset].priority & 0xF;
+    if (color & 0x8000) != 0 && (current_priority > obj_priority || (current_priority == obj_priority && is_bg)) {
         // offset should never be out of bounds here
         unsafe {
             (*pixel_info.get_unchecked_mut(offset)).priority = obj_priority;
