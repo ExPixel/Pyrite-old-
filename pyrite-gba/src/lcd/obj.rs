@@ -51,12 +51,15 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
         let obj_dx; let obj_dmx;
         let obj_dy; let obj_dmy;
 
-        let obj_origin_x = FixedPoint32::from( attr.display_width() / 2);
-        let obj_origin_y = FixedPoint32::from(attr.display_height() / 2);
-
+        let mut obj_origin_x = FixedPoint32::from( attr.display_width() / 2);
+        let mut obj_origin_y = FixedPoint32::from(attr.display_height() / 2);
 
         let obj_xdraw_start = FixedPoint32::from(obj_xdraw_start);
-        let obj_ydraw_start = FixedPoint32::from(attr.height - (obj_screen_bottom - line) - 1);
+        let obj_ydraw_start = if line > obj_screen_bottom {
+            FixedPoint32::from(line - obj_screen_top)
+        } else {
+            FixedPoint32::from(attr.display_height() - (obj_screen_bottom - line) - 1)
+        };
 
         let mut obj_xdraw_start_distance = obj_xdraw_start - obj_origin_x;
         let mut obj_ydraw_start_distance = obj_ydraw_start - obj_origin_y;
@@ -121,7 +124,6 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
             const BYTES_PER_LINE: u32 = 4;
 
             for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize) {
-
                 // converting them to u32s and comparing like this will also handle the 'less than 0' case
                 if (obj_x.integer() as u32) < attr.width && (obj_y.integer() as u32) < attr.height {
                     let obj_x_i = obj_x.integer() as u32;
@@ -235,13 +237,8 @@ impl ObjAttr {
     pub fn new(attr0: u16, attr1: u16, attr2: u16) -> ObjAttr {
         let rot_scal = bits_b!(attr0, 8);
         let shape = ObjShape::from(bits!(attr0, 14, 15) as u8);
-        let (mut width, mut height) = obj_size(shape, bits!(attr1, 14, 15));
+        let (width, height) = obj_size(shape, bits!(attr1, 14, 15));
         let double_size = if rot_scal { bits_b!(attr0, 9) } else { false };
-
-        if double_size {
-            width   *= 2;
-            height  *= 2;
-        }
 
         ObjAttr {
             // sign extend the y value to get it into range [-128, 127]
@@ -271,8 +268,8 @@ impl ObjAttr {
     /// Returns the bounds of the object in the format: (left, top, right, bottom)
     #[inline]
     pub fn bounds(&self) -> (u32, u32, u32, u32) {
-        let right   = (self.x + self.display_width() - 1) % 512;
-        let bottom  = (self.y +          self.height - 1) % 256;
+        let right   = (self.x +  self.display_width() - 1) % 512;
+        let bottom  = (self.y + self.display_height() - 1) % 256;
         return (self.x, self.y, right, bottom)
     }
 
