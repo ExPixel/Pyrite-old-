@@ -89,8 +89,11 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
             }
         }
 
-        let mut obj_x = obj_origin_x + (obj_ydraw_start_distance * obj_dmx) + (obj_xdraw_start_distance * obj_dx);
-        let mut obj_y = obj_origin_y + (obj_ydraw_start_distance * obj_dmy) + (obj_xdraw_start_distance * obj_dy);
+        // Down here we use the real width and height for the origin instead of the double sized
+        // because I randomly wrote it and it works. Maybe one day I'll actually do the math and
+        // come up with an exact reason as to why. For now I just had a feeling and I was right.
+        let mut obj_x = FixedPoint32::from( attr.width / 2) + (obj_ydraw_start_distance * obj_dmx) + (obj_xdraw_start_distance * obj_dx);
+        let mut obj_y = FixedPoint32::from(attr.height / 2) + (obj_ydraw_start_distance * obj_dmy) + (obj_xdraw_start_distance * obj_dy);
 
         let tile_data = &vram[(tile_data_start as usize)..];
         let tile_stride = if one_dimensional {
