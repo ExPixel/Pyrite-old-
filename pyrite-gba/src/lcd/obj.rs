@@ -101,14 +101,17 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
             const BYTES_PER_LINE: u32 = 4;
 
             for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize) {
-                let obj_x_i = obj_x.integer() as u32;
-                let obj_y_i = obj_y.integer() as u32;
+                // converting them to u32s and comparing like this will also handle the 'less than 0' case
+                if (obj_x.integer() as u32) < attr.width && (obj_y.integer() as u32) < attr.height {
+                    let obj_x_i = obj_x.integer() as u32;
+                    let obj_y_i = obj_y.integer() as u32;
 
-                let tile = ((attr.tile_number as u32) + ((obj_y_i / 8) * tile_stride) + (obj_x_i/8)) & 0x3FF;
-                let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_y_i % 8) * BYTES_PER_LINE) + (obj_x_i % 8);
-                let palette_entry = tile_data[pixel_offset as usize];
-                let color = palette.get_obj256(palette_entry);
-                poke(obj_screen_draw, color, attr.priority);
+                    let tile = ((attr.tile_number as u32) + ((obj_y_i / 8) * tile_stride) + (obj_x_i/8)) & 0x3FF;
+                    let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_y_i % 8) * BYTES_PER_LINE) + (obj_x_i % 8);
+                    let palette_entry = tile_data[pixel_offset as usize];
+                    let color = palette.get_obj256(palette_entry);
+                    poke(obj_screen_draw, color, attr.priority);
+                }
 
                 obj_x += obj_dx;
                 obj_y += obj_dy;
