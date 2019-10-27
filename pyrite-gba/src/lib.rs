@@ -1,6 +1,7 @@
 pub mod memory;
 pub mod lcd;
 pub mod sound;
+pub mod util;
 
 use memory::GbaMemory;
 use pyrite_arm::ArmCpu;
