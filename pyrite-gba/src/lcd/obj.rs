@@ -2,95 +2,146 @@ use pyrite_common::{bits, bits_b};
 use super::super::memory::palette::Palette;
 use super::super::memory::ioreg::IORegisters;
 use super::effects::apply_mosaic_cond;
-// use super::super::memory::read16_le;
+use super::super::memory::read16_le;
+use crate::util::fixedpoint::{ FixedPoint32, FixedPoint16 };
 
 pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, vram: &[u8], oam: &[u8], ioregs: &IORegisters, palette: &Palette, tile_data_start: u32, mut poke: F) {
-    macro_rules! conditional_negate {
-        ($Condition:expr, $Value:expr) => {{
-            let value = $Value;
-            let icondition = (if $Condition { 1 } else { 0 }) + (value & 0);// I add (value & 0) for type information
-            (value ^ (!icondition).wrapping_add(1)).wrapping_add(icondition)
-        }}
-    }
-    
+    // let debug_on = ioregs.keyinput.inner & (1 << 2) == 0; // #TODO remove this debug code.
+ 
     let mosaic_x = ioregs.mosaic.obj_h_size() as u32 + 1;
     let mosaic_y = ioregs.mosaic.obj_v_size() as u32 + 1;
 
-    for obj_idx in 0..128 {
+    let mut cycles_available = if ioregs.dispcnt.hblank_interval_free() {
+        954
+    } else {
+        1210
+    };
+
+    'obj_main_loop: for obj_idx in 0..128 {
         let obj_all_attrs = read48_le(oam, obj_idx as usize * 8);
-        let attr = ObjAttr::new(obj_all_attrs as u16, (obj_all_attrs >> 16) as u16, (obj_all_attrs >> 32) as u16);
+        let mut attr = ObjAttr::new(obj_all_attrs as u16, (obj_all_attrs >> 16) as u16, (obj_all_attrs >> 32) as u16);
 
-        // check if the object is disabled or out of bounds
-        let (top, bottom) = (attr.y as u32, attr.y.wrapping_add(attr.height) as u8 as u32);
-        // the second condition correctly handles an object wrapping vertically around the screen.
-        let in_bounds = (top <= line && bottom > line) || (top > line && bottom > line  && bottom < top);
-        if attr.disabled || !in_bounds { continue }
+        let (mut obj_screen_left, obj_screen_top, mut obj_screen_right, obj_screen_bottom) = attr.bounds();
+        let in_bounds_horizontal = obj_screen_left < 240 || obj_screen_right < 240;
+        let in_bounds_vertical = obj_screen_top <= obj_screen_bottom && obj_screen_top <= line && obj_screen_bottom >= line;
+        let in_bounds_vertical_wrapped = obj_screen_top > obj_screen_bottom && (obj_screen_top <= line || obj_screen_bottom >= line);
 
-        let obj_line = if attr.vertical_flip {
-            apply_mosaic_cond(attr.mosaic, bottom - line, mosaic_y)
-        } else {
-            apply_mosaic_cond(attr.mosaic, attr.height as u32 - (bottom - line), mosaic_y)
-        };
+        if attr.disabled || !in_bounds_horizontal || (!in_bounds_vertical && !in_bounds_vertical_wrapped) {
+            continue
+        }
 
-        let (start_obj_x, end_obj_x) = if attr.x >= 240 {
-            let obj_right = attr.x.wrapping_add(attr.width) & 0x1FF; // this is going to be the right pixel + 1
-            if  obj_right >= 1 && obj_right <= 240 {
-                (attr.width - obj_right, attr.width)
+        let obj_screen_width = attr.display_width();
+
+        // the start of end horizontal pixels of the object that are going to be draw:
+        let (obj_xdraw_start, obj_xdraw_end) = if obj_screen_left < obj_screen_right {
+            (0, if obj_screen_right >= 240 {
+                obj_screen_right = 239;
+                240 - obj_screen_left - 1
             } else {
-                // object is out of bounds
-                continue
-            }
+                obj_screen_width - 1
+            })
         } else {
-            (0, std::cmp::min(attr.width, 240 - attr.x))
+            // we have wrapped here so we need to start drawing farther to the right
+            // of the object, but there will always be enough space on screen to draw the
+            // object to the end.
+            obj_screen_left = 0;
+            (obj_screen_width - obj_screen_right - 1, obj_screen_width - 1)
         };
+
+        let obj_dx; let obj_dmx;
+        let obj_dy; let obj_dmy;
+
+        let obj_origin_x = FixedPoint32::from( attr.display_width() / 2);
+        let obj_origin_y = FixedPoint32::from(attr.display_height() / 2);
+
+
+        let obj_xdraw_start = FixedPoint32::from(obj_xdraw_start);
+        let obj_ydraw_start = FixedPoint32::from(attr.height - (obj_screen_bottom - line) - 1);
+
+        let mut obj_xdraw_start_distance = obj_xdraw_start - obj_origin_x;
+        let mut obj_ydraw_start_distance = obj_ydraw_start - obj_origin_y;
+
+        if attr.rot_scal {
+            let params_idx = attr.rot_scal_param as usize;
+            obj_dx  = FixedPoint32::from(FixedPoint16::wrap((read16_le(oam, 0x06 + (params_idx * 32))) as i16));
+            obj_dmx = FixedPoint32::from(FixedPoint16::wrap((read16_le(oam, 0x0E + (params_idx * 32))) as i16));
+            obj_dy  = FixedPoint32::from(FixedPoint16::wrap((read16_le(oam, 0x16 + (params_idx * 32))) as i16));
+            obj_dmy = FixedPoint32::from(FixedPoint16::wrap((read16_le(oam, 0x1E + (params_idx * 32))) as i16));
+        } else {
+            obj_dy  = FixedPoint32::from(0u32);
+            obj_dmx = FixedPoint32::from(0u32);
+            obj_dmy = FixedPoint32::from(1u32);
+
+            if attr.horizontal_flip {
+                obj_dx = FixedPoint32::from(-1i32);
+
+                // @NOTE add 1 so that we start on the other side of the center line...if that makes sense :|
+                obj_xdraw_start_distance += FixedPoint32::wrap(0x100); 
+            } else {
+                obj_dx  = FixedPoint32::from(1u32);
+            }
+
+            if attr.vertical_flip {
+                obj_ydraw_start_distance = -obj_ydraw_start_distance;
+            }
+        }
+
+        let mut obj_x = obj_origin_x + (obj_ydraw_start_distance * obj_dmx) + (obj_xdraw_start_distance * obj_dx);
+        let mut obj_y = obj_origin_y + (obj_ydraw_start_distance * obj_dmy) + (obj_xdraw_start_distance * obj_dy);
 
         let tile_data = &vram[(tile_data_start as usize)..];
-
         let tile_stride = if one_dimensional {
-            (attr.width / 8) as usize
+            attr.width / 8
         } else {
-            32usize
+            32
         };
 
-        let hflip_add = if attr.horizontal_flip { attr.width - 1 } else { 0 };
-
         if attr.pal256 {
-            const BYTES_PER_TILE: usize = 64;
-            const BYTES_PER_LINE: usize = 8;
+            const BYTES_PER_TILE: u32 = 32;
+            const BYTES_PER_LINE: u32 = 4;
 
-            for obj_x in start_obj_x..end_obj_x {
-                let screen_x = attr.x.wrapping_add(obj_x) & 0x1FF;
-                // becomes (width - x - 1) if horizontal_flip is true, or just x if horizontal_flip
-                // is false
-                let obj_x = conditional_negate!(attr.horizontal_flip, apply_mosaic_cond(attr.mosaic, obj_x as u32, mosaic_x) as usize).wrapping_add(hflip_add as usize);
+            for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize) {
+                let obj_x_i = obj_x.integer() as u32;
+                let obj_y_i = obj_y.integer() as u32;
 
-                let tile = (attr.tile_number as usize) + ((obj_line as usize / 8) * tile_stride) + (obj_x/8);
-                let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_line as usize % 8) * BYTES_PER_LINE) + (obj_x % 8);
-                let palette_entry = tile_data[pixel_offset];
+                let tile = ((attr.tile_number as u32) + ((obj_y_i / 8) * tile_stride) + (obj_x_i/8)) & 0x3FF;
+                let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_y_i % 8) * BYTES_PER_LINE) + (obj_x_i % 8);
+                let palette_entry = tile_data[pixel_offset as usize];
                 let color = palette.get_obj256(palette_entry);
+                poke(obj_screen_draw, color, attr.priority);
 
-                // screen_x should always be in bounds [0, 240)
-                poke(screen_x as usize, color, attr.priority);
+                obj_x += obj_dx;
+                obj_y += obj_dy;
             }
         } else {
-            const BYTES_PER_TILE: usize = 32;
-            const BYTES_PER_LINE: usize = 4;
+            const BYTES_PER_TILE: u32 = 32;
+            const BYTES_PER_LINE: u32 = 4;
 
-            for obj_x in start_obj_x..end_obj_x {
-                let screen_x = attr.x.wrapping_add(obj_x) & 0x1FF;
+            for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize) {
 
-                let obj_x = conditional_negate!(attr.horizontal_flip, apply_mosaic_cond(attr.mosaic, obj_x as u32, mosaic_x) as usize).wrapping_add(hflip_add as usize);
+                // converting them to u32s and comparing like this will also handle the 'less than 0' case
+                if (obj_x.integer() as u32) < attr.width && (obj_y.integer() as u32) < attr.height {
+                    let obj_x_i = obj_x.integer() as u32;
+                    let obj_y_i = obj_y.integer() as u32;
 
-                let tile = (attr.tile_number as usize) + ((obj_line as usize / 8) * tile_stride) + (obj_x/8);
-                let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_line as usize % 8) * BYTES_PER_LINE) + (obj_x % 8)/2;
-                let palette_entry = (tile_data[pixel_offset] >> ((obj_x % 2) << 2)) & 0xF;
-                let color = palette.get_obj16(attr.palette_index, palette_entry);
+                    let tile = ((attr.tile_number as u32) + ((obj_y_i / 8) * tile_stride) + (obj_x_i/8)) & 0x3FF;
+                    let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_y_i % 8) * BYTES_PER_LINE) + (obj_x_i % 8)/2;
+                    let palette_entry = (tile_data[pixel_offset as usize] >> ((obj_x_i % 2) << 2)) & 0xF;
+                    let color = palette.get_obj16(attr.palette_index, palette_entry);
+                    poke(obj_screen_draw, color, attr.priority);
+                }
 
-                // screen_x should always be in bounds [0, 240)
-                poke(screen_x as usize, color, attr.priority);
+                obj_x += obj_dx;
+                obj_y += obj_dy;
             }
         }
     }
+}
+
+#[inline(always)]
+pub fn conditional_negate(condition: bool, value: u32) -> u32 {
+    let icondition = condition as u32;
+    (value ^ (!icondition).wrapping_add(1)).wrapping_add(icondition)
 }
 
 /// Reads a u32 from a byte array in little endian byte order.
@@ -154,7 +205,7 @@ pub fn read48_le(mem: &[u8], offset: usize) -> u64 {
 ///   12-15 Palette Number   (0-15) (Not used in 256 color/1 palette mode)
 pub struct ObjAttr {
     // attr 0
-    pub y: u16,
+    pub y: u32,
     pub rot_scal: bool,
     pub double_size: bool,
     pub disabled: bool,
@@ -164,12 +215,12 @@ pub struct ObjAttr {
     pub shape: ObjShape,
 
     // attr 1
-    pub x: u16,
+    pub x: u32,
     pub rot_scal_param: u8,
     pub horizontal_flip: bool,
     pub vertical_flip: bool,
-    pub width: u16,
-    pub height: u16,
+    pub width:  u32,
+    pub height: u32,
 
     // attr 2
     pub tile_number: u16,
@@ -181,12 +232,19 @@ impl ObjAttr {
     pub fn new(attr0: u16, attr1: u16, attr2: u16) -> ObjAttr {
         let rot_scal = bits_b!(attr0, 8);
         let shape = ObjShape::from(bits!(attr0, 14, 15) as u8);
-        let (width, height) = obj_size(shape, bits!(attr1, 14, 15));
+        let (mut width, mut height) = obj_size(shape, bits!(attr1, 14, 15));
+        let double_size = if rot_scal { bits_b!(attr0, 9) } else { false };
+
+        if double_size {
+            width   *= 2;
+            height  *= 2;
+        }
+
         ObjAttr {
             // sign extend the y value to get it into range [-128, 127]
-            y: bits!(attr0, 0, 7),
+            y: bits!(attr0, 0, 7) as u32,
             rot_scal: rot_scal,
-            double_size: if rot_scal { bits_b!(attr0, 9) } else { false },
+            double_size: double_size,
             disabled: if !rot_scal { bits_b!(attr0, 9) } else { false },
             mode: ObjMode::from(bits!(attr0, 10, 11) as u8),
             mosaic: bits_b!(attr0, 12),
@@ -194,16 +252,41 @@ impl ObjAttr {
             shape: shape,
 
             // sign extend the x value to get it into range [-256, 255]
-            x: bits!(attr1, 0, 8),
+            x: bits!(attr1, 0, 8) as u32,
             rot_scal_param: if rot_scal { bits!(attr1, 9, 13) as u8 } else { 0 },
             horizontal_flip: if !rot_scal { bits_b!(attr1, 12) } else { false },
             vertical_flip: if !rot_scal { bits_b!(attr1, 13) } else { false },
-            width: width,
-            height: height,
+            width:  width as u32,
+            height: height as u32,
 
             tile_number: bits!(attr2, 0, 9),
             priority: bits!(attr2, 10, 11) as u8,
             palette_index: bits!(attr2, 12, 15) as u8,
+        }
+    }
+
+    /// Returns the bounds of the object in the format: (left, top, right, bottom)
+    #[inline]
+    pub fn bounds(&self) -> (u32, u32, u32, u32) {
+        let right   = (self.x + self.display_width() - 1) % 512;
+        let bottom  = (self.y +          self.height - 1) % 256;
+        return (self.x, self.y, right, bottom)
+    }
+
+    #[inline]
+    pub fn display_width(&self) -> u32 {
+        if self.double_size {
+            self.width * 2
+        } else {
+            self.width
+        }
+    }
+
+    pub fn display_height(&self) -> u32 {
+        if self.double_size {
+            self.height * 2
+        } else {
+            self.height
         }
     }
 }
