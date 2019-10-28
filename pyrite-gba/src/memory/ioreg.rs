@@ -1,3 +1,4 @@
+use crate::util::fixedpoint::{ FixedPoint16, FixedPoint32 };
 
 use super::{align16, align32, get_halfword_of_word, set_halfword_of_word};
 #[derive(Default)]
@@ -37,10 +38,10 @@ pub struct IORegisters {
     // (BG2X, BG2Y, BG3X, and BG3Y) at the end of the vblank period. Writing to the original
     // reference point registers during VDRAW will immediately write them into the internal
     // registers.
-    pub internal_bg2x: RegFixedPoint28,
-    pub internal_bg2y: RegFixedPoint28,
-    pub internal_bg3x: RegFixedPoint28,
-    pub internal_bg3y: RegFixedPoint28,
+    pub internal_bg2x: FixedPoint32,
+    pub internal_bg2y: FixedPoint32,
+    pub internal_bg3x: FixedPoint32,
+    pub internal_bg3y: FixedPoint32,
 
     // Sound Registers
     pub sound1cnt_l: Reg16,
@@ -391,11 +392,11 @@ impl IORegisters {
             0x0026 => self.bg2pd.inner = value,
             0x0028 | 0x002A => {
                 self.bg2x.inner = set_halfword_of_word(self.bg2x.inner, aligned_addr, value);
-                if !self.dispstat.vblank() { self.internal_bg2x.inner = self.bg2x.inner; }
+                if !self.dispstat.vblank() { self.internal_bg2x= self.bg2x.to_fp32(); }
             }
             0x002C | 0x002E =>{ 
                 self.bg2y.inner = set_halfword_of_word(self.bg2y.inner, aligned_addr, value);
-                if !self.dispstat.vblank() { self.internal_bg2y.inner = self.bg2y.inner; }
+                if !self.dispstat.vblank() { self.internal_bg2y= self.bg2y.to_fp32(); }
             },
             0x0030 => self.bg3pa.inner = value,
             0x0032 => self.bg3pb.inner = value,
@@ -403,11 +404,11 @@ impl IORegisters {
             0x0036 => self.bg3pd.inner = value,
             0x0038 | 0x003A => {
                 self.bg3x.inner = set_halfword_of_word(self.bg3x.inner, aligned_addr, value);
-                if !self.dispstat.vblank() { self.internal_bg3x.inner = self.bg3x.inner; }
+                if !self.dispstat.vblank() { self.internal_bg3x = self.bg3x.to_fp32(); }
             },
             0x003C | 0x003E => {
                 self.bg3y.inner = set_halfword_of_word(self.bg3y.inner, aligned_addr, value);
-                if !self.dispstat.vblank() { self.internal_bg3y.inner = self.bg3y.inner; }
+                if !self.dispstat.vblank() { self.internal_bg3y = self.bg3y.to_fp32(); }
             }
             0x0040 => self.win0h.inner = value,
             0x0042 => self.win1h.inner = value,
@@ -842,12 +843,25 @@ ioreg! {
     }
 }
 
+impl RegFixedPoint16 {
+    pub fn to_fp32(self) -> FixedPoint32 {
+        FixedPoint32::from(FixedPoint16::wrap(self.inner as i16))
+    }
+}
+
 ioreg! {
     RegFixedPoint28: u32 {
         fractional_portion, set_fractional_portion: u32 = [0, 7],
         integer_portion, set_integer_portion: u32 = [8, 26],
         sign, set_sign: bool = [27, 27],
         used_portion, set_used_portion: u32 = [0, 27],
+    }
+}
+
+impl RegFixedPoint28 {
+    pub fn to_fp32(self) -> FixedPoint32 {
+        let ext = ((self.used_portion() as i32) << 4) >> 4; // sign extend 28-bit to 32-bit
+        FixedPoint32::wrap(ext)
     }
 }
 

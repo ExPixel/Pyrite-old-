@@ -111,10 +111,10 @@ impl GbaLCD {
     /// registers.
     #[inline]
     fn copy_bg_reference_point_registers(&self, memory: &mut GbaMemory) {
-        memory.ioregs.internal_bg2x.inner = memory.ioregs.bg2x.inner;
-        memory.ioregs.internal_bg2y.inner = memory.ioregs.bg2y.inner;
-        memory.ioregs.internal_bg3x.inner = memory.ioregs.bg3x.inner;
-        memory.ioregs.internal_bg3y.inner = memory.ioregs.bg3y.inner;
+        memory.ioregs.internal_bg2x = memory.ioregs.bg2x.to_fp32();
+        memory.ioregs.internal_bg2y = memory.ioregs.bg2y.to_fp32();
+        memory.ioregs.internal_bg3x = memory.ioregs.bg3x.to_fp32();
+        memory.ioregs.internal_bg3y = memory.ioregs.bg3y.to_fp32();
     }
 
     fn render_line(&mut self, memory: &mut GbaMemory) {

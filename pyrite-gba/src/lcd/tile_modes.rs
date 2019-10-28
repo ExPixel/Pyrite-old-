@@ -82,9 +82,10 @@
 use super::{ Line, obj };
 use super::effects::{ apply_mosaic, PixelInfo };
 use super::super::GbaMemory;
-use super::super::memory::ioreg::{ RegBGxCNT, RegBGxHOFS, RegBGxVOFS, RegFixedPoint16, RegFixedPoint28, RegMosaic };
+use super::super::memory::ioreg::{ RegBGxCNT, RegBGxHOFS, RegBGxVOFS, RegMosaic };
 use super::super::memory::palette::Palette;
 use super::super::memory::read16_le;
+use crate::util::fixedpoint::{ FixedPoint32 };
 
 pub fn mode0(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     let mut pixel_info = [PixelInfo {
@@ -154,16 +155,16 @@ pub fn mode1(line: u32, out: &mut Line, memory: &mut GbaMemory) {
                 let bg = AffineBG::new(cnt,
                     memory.ioregs.internal_bg2x,
                     memory.ioregs.internal_bg2y,
-                    memory.ioregs.bg2pa,
-                    memory.ioregs.bg2pc,
+                    memory.ioregs.bg2pa.to_fp32(),
+                    memory.ioregs.bg2pc.to_fp32(),
                     memory.ioregs.mosaic);
 
                 draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
                     poke_bg_pixel(off, col, priority as u8, out, &mut pixel_info);
                 });
 
-                memory.ioregs.internal_bg2x.inner = (memory.ioregs.internal_bg2x.inner.wrapping_add(memory.ioregs.bg2pb.inner as i16 as i32 as u32) << 4) >> 4;
-                memory.ioregs.internal_bg2y.inner = (memory.ioregs.internal_bg2y.inner.wrapping_add(memory.ioregs.bg2pd.inner as i16 as i32 as u32) << 4) >> 4;
+                memory.ioregs.internal_bg2x += memory.ioregs.bg2pb.to_fp32();
+                memory.ioregs.internal_bg2y += memory.ioregs.bg2pd.to_fp32();
             } else {
                 let xoffset = memory.ioregs.bg_hofs[bg_idx];
                 let yoffset = memory.ioregs.bg_vofs[bg_idx];
@@ -211,30 +212,30 @@ pub fn mode2(line: u32, out: &mut Line, memory: &mut GbaMemory) {
                 let bg = AffineBG::new(cnt,
                     memory.ioregs.internal_bg2x,
                     memory.ioregs.internal_bg2y,
-                    memory.ioregs.bg2pa,
-                    memory.ioregs.bg2pc,
+                    memory.ioregs.bg2pa.to_fp32(),
+                    memory.ioregs.bg2pc.to_fp32(),
                     memory.ioregs.mosaic);
 
                 draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
                     poke_bg_pixel(off, col, priority as u8, out, &mut pixel_info);
                 });
 
-                memory.ioregs.internal_bg2x.inner = (memory.ioregs.internal_bg2x.inner.wrapping_add(memory.ioregs.bg2pb.inner as i16 as i32 as u32) << 4) >> 4;
-                memory.ioregs.internal_bg2y.inner = (memory.ioregs.internal_bg2y.inner.wrapping_add(memory.ioregs.bg2pd.inner as i16 as i32 as u32) << 4) >> 4;
+                memory.ioregs.internal_bg2x += memory.ioregs.bg2pb.to_fp32();
+                memory.ioregs.internal_bg2y += memory.ioregs.bg2pd.to_fp32();
             } else if bg_idx == 3 {
                 let bg = AffineBG::new(cnt,
                     memory.ioregs.internal_bg3x,
                     memory.ioregs.internal_bg3y,
-                    memory.ioregs.bg3pa,
-                    memory.ioregs.bg3pc,
+                    memory.ioregs.bg3pa.to_fp32(),
+                    memory.ioregs.bg3pc.to_fp32(),
                     memory.ioregs.mosaic);
 
                 draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
                     poke_bg_pixel(off, col, priority as u8, out, &mut pixel_info);
                 });
 
-                memory.ioregs.internal_bg3x.inner = (memory.ioregs.internal_bg3x.inner.wrapping_add(memory.ioregs.bg3pb.inner as i16 as i32 as u32) << 4) >> 4;
-                memory.ioregs.internal_bg3y.inner = (memory.ioregs.internal_bg3y.inner.wrapping_add(memory.ioregs.bg3pd.inner as i16 as i32 as u32) << 4) >> 4;
+                memory.ioregs.internal_bg3x += memory.ioregs.bg3pb.to_fp32();
+                memory.ioregs.internal_bg3y += memory.ioregs.bg3pd.to_fp32();
             }
         }
     }
@@ -279,12 +280,14 @@ fn draw_affine_bg<F: FnMut(usize, u16)>(_line: u32, bg: AffineBG, vram: &[u8], p
         (0xFFFFFFFFu32 as i32, 0xFFFFFFFFu32 as i32)
     };
 
+    let mut x = bg.ref_x;
+    let mut y = bg.ref_y;
     for idx in 0..240 {
-        let x = (bg.ref_x.wrapping_add(bg.dx as i32 * idx as i32) << 4) >> 4;
-        let y = (bg.ref_y.wrapping_add(bg.dy as i32 * idx as i32) << 4) >> 4;
+        x += bg.dx;
+        y += bg.dy;
 
-        let real_x = apply_mosaic(((x >> 8) & x_mask) as u32, bg.mosaic_x as u32);
-        let real_y = apply_mosaic(((y >> 8) & y_mask) as u32, bg.mosaic_y as u32);
+        let real_x = apply_mosaic((x.integer() & x_mask) as u32, bg.mosaic_x as u32);
+        let real_y = apply_mosaic((y.integer() & y_mask) as u32, bg.mosaic_y as u32);
 
         if (real_x < bg.width) & (real_y < bg.height) {
             let tx = real_x / 8;
@@ -442,11 +445,10 @@ struct AffineBG {
     width:  u32,
     height: u32,
 
-    ref_x:  i32,
-    ref_y:  i32,
-
-    dx:     i16,
-    dy:     i16,
+    ref_x:  FixedPoint32,
+    ref_y:  FixedPoint32,
+    dx:     FixedPoint32,
+    dy:     FixedPoint32,
 
     mosaic_x: u16,
     mosaic_y: u16,
@@ -454,7 +456,7 @@ struct AffineBG {
 
 impl AffineBG {
     #[inline]
-    pub fn new(bg_cnt: RegBGxCNT, ref_x: RegFixedPoint28, ref_y: RegFixedPoint28, dx: RegFixedPoint16, dy: RegFixedPoint16, mosaic: RegMosaic) -> AffineBG {
+    pub fn new(bg_cnt: RegBGxCNT, ref_x: FixedPoint32, ref_y: FixedPoint32, dx: FixedPoint32, dy: FixedPoint32, mosaic: RegMosaic) -> AffineBG {
         AffineBG {
             char_base:      bg_cnt.char_base_block() as u32 * (1024 * 16),
             screen_base:    bg_cnt.screen_base_block() as u32 *  (1024 * 2),
@@ -463,11 +465,11 @@ impl AffineBG {
             height: ROTSCAL_SCREEN_SIZE[bg_cnt.screen_size() as usize].1,
 
             // copies bit 27 to 28-31
-            ref_x:  ((ref_x.used_portion() as i32) << 4) >> 4,
-            ref_y:  ((ref_y.used_portion() as i32) << 4) >> 4,
+            ref_x:  ref_x,
+            ref_y:  ref_y,
 
-            dx:     dx.inner as i16,
-            dy:     dy.inner as i16,
+            dx:     dx,
+            dy:     dy,
 
             mosaic_x:   if bg_cnt.mosaic() { mosaic.bg_h_size() + 1 } else { 0 },
             mosaic_y:   if bg_cnt.mosaic() { mosaic.bg_v_size() + 1 } else { 0 },

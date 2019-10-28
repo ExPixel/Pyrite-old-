@@ -27,6 +27,12 @@ impl FixedPoint16 {
     }
 }
 
+impl Default for FixedPoint16 {
+    fn default() -> Self {
+        Self::wrap(0)
+    }
+}
+
 impl std::ops::Add for FixedPoint16 {
     type Output = Self;
     #[inline]
@@ -106,6 +112,12 @@ impl FixedPoint32 {
     #[inline]
     pub const fn fractional(self) -> u32 {
         (self.inner & 0xFF) as u32
+    }
+}
+
+impl Default for FixedPoint32 {
+    fn default() -> Self {
+        Self::wrap(0)
     }
 }
 
