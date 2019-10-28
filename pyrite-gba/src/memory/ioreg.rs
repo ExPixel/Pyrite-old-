@@ -30,7 +30,7 @@ pub struct IORegisters {
     pub winin: Reg16,
     pub winout: Reg16,
     pub mosaic: RegMosaic,
-    pub bldcnt: Reg16,
+    pub bldcnt: RegEffectsSelect,
     pub bldalpha: Reg16,
     pub bldy: Reg16,
 
@@ -872,4 +872,44 @@ ioreg! {
         obj_h_size, set_obj_h_size: u16 = [8, 11],
         obj_v_size, set_obj_v_size: u16 = [12, 15],
     }
+}
+
+ioreg! {
+    RegEffectsSelect: u16 {}
+}
+
+impl RegEffectsSelect {
+    /// Layers 0-3 are mapped to BG0-3, layer 4 is the OBJ layer, and layer 5 is the backdrop.
+    #[inline]
+    pub fn is_first_target(self, layer: u16) -> bool {
+        debug_assert!(layer <= 4, "invalid first target layer");
+        (self.inner & (1 << layer)) != 0
+    }
+
+    /// Layers 0-3 are mapped to BG0-3, layer 4 is the OBJ layer, and layer 5 is the backdrop. 
+    #[inline]
+    pub fn is_second_target(self, layer: u16) -> bool {
+        debug_assert!(layer <= 4, "invalid second target layer");
+        (self.inner & (1 << (layer + 8))) != 0
+    }
+
+    #[inline]
+    pub fn special_effect(self) -> ColorSpecialEffect {
+        match (self.inner >> 6) & 0x3 {
+            0 => ColorSpecialEffect::None,
+            1 => ColorSpecialEffect::AlphaBlending,
+            2 => ColorSpecialEffect::BrightnessIncrease,
+            3 => ColorSpecialEffect::BrightnessDecrease,
+            _ => unsafe {
+                std::hint::unreachable_unchecked()
+            },
+        }
+    }
+}
+
+pub enum ColorSpecialEffect {
+    None,
+    AlphaBlending,
+    BrightnessIncrease,
+    BrightnessDecrease,
 }

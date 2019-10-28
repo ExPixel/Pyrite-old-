@@ -1,7 +1,7 @@
 use pyrite_common::{bits, bits_b};
 use super::super::memory::palette::Palette;
 use super::super::memory::ioreg::IORegisters;
-use super::effects::apply_mosaic_cond;
+use super::blending::apply_mosaic_cond;
 use super::super::memory::read16_le;
 use crate::util::fixedpoint::{ FixedPoint32, FixedPoint16 };
 

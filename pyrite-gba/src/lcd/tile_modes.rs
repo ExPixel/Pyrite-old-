@@ -80,7 +80,7 @@
 //! The size and VRAM base address of the separate BG maps for BG0-3 are set up by BG0CNT-BG3CNT registers.
 
 use super::{ Line, obj };
-use super::effects::{ apply_mosaic, PixelInfo };
+use super::blending::{ apply_mosaic, PixelInfo, poke_bg_pixel, poke_obj_pixel  };
 use super::super::GbaMemory;
 use super::super::memory::ioreg::{ RegBGxCNT, RegBGxHOFS, RegBGxVOFS, RegMosaic };
 use super::super::memory::palette::Palette;
@@ -473,28 +473,6 @@ impl AffineBG {
 
             mosaic_x:   if bg_cnt.mosaic() { mosaic.bg_h_size() + 1 } else { 0 },
             mosaic_y:   if bg_cnt.mosaic() { mosaic.bg_v_size() + 1 } else { 0 },
-        }
-    }
-}
-
-#[inline]
-fn poke_bg_pixel(offset: usize, color: u16, bg_priority: u8, out: &mut Line, pixel_info: &mut [PixelInfo; 240]) {
-    let current_priority = pixel_info[offset].priority & 0xF;
-    if (color & 0x8000) != 0 && current_priority > bg_priority {
-        pixel_info[offset].priority = bg_priority | (0xF0);
-        out[offset] = color;
-    }
-}
-
-#[inline]
-fn poke_obj_pixel(offset: usize, color: u16, obj_priority: u8, out: &mut Line, pixel_info: &mut [PixelInfo; 240]) {
-    let is_bg = (pixel_info[offset].priority & 0xF0) != 0;
-    let current_priority = pixel_info[offset].priority & 0xF;
-    if (color & 0x8000) != 0 && (current_priority > obj_priority || (current_priority == obj_priority && is_bg)) {
-        // offset should never be out of bounds here
-        unsafe {
-            (*pixel_info.get_unchecked_mut(offset)).priority = obj_priority;
-            *out.get_unchecked_mut(offset) = color;
         }
     }
 }
