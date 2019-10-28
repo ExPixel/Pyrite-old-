@@ -477,7 +477,8 @@ impl AffineBG {
 
 #[inline]
 fn poke_bg_pixel(offset: usize, color: u16, bg_priority: u8, out: &mut Line, pixel_info: &mut [PixelInfo; 240]) {
-    if (color & 0x8000) != 0 && pixel_info[offset].priority > bg_priority {
+    let current_priority = pixel_info[offset].priority & 0xF;
+    if (color & 0x8000) != 0 && current_priority > bg_priority {
         pixel_info[offset].priority = bg_priority | (0xF0);
         out[offset] = color;
     }
