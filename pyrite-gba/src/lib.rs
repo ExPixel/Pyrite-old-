@@ -52,11 +52,13 @@ impl Gba {
         self.lcd.init(&mut self.cpu, &mut self.memory, video);
     }
 
+    #[inline]
     pub fn step(&mut self, video: &mut dyn GbaVideoOutput, _audio: &mut dyn GbaAudioOutput) {
         let cycles = self.cpu.step(&mut self.memory);
         self.lcd.step(cycles, &mut self.cpu, &mut self.memory, video);
     }
 
+    #[inline]
     pub fn is_frame_ready(&self) -> bool {
         self.lcd.end_of_frame
     }
