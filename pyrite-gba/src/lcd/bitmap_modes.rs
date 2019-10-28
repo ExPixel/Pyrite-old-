@@ -3,7 +3,7 @@
 //! only 16KBytes of VRAM can be used for OBJ tiles.
 
 use super::{ obj, Line };
-use super::blending::{ apply_mosaic, poke_bg_pixel, poke_obj_pixel, PixelInfo };
+use super::blending::{ apply_mosaic, poke_obj_pixel, PixelInfo };
 use super::super::GbaMemory;
 use super::super::memory::read16_le;
 

@@ -882,14 +882,14 @@ impl RegEffectsSelect {
     /// Layers 0-3 are mapped to BG0-3, layer 4 is the OBJ layer, and layer 5 is the backdrop.
     #[inline]
     pub fn is_first_target(self, layer: u16) -> bool {
-        debug_assert!(layer <= 4, "invalid first target layer");
+        debug_assert!(layer <= 5, "invalid first target layer");
         (self.inner & (1 << layer)) != 0
     }
 
     /// Layers 0-3 are mapped to BG0-3, layer 4 is the OBJ layer, and layer 5 is the backdrop. 
     #[inline]
     pub fn is_second_target(self, layer: u16) -> bool {
-        debug_assert!(layer <= 4, "invalid second target layer");
+        debug_assert!(layer <= 5, "invalid second target layer");
         (self.inner & (1 << (layer + 8))) != 0
     }
 
