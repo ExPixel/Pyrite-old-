@@ -153,8 +153,8 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
             for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize) {
                 // converting them to u32s and comparing like this will also handle the 'less than 0' case
                 if (obj_x.integer() as u32) < attr.width && (obj_y.integer() as u32) < attr.height {
-                    let obj_x_i = obj_x.integer() as u32;
-                    let obj_y_i = obj_y.integer() as u32;
+                    let obj_x_i = apply_mosaic_cond(attr.mosaic, obj_x.integer() as u32, mosaic_x);
+                    let obj_y_i = apply_mosaic_cond(attr.mosaic, obj_y.integer() as u32, mosaic_y);
 
                     let tile = ((attr.tile_number as u32) + ((obj_y_i / 8) * tile_stride) + (obj_x_i/8)) & 0x3FF;
                     let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_y_i % 8) * BYTES_PER_LINE) + (obj_x_i % 8)/2;
