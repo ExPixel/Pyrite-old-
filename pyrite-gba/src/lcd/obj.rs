@@ -19,7 +19,7 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
 
     'obj_main_loop: for obj_idx in 0..128 {
         let obj_all_attrs = read48_le(oam, obj_idx as usize * 8);
-        let mut attr = ObjAttr::new(obj_all_attrs as u16, (obj_all_attrs >> 16) as u16, (obj_all_attrs >> 32) as u16);
+        let attr = ObjAttr::new(obj_all_attrs as u16, (obj_all_attrs >> 16) as u16, (obj_all_attrs >> 32) as u16);
 
         let (mut obj_screen_left, obj_screen_top, mut obj_screen_right, obj_screen_bottom) = attr.bounds();
         let in_bounds_horizontal = obj_screen_left < 240 || obj_screen_right < 240;
@@ -33,7 +33,7 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
         let obj_screen_width = attr.display_width();
 
         // the start of end horizontal pixels of the object that are going to be draw:
-        let (obj_xdraw_start, obj_xdraw_end) = if obj_screen_left < obj_screen_right {
+        let (obj_xdraw_start, _obj_xdraw_end) = if obj_screen_left < obj_screen_right {
             (0, if obj_screen_right >= 240 {
                 obj_screen_right = 239;
                 240 - obj_screen_left - 1
@@ -48,11 +48,35 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
             (obj_screen_width - obj_screen_right - 1, obj_screen_width - 1)
         };
 
+        let pixels_drawn = obj_screen_right - obj_screen_left + 1;
+        if attr.rot_scal {
+            // affine objects require 10 cycles to start
+            if cycles_available > 10 {
+                cycles_available -= 10;
+
+                if (pixels_drawn * 2) > cycles_available {
+                    obj_screen_right = obj_screen_left + (cycles_available / 2) - 1;
+                    cycles_available = 0;
+                } else {
+                    cycles_available -= pixels_drawn * 2;
+                }
+            } else {
+                break 'obj_main_loop;
+            }
+        } else {
+            if pixels_drawn > cycles_available {
+                obj_screen_right = obj_screen_left + cycles_available - 1;
+                cycles_available = 0;
+            } else {
+                cycles_available -= pixels_drawn;
+            }
+        }
+
         let obj_dx; let obj_dmx;
         let obj_dy; let obj_dmy;
 
-        let mut obj_origin_x = FixedPoint32::from( attr.display_width() / 2);
-        let mut obj_origin_y = FixedPoint32::from(attr.display_height() / 2);
+        let obj_origin_x = FixedPoint32::from( attr.display_width() / 2);
+        let obj_origin_y = FixedPoint32::from(attr.display_height() / 2);
 
         let obj_xdraw_start = FixedPoint32::from(obj_xdraw_start);
         let obj_ydraw_start = if line > obj_screen_bottom {
@@ -109,8 +133,8 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
             for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize) {
                 // converting them to u32s and comparing like this will also handle the 'less than 0' case
                 if (obj_x.integer() as u32) < attr.width && (obj_y.integer() as u32) < attr.height {
-                    let obj_x_i = obj_x.integer() as u32;
-                    let obj_y_i = obj_y.integer() as u32;
+                    let obj_x_i = apply_mosaic_cond(attr.mosaic, obj_x.integer() as u32, mosaic_x);
+                    let obj_y_i = apply_mosaic_cond(attr.mosaic, obj_y.integer() as u32, mosaic_y);
 
                     let tile = ((attr.tile_number as u32) + ((obj_y_i / 8) * tile_stride) + (obj_x_i/8)) & 0x3FF;
                     let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_y_i % 8) * BYTES_PER_LINE) + (obj_x_i % 8);
@@ -143,14 +167,18 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
                 obj_y += obj_dy;
             }
         }
+
+        if cycles_available == 0 {
+            break 'obj_main_loop;
+        }
     }
 }
 
-#[inline(always)]
-pub fn conditional_negate(condition: bool, value: u32) -> u32 {
-    let icondition = condition as u32;
-    (value ^ (!icondition).wrapping_add(1)).wrapping_add(icondition)
-}
+// #[inline(always)]
+// pub fn conditional_negate(condition: bool, value: u32) -> u32 {
+//     let icondition = condition as u32;
+//     (value ^ (!icondition).wrapping_add(1)).wrapping_add(icondition)
+// }
 
 /// Reads a u32 from a byte array in little endian byte order.
 #[inline]
