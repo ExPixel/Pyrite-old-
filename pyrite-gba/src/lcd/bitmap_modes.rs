@@ -3,7 +3,7 @@
 //! only 16KBytes of VRAM can be used for OBJ tiles.
 
 use super::{ obj, Line };
-use super::blending::{ apply_mosaic, poke_obj_pixel, PixelInfo };
+use super::blending::{ apply_mosaic, poke_obj_pixel, poke_bg_pixel, PixelInfo, get_compositing_info };
 use super::super::GbaMemory;
 use super::super::memory::read16_le;
 
@@ -23,127 +23,80 @@ use super::super::memory::read16_le;
 pub fn mode3(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     // Bitmap Modes use BG2
 
-    let mut pixel_info: [PixelInfo; 240];
+    let mut pixel_info = [PixelInfo::backdrop(memory.ioregs.bldcnt, out[0]); 240];
+    let (special_effects, windows) = get_compositing_info(&memory.ioregs);
+
+    if memory.ioregs.dispcnt.screen_display_obj() {
+        obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority, mode| {
+            poke_obj_pixel(off, col, priority, mode, out, &mut pixel_info, special_effects, windows);
+        });
+    }
+
     if memory.ioregs.dispcnt.screen_display_bg2() {
         let mosaic_x = if memory.ioregs.bg_cnt[2].mosaic() { memory.ioregs.mosaic.bg_h_size() as u32 + 1 } else { 0 };
         let mosaic_y = if memory.ioregs.bg_cnt[2].mosaic() { memory.ioregs.mosaic.bg_v_size() as u32 + 1 } else { 0 };
+        let priority = memory.ioregs.bg_cnt[2].priority() as u8;
 
         let y = apply_mosaic(line, mosaic_y);
         let pixel_data_start = 480 * y as usize;
         for screen_x in 0..240 {
             let pixel_offset = apply_mosaic(screen_x, mosaic_x) as usize;
             let pixel = read16_le(&memory.mem_vram, pixel_data_start + (pixel_offset * 2)) | 0x8000;
-            out[screen_x as usize] = pixel;
+            poke_bg_pixel(2, screen_x as usize, pixel, priority, out, &mut pixel_info, special_effects, windows);
         }
-
-        pixel_info = [PixelInfo {
-            is_first_target: memory.ioregs.bldcnt.is_first_target(2),
-            is_second_target: memory.ioregs.bldcnt.is_first_target(2),
-            priority: memory.ioregs.bg_cnt[2].priority() as u8 | 0xF0,
-        }; 240];
-    } else {
-        pixel_info = [PixelInfo {
-            is_first_target: memory.ioregs.bldcnt.is_first_target(5),
-            is_second_target: memory.ioregs.bldcnt.is_first_target(5),
-            priority: 0xFF,
-        }; 240];
-    }
-
-    if memory.ioregs.dispcnt.screen_display_obj() {
-        obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority| {
-            poke_obj_pixel(off, col, priority, out, &mut pixel_info);
-        });
     }
 }
 
 pub fn mode4(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     const FRAME1_OFFSET: usize = 0xA000;
 
-    let mut pixel_info: [PixelInfo; 240];
+    let mut pixel_info = [PixelInfo::backdrop(memory.ioregs.bldcnt, out[0]); 240];
+    let (special_effects, windows) = get_compositing_info(&memory.ioregs);
+
+    if memory.ioregs.dispcnt.screen_display_obj() {
+        obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority, mode| {
+            poke_obj_pixel(off, col, priority, mode, out, &mut pixel_info, special_effects, windows);
+        });
+    }
+
     if memory.ioregs.dispcnt.screen_display_bg2() {
         let mosaic_x = if memory.ioregs.bg_cnt[2].mosaic() { memory.ioregs.mosaic.bg_h_size() as u32 + 1 } else { 0 };
         let mosaic_y = if memory.ioregs.bg_cnt[2].mosaic() { memory.ioregs.mosaic.bg_v_size() as u32 + 1 } else { 0 };
+        let priority = memory.ioregs.bg_cnt[2].priority() as u8;
 
         let y = apply_mosaic(line, mosaic_y) as usize;
         let pixel_data_start = 240*y + FRAME1_OFFSET*(memory.ioregs.dispcnt.frame() as usize);
         for screen_x in 0..240 {
             let pixel_offset = apply_mosaic(screen_x, mosaic_x) as usize;
             let pixel = memory.mem_vram[pixel_data_start + pixel_offset];
-            out[screen_x as usize] = memory.palette.get_bg256(pixel);
+            poke_bg_pixel(2, screen_x as usize, memory.palette.get_bg256(pixel), priority, out, &mut pixel_info, special_effects, windows);
         }
-
-        pixel_info = [PixelInfo {
-            is_first_target: memory.ioregs.bldcnt.is_first_target(2),
-            is_second_target: memory.ioregs.bldcnt.is_first_target(2),
-            priority: memory.ioregs.bg_cnt[2].priority() as u8 | 0xF0,
-        }; 240];
-    } else {
-        pixel_info = [PixelInfo {
-            is_first_target: memory.ioregs.bldcnt.is_first_target(5),
-            is_second_target: memory.ioregs.bldcnt.is_first_target(5),
-            priority: 0xFF,
-        }; 240];
-    }
-
-    if memory.ioregs.dispcnt.screen_display_obj() {
-        obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority| {
-            poke_obj_pixel(off, col, priority, out, &mut pixel_info);
-        });
     }
 }
 
 pub fn mode5(line: u32, out: &mut Line, memory: &mut GbaMemory) {
     const FRAME1_OFFSET: usize = 0xA000;
 
-    let mut pixel_info: [PixelInfo; 240];
+    let mut pixel_info = [PixelInfo::backdrop(memory.ioregs.bldcnt, out[0]); 240];
+    let (special_effects, windows) = get_compositing_info(&memory.ioregs);
+
+    if memory.ioregs.dispcnt.screen_display_obj() {
+        obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority, mode| {
+            poke_obj_pixel(off, col, priority, mode, out, &mut pixel_info, special_effects, windows);
+        });
+    }
+
     if memory.ioregs.dispcnt.screen_display_bg2() && line < 128 {
         let mosaic_x = if memory.ioregs.bg_cnt[2].mosaic() { memory.ioregs.mosaic.bg_h_size() as u32 + 1 } else { 0 };
         let mosaic_y = if memory.ioregs.bg_cnt[2].mosaic() { memory.ioregs.mosaic.bg_v_size() as u32 + 1 } else { 0 };
+        let priority = memory.ioregs.bg_cnt[2].priority() as u8;
 
         let y = apply_mosaic(line, mosaic_y) as usize;
         let pixel_data_start = 320*y + FRAME1_OFFSET*(memory.ioregs.dispcnt.frame() as usize);
         for screen_x in 0..160 {
             let pixel_offset = apply_mosaic(screen_x, mosaic_x) as usize;
             let pixel = read16_le(&memory.mem_vram, pixel_data_start + (pixel_offset * 2)) | 0x8000;
-            out[screen_x as usize] = pixel;
+            poke_bg_pixel(2, screen_x as usize, pixel, priority, out, &mut pixel_info, special_effects, windows);
         }
-
-        pixel_info = unsafe {
-            let is_first_target = memory.ioregs.bldcnt.is_first_target(2);
-            let is_second_target = memory.ioregs.bldcnt.is_first_target(2);
-            let priority = memory.ioregs.bg_cnt[2].priority() as u8 | 0xF0;
-
-            let mut arr = std::mem::MaybeUninit::uninit();
-            for idx in 0..160 {
-                (arr.as_mut_ptr() as *mut PixelInfo).add(idx).write(PixelInfo {
-                    is_first_target: is_first_target,
-                    is_second_target: is_second_target,
-                    priority: priority,
-                });
-            }
-
-            let backdrop_is_first_target = memory.ioregs.bldcnt.is_first_target(5);
-            let backdrop_is_second_target = memory.ioregs.bldcnt.is_first_target(5);
-            for idx in 160..240 {
-                (arr.as_mut_ptr() as *mut PixelInfo).add(idx).write(PixelInfo {
-                    is_first_target: backdrop_is_first_target,
-                    is_second_target: backdrop_is_second_target,
-                    priority: 0xFF,
-                });
-            }
-            arr.assume_init()
-        };
-    } else {
-        pixel_info = [PixelInfo {
-            is_first_target: memory.ioregs.bldcnt.is_first_target(5),
-            is_second_target: memory.ioregs.bldcnt.is_first_target(5),
-            priority: 0xFF,
-        }; 240];
-    }
-
-    if memory.ioregs.dispcnt.screen_display_obj() {
-        obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority| {
-            poke_obj_pixel(off, col, priority, out, &mut pixel_info);
-        });
     }
 }

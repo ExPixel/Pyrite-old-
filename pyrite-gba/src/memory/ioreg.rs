@@ -31,8 +31,8 @@ pub struct IORegisters {
     pub winout: Reg16,
     pub mosaic: RegMosaic,
     pub bldcnt: RegEffectsSelect,
-    pub bldalpha: Reg16,
-    pub bldy: Reg16,
+    pub bldalpha: RegAlpha,
+    pub bldy: RegBrightness,
 
     // Internal reference point registers which are copied from the reference point registers
     // (BG2X, BG2Y, BG3X, and BG3Y) at the end of the vblank period. Writing to the original
@@ -912,4 +912,17 @@ pub enum ColorSpecialEffect {
     AlphaBlending,
     BrightnessIncrease,
     BrightnessDecrease,
+}
+
+ioreg! {
+    RegAlpha: u16 {
+        eva_coeff, set_eva_coeff: u16 = [0,  4],
+        evb_coeff, set_evb_coeff: u16 = [8, 12],
+    }
+}
+
+ioreg! {
+    RegBrightness: u16 {
+        evy_coeff, set_evy_coeff: u16 = [0,  4],
+    }
 }

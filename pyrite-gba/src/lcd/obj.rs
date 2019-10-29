@@ -5,7 +5,7 @@ use super::blending::apply_mosaic_cond;
 use super::super::memory::read16_le;
 use crate::util::fixedpoint::{ FixedPoint32, FixedPoint16 };
 
-pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, vram: &[u8], oam: &[u8], ioregs: &IORegisters, palette: &Palette, tile_data_start: u32, mut poke: F) {
+pub fn draw_objects<F: FnMut(usize, u16, u8, ObjMode)>(line: u32, one_dimensional: bool, vram: &[u8], oam: &[u8], ioregs: &IORegisters, palette: &Palette, tile_data_start: u32, mut poke: F) {
     // let debug_on = ioregs.keyinput.inner & (1 << 2) == 0; // #TODO remove this debug code.
  
     let mosaic_x = ioregs.mosaic.obj_h_size() as u32 + 1;
@@ -140,7 +140,7 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
                     let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_y_i % 8) * BYTES_PER_LINE) + (obj_x_i % 8);
                     let palette_entry = tile_data[pixel_offset as usize];
                     let color = palette.get_obj256(palette_entry);
-                    poke(obj_screen_draw, color, attr.priority);
+                    poke(obj_screen_draw, color, attr.priority, attr.mode);
                 }
 
                 obj_x += obj_dx;
@@ -160,7 +160,7 @@ pub fn draw_objects<F: FnMut(usize, u16, u8)>(line: u32, one_dimensional: bool, 
                     let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_y_i % 8) * BYTES_PER_LINE) + (obj_x_i % 8)/2;
                     let palette_entry = (tile_data[pixel_offset as usize] >> ((obj_x_i % 2) << 2)) & 0xF;
                     let color = palette.get_obj16(attr.palette_index, palette_entry);
-                    poke(obj_screen_draw, color, attr.priority);
+                    poke(obj_screen_draw, color, attr.priority, attr.mode);
                 }
 
                 obj_x += obj_dx;
@@ -322,7 +322,7 @@ impl ObjAttr {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum ObjMode {
     Normal,
