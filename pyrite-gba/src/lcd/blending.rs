@@ -74,11 +74,7 @@ impl SpecialEffects {
 
     pub fn blend(&self, first_target: u16, second_target: u16) -> u16 {
         match self.select.special_effect() {
-            ColorSpecialEffect::None => {
-                first_target
-            },
-
-            ColorSpecialEffect::AlphaBlending => {
+            ColorSpecialEffect::AlphaBlending if (second_target != 0) => {
                 self.alpha_blend(first_target, second_target)
             },
 
@@ -89,6 +85,10 @@ impl SpecialEffects {
             ColorSpecialEffect::BrightnessDecrease => {
                 self.brightness_decrease(first_target)
             },
+
+            _ => {
+                first_target
+            }
         }
     }
 
@@ -162,7 +162,7 @@ pub fn poke_bg_pixel(bg: u16, offset: usize, color: u16, bg_priority: u8, out: &
                 if pixel_info[offset].is_second_target {
                     out[offset] = effects.blend(color, out[offset]);
                 } else {
-                    out[offset] = color;
+                    out[offset] = effects.blend(color, 0);
                 }
                 pixel_info[offset].is_second_target = false;
                 pixel_info[offset].first_target_color = color;
