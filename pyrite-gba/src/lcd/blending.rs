@@ -48,6 +48,15 @@ impl PixelInfo {
             is_semi_transparent_obj: false,
         }
     }
+
+    pub const fn empty() -> PixelInfo {
+        PixelInfo {
+            first_target_color: 0,
+            is_second_target: false,
+            priority: 4,
+            is_semi_transparent_obj: false,
+        }
+    }
 }
 
 

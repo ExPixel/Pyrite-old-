@@ -2,7 +2,7 @@
 //! Bitmaps are implemented as BG2, with Rotation/Scaling support. As bitmap modes are occupying 80KBytes of BG memory,
 //! only 16KBytes of VRAM can be used for OBJ tiles.
 
-use super::{ obj, Line };
+use super::{ obj, Line, PixelInfoLine };
 use super::blending::{ apply_mosaic, poke_obj_pixel, poke_bg_pixel, PixelInfo, get_compositing_info };
 use super::super::GbaMemory;
 use super::super::memory::read16_le;
@@ -20,15 +20,13 @@ use super::super::memory::read16_le;
 /// The first 480 bytes define the topmost line, the next 480 the next line, and so on.
 /// The background occupies 75 KBytes (06000000-06012BFF), most of the 80 Kbytes BG area,
 /// not allowing to redraw an invisible second frame in background, so this mode is mostly recommended for still images only.
-pub fn mode3(line: u32, out: &mut Line, memory: &mut GbaMemory) {
-    // Bitmap Modes use BG2
-
-    let mut pixel_info = [PixelInfo::backdrop(memory.ioregs.bldcnt, out[0]); 240];
+pub fn mode3(line: u32, out: &mut Line, pixel_info: &mut PixelInfoLine, memory: &mut GbaMemory) {
     let (special_effects, windows) = get_compositing_info(&memory.ioregs);
 
+    // Bitmap Modes use BG2
     if memory.ioregs.dispcnt.screen_display_obj() {
         obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority, mode| {
-            poke_obj_pixel(off, col, priority, mode, out, &mut pixel_info, special_effects, windows);
+            poke_obj_pixel(off, col, priority, mode, out, pixel_info, special_effects, windows);
         });
     }
 
@@ -42,20 +40,19 @@ pub fn mode3(line: u32, out: &mut Line, memory: &mut GbaMemory) {
         for screen_x in 0..240 {
             let pixel_offset = apply_mosaic(screen_x, mosaic_x) as usize;
             let pixel = read16_le(&memory.mem_vram, pixel_data_start + (pixel_offset * 2)) | 0x8000;
-            poke_bg_pixel(2, screen_x as usize, pixel, priority, out, &mut pixel_info, special_effects, windows);
+            poke_bg_pixel(2, screen_x as usize, pixel, priority, out, pixel_info, special_effects, windows);
         }
     }
 }
 
-pub fn mode4(line: u32, out: &mut Line, memory: &mut GbaMemory) {
+pub fn mode4(line: u32, out: &mut Line, pixel_info: &mut PixelInfoLine, memory: &mut GbaMemory) {
     const FRAME1_OFFSET: usize = 0xA000;
 
-    let mut pixel_info = [PixelInfo::backdrop(memory.ioregs.bldcnt, out[0]); 240];
     let (special_effects, windows) = get_compositing_info(&memory.ioregs);
 
     if memory.ioregs.dispcnt.screen_display_obj() {
         obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority, mode| {
-            poke_obj_pixel(off, col, priority, mode, out, &mut pixel_info, special_effects, windows);
+            poke_obj_pixel(off, col, priority, mode, out, pixel_info, special_effects, windows);
         });
     }
 
@@ -69,20 +66,19 @@ pub fn mode4(line: u32, out: &mut Line, memory: &mut GbaMemory) {
         for screen_x in 0..240 {
             let pixel_offset = apply_mosaic(screen_x, mosaic_x) as usize;
             let pixel = memory.mem_vram[pixel_data_start + pixel_offset];
-            poke_bg_pixel(2, screen_x as usize, memory.palette.get_bg256(pixel), priority, out, &mut pixel_info, special_effects, windows);
+            poke_bg_pixel(2, screen_x as usize, memory.palette.get_bg256(pixel), priority, out, pixel_info, special_effects, windows);
         }
     }
 }
 
-pub fn mode5(line: u32, out: &mut Line, memory: &mut GbaMemory) {
+pub fn mode5(line: u32, out: &mut Line, pixel_info: &mut PixelInfoLine, memory: &mut GbaMemory) {
     const FRAME1_OFFSET: usize = 0xA000;
 
-    let mut pixel_info = [PixelInfo::backdrop(memory.ioregs.bldcnt, out[0]); 240];
     let (special_effects, windows) = get_compositing_info(&memory.ioregs);
 
     if memory.ioregs.dispcnt.screen_display_obj() {
         obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority, mode| {
-            poke_obj_pixel(off, col, priority, mode, out, &mut pixel_info, special_effects, windows);
+            poke_obj_pixel(off, col, priority, mode, out, pixel_info, special_effects, windows);
         });
     }
 
@@ -96,7 +92,7 @@ pub fn mode5(line: u32, out: &mut Line, memory: &mut GbaMemory) {
         for screen_x in 0..160 {
             let pixel_offset = apply_mosaic(screen_x, mosaic_x) as usize;
             let pixel = read16_le(&memory.mem_vram, pixel_data_start + (pixel_offset * 2)) | 0x8000;
-            poke_bg_pixel(2, screen_x as usize, pixel, priority, out, &mut pixel_info, special_effects, windows);
+            poke_bg_pixel(2, screen_x as usize, pixel, priority, out, pixel_info, special_effects, windows);
         }
     }
 }

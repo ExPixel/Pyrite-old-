@@ -4,6 +4,7 @@ mod blending;
 mod obj;
 
 use super::{ GbaVideoOutput, GbaMemory, ArmCpu };
+use blending::PixelInfo;
 
 pub const HDRAW_WIDTH: u32 = 240;
 pub const VDRAW_LINES: u32 = 160;
@@ -15,6 +16,7 @@ pub const HDRAW_CYCLES: u32 = 960;
 pub const HBLANK_CYCLES: u32 = 272;
 
 pub type Line = [u16; 240];
+pub type PixelInfoLine = [PixelInfo; 240];
 
 pub struct GbaLCD {
     pub(crate) end_of_frame: bool,
@@ -24,6 +26,7 @@ pub struct GbaLCD {
     in_hblank:          bool,
     line_number:        u32,
     line_pixels:        Line,
+    line_info:          Box<PixelInfoLine>,
 }
 
 impl GbaLCD {
@@ -33,6 +36,7 @@ impl GbaLCD {
             in_hblank:          false,
             line_number:        0,
             line_pixels:        [0; 240],
+            line_info:          Box::new([PixelInfo::empty(); 240]),
             end_of_frame:       false,
         }
     }
@@ -122,13 +126,16 @@ impl GbaLCD {
         let backdrop = memory.palette.get_bg256(0) | 0x8000;
         for p in self.line_pixels.iter_mut() { *p = backdrop; }
 
+        let backdrop_info = PixelInfo::backdrop(memory.ioregs.bldcnt, backdrop);
+        for p in self.line_info.iter_mut() { *p = backdrop_info; }
+
         match memory.ioregs.dispcnt.bg_mode() {
-            0 => tile_modes::mode0(self.line_number, &mut self.line_pixels, memory),
-            1 => tile_modes::mode1(self.line_number, &mut self.line_pixels, memory),
-            2 => tile_modes::mode2(self.line_number, &mut self.line_pixels, memory),
-            3 => bitmap_modes::mode3(self.line_number, &mut self.line_pixels, memory),
-            4 => bitmap_modes::mode4(self.line_number, &mut self.line_pixels, memory),
-            5 => bitmap_modes::mode5(self.line_number, &mut self.line_pixels, memory),
+            0 => tile_modes::mode0(self.line_number, &mut self.line_pixels, &mut self.line_info, memory),
+            1 => tile_modes::mode1(self.line_number, &mut self.line_pixels, &mut self.line_info, memory),
+            2 => tile_modes::mode2(self.line_number, &mut self.line_pixels, &mut self.line_info, memory),
+            3 => bitmap_modes::mode3(self.line_number, &mut self.line_pixels, &mut self.line_info, memory),
+            4 => bitmap_modes::mode4(self.line_number, &mut self.line_pixels, &mut self.line_info, memory),
+            5 => bitmap_modes::mode5(self.line_number, &mut self.line_pixels, &mut self.line_info, memory),
 
             bad_mode => {
                 println!("BAD MODE {}", bad_mode);
