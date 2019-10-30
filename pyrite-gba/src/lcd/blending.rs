@@ -164,6 +164,7 @@ impl SpecialEffects {
         // where I is the separate R, G, and B components
         let eva = self.alpha.eva_coeff(); // this is actually eva * 16
         let evb = self.alpha.evb_coeff(); // this is actually evb * 16
+
         let (r1, g1, b1) = pixel_components(first_target);
         let (r2, g2, b2) = pixel_components(second_target);
         let r = std::cmp::min(31, (r1*eva)/16 + (r2*evb)/16);
@@ -253,6 +254,20 @@ pub fn blend_raw_pixels(raw_line: &RawLine, out_line: &mut Line, effects: Specia
                     out_line[idx] = effects.blend(raw.top.color, raw.bottom.color);
                 }
             } else {
+                // @NOTE some emulators seem to have different behavior here for semi-transparent
+                // objects and opt not to allow brightness effects for them at all. I no longer
+                // have real hardware to test this on unfortunately so for now I'm just going to
+                // follow my interpretation of GBATek:
+                //  Semi-Transparent OBJs
+                //      OBJs that are defined as 'Semi-Transparent' in OAM memory are always selected as 1st Target
+                //      (regardless of BLDCNT Bit 4), and are always using Alpha Blending mode (regardless of BLDCNT Bit 6-7).
+                //
+                //         *** specifically this part ***
+                //         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv         
+                //
+                //      The BLDCNT register may be used to perform Brightness effects on the OBJ (and/or other BG/BD layers).
+                //      However, if a semi-transparent OBJ pixel does overlap a 2nd target pixel, then semi-transparency becomes
+                //      priority, and the brightness effect will not take place (neither on 1st, nor 2nd target).
                 out_line[idx] = effects.blend_single_target(raw.top.color);
             }
         } else {
