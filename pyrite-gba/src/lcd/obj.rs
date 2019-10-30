@@ -145,7 +145,7 @@ pub fn draw_objects(line: u32, memory: &GbaMemory, tile_data_start: u32, raw_pix
                     let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_y_i % 8) * BYTES_PER_LINE) + (obj_x_i % 8);
                     let palette_entry = tile_data[pixel_offset as usize];
                     let color = palette.get_obj256(palette_entry);
-                    poke_obj_pixel(obj_screen_draw, color, attr.priority, attr.mode, raw_pixels, effects, windows);
+                    poke_obj_pixel(line, obj_screen_draw, color, attr.priority, attr.mode, raw_pixels, effects, windows);
                 }
 
                 obj_x += obj_dx;
@@ -165,7 +165,7 @@ pub fn draw_objects(line: u32, memory: &GbaMemory, tile_data_start: u32, raw_pix
                     let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_y_i % 8) * BYTES_PER_LINE) + (obj_x_i % 8)/2;
                     let palette_entry = (tile_data[pixel_offset as usize] >> ((obj_x_i % 2) << 2)) & 0xF;
                     let color = palette.get_obj16(attr.palette_index, palette_entry);
-                    poke_obj_pixel(obj_screen_draw, color, attr.priority, attr.mode, raw_pixels, effects, windows);
+                    poke_obj_pixel(line, obj_screen_draw, color, attr.priority, attr.mode, raw_pixels, effects, windows);
                 }
 
                 obj_x += obj_dx;

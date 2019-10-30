@@ -37,7 +37,7 @@ pub fn mode3(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
         for screen_x in 0..240 {
             let pixel_offset = apply_mosaic(screen_x, mosaic_x) as usize;
             let pixel = read16_le(&memory.mem_vram, pixel_data_start + (pixel_offset * 2)) | 0x8000;
-            poke_bg_pixel(2, screen_x as usize, pixel, priority, raw_pixels, special_effects, windows);
+            poke_bg_pixel(line, 2, screen_x as usize, pixel, priority, raw_pixels, special_effects, windows);
         }
     }
 }
@@ -61,7 +61,7 @@ pub fn mode4(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
         for screen_x in 0..240 {
             let pixel_offset = apply_mosaic(screen_x, mosaic_x) as usize;
             let pixel = memory.mem_vram[pixel_data_start + pixel_offset];
-            poke_bg_pixel(2, screen_x as usize, memory.palette.get_bg256(pixel), priority, raw_pixels, special_effects, windows);
+            poke_bg_pixel(line, 2, screen_x as usize, memory.palette.get_bg256(pixel), priority, raw_pixels, special_effects, windows);
         }
     }
 }
@@ -85,7 +85,7 @@ pub fn mode5(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
         for screen_x in 0..160 {
             let pixel_offset = apply_mosaic(screen_x, mosaic_x) as usize;
             let pixel = read16_le(&memory.mem_vram, pixel_data_start + (pixel_offset * 2)) | 0x8000;
-            poke_bg_pixel(2, screen_x as usize, pixel, priority, raw_pixels, special_effects, windows);
+            poke_bg_pixel(line, 2, screen_x as usize, pixel, priority, raw_pixels, special_effects, windows);
         }
     }
 }

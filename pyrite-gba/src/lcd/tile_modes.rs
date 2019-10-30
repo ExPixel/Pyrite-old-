@@ -244,7 +244,7 @@ const ROTSCAL_SCREEN_SIZE: [(u32, u32); 4] = [
     (1024, 1024),
 ];
 
-fn draw_affine_bg(_line: u32, bg: AffineBG, vram: &[u8], palette: &Palette, raw_pixels: &mut RawLine, effects: SpecialEffects, windows: Windows) {
+fn draw_affine_bg(line: u32, bg: AffineBG, vram: &[u8], palette: &Palette, raw_pixels: &mut RawLine, effects: SpecialEffects, windows: Windows) {
     let (x_mask, y_mask) = if bg.wraparound {
         ((bg.width - 1) as i32, (bg.height - 1) as i32)
     } else {
@@ -266,7 +266,7 @@ fn draw_affine_bg(_line: u32, bg: AffineBG, vram: &[u8], palette: &Palette, raw_
             let tile_number = vram[(bg.screen_base + (ty * (bg.width / 8)) + tx) as usize];
             let tile_pixel_data_offset = bg.char_base + (64 * tile_number as u32) + (8 * (real_y % 8)) + (real_x % 8);
             let tile_pixel = palette.get_bg256(vram[tile_pixel_data_offset as usize]);
-            poke_bg_pixel(bg.index, idx, tile_pixel, bg.priority, raw_pixels, effects, windows);
+            poke_bg_pixel(line, bg.index, idx, tile_pixel, bg.priority, raw_pixels, effects, windows);
         }
     }
 }
@@ -307,14 +307,14 @@ fn draw_bg_text_mode_4bpp(line: u32, bg: TextBG, vram: &[u8], palette: &Palette,
             let pinc = if horizontal_flip { -1i32 as u32 } else { 1u32 };
             for _ in 0..4 {
                 let palette_entry = vram[pixel_offset as usize];
-                poke_bg_pixel(bg.index, dx as usize, palette.get_bg16(tile_palette, palette_entry & 0xF), bg.priority, raw_pixels, effects, windows);
-                poke_bg_pixel(bg.index, (dx + 1) as usize, palette.get_bg16(tile_palette, palette_entry >> 4), bg.priority, raw_pixels, effects, windows);
+                poke_bg_pixel(line, bg.index, dx as usize, palette.get_bg16(tile_palette, palette_entry & 0xF), bg.priority, raw_pixels, effects, windows);
+                poke_bg_pixel(line, bg.index, (dx + 1) as usize, palette.get_bg16(tile_palette, palette_entry >> 4), bg.priority, raw_pixels, effects, windows);
                 dx += 2;
                 pixel_offset = pixel_offset.wrapping_add(pinc);
             }
         } else {
             let palette_entry = (vram[pixel_offset as usize] >> ((tx % 2) << 2)) & 0xF;
-            poke_bg_pixel(bg.index, dx as usize, palette.get_bg16(tile_palette, palette_entry), bg.priority, raw_pixels, effects, windows);
+            poke_bg_pixel(line, bg.index, dx as usize, palette.get_bg16(tile_palette, palette_entry), bg.priority, raw_pixels, effects, windows);
             dx += 1;
         }
     }
@@ -355,13 +355,13 @@ fn draw_bg_text_mode_8bpp(line: u32, bg: TextBG, vram: &[u8], palette: &Palette,
             let pinc = if horizontal_flip { -1i32 as u32 } else { 1u32 };
             for _ in 0..8 {
                 let palette_entry = vram[pixel_offset as usize];
-                poke_bg_pixel(bg.index, dx as usize, palette.get_bg256(palette_entry), bg.priority, raw_pixels, effects, windows);
+                poke_bg_pixel(line, bg.index, dx as usize, palette.get_bg256(palette_entry), bg.priority, raw_pixels, effects, windows);
                 dx += 1;
                 pixel_offset = pixel_offset.wrapping_add(pinc);
             }
         } else {
             let palette_entry = vram[pixel_offset as usize];
-            poke_bg_pixel(bg.index, dx as usize, palette.get_bg256(palette_entry), bg.priority, raw_pixels, effects, windows);
+            poke_bg_pixel(line, bg.index, dx as usize, palette.get_bg256(palette_entry), bg.priority, raw_pixels, effects, windows);
             dx += 1;
         }
     }

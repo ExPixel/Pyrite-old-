@@ -1,4 +1,15 @@
-use crate::memory::ioreg::{ IORegisters, RegEffectsSelect, RegAlpha, RegBrightness, ColorSpecialEffect };
+use crate::memory::ioreg::{
+    IORegisters,
+    RegEffectsSelect,
+    RegAlpha,
+    RegBrightness,
+    ColorSpecialEffect,
+    RegDISPCNT,
+    RegWINH,
+    RegWINV,
+    RegWININ,
+    RegWINOUT,
+};
 use super::obj::ObjMode;
 use super::{ Line, RawLine };
 
@@ -175,48 +186,129 @@ impl SpecialEffects {
 }
 
 #[derive(Clone, Copy)]
+pub struct WindowRect {
+    left: u16,
+    top: u16,
+
+    /// This will actually contain right + 1
+    right: u16,
+    /// This will actually contain bottom + 1
+    bottom: u16,
+}
+
+impl WindowRect {
+    pub fn new(left: u16, top: u16, right: u16, bottom: u16) -> WindowRect {
+        WindowRect {
+            left: std::cmp::min(239, left),
+            top: std::cmp::min(159, top),
+            right: std::cmp::min(240, right),
+            bottom: std::cmp::min(160, bottom),
+        }
+    }
+
+    #[inline]
+    pub fn in_bounds(&self, x: u16, y: u16) -> bool {
+        let h = if self.left > self.right {
+            x >= self.left || x < self.right
+        } else {
+            x >= self.left && x < self.right
+        };
+
+        let v = if self.top > self.bottom {
+            y >= self.top || y < self.bottom
+        } else {
+            y >= self.top && y < self.bottom
+        };
+
+        return h & v;
+    }
+}
+
+#[derive(Clone, Copy)]
 pub struct Windows {
-    win0h:  u16,
-    win0v:  u16,
-    win1h:  u16,
-    win1v:  u16,
-    winin:  u16,
-    winout: u16,
+    dispcnt:    RegDISPCNT,
+    win0:       WindowRect,
+    win1:       WindowRect,
+    winin:      RegWININ,
+    winout:     RegWINOUT,
 }
 
 impl Windows {
-    pub fn new() -> Windows {
-        // @TODO implement this :P
+    pub fn new(dispcnt: RegDISPCNT, win0h: RegWINH, win0v: RegWINV, win1h: RegWINH, win1v: RegWINV, winin: RegWININ, winout: RegWINOUT) -> Windows {
         Windows {
-            win0h:  0,
-            win0v:  0,
-            win1h:  0,
-            win1v:  0,
-            winin:  0,
-            winout: 0,
+            dispcnt: dispcnt,
+            win0:   WindowRect::new(win0h.left(), win0v.top(), win0h.right(), win0v.bottom()),
+            win1:   WindowRect::new(win1h.left(), win1v.top(), win1h.right(), win1v.bottom()),
+            winin:  winin,
+            winout: winout,
         }
+    }
+
+    pub fn check_window_bounds(&self, layer: u16, x: u16, y: u16, raw_pixels: &RawLine) -> (/* show pixel */ bool, /* special effects */ bool) {
+        if self.dispcnt.display_window0() && self.win0.in_bounds(x, y) {
+            if self.winin.is_in_window0(layer) {
+                return (true, self.winin.win0_special_effects());
+            } else {
+                return (false, false);
+            }
+        }
+
+        if self.dispcnt.display_window1() && self.win1.in_bounds(x, y) {
+            if self.winin.is_in_window1(layer) {
+                return (true, self.winin.win1_special_effects());
+            } else {
+                return (false, false);
+            }
+        }
+
+        if self.dispcnt.display_obj_window() && raw_pixels[x as usize].obj_window {
+            if self.winout.is_in_window_obj(layer) {
+                return (true, self.winout.winobj_special_effects());
+            } else {
+                return (false, false);
+            }
+        }
+
+        if self.winout.is_in_window_out(layer) {
+            return (true, self.winout.winout_special_effects());
+        } else {
+            (false, false)
+        }
+    }
+
+    /// Returns true if any of the windows are enabled
+    #[inline(always)]
+    pub fn enabled(&self) -> bool {
+        (self.dispcnt.inner & (0xE000)) != 0
     }
 }
 
 #[inline]
-pub fn poke_bg_pixel(bg: u16, offset: usize, color: u16, bg_priority: u8, raw_pixels: &mut [RawPixel; 240], effects: SpecialEffects, _windows: Windows) {
+pub fn poke_bg_pixel(line: u32, bg: u16, offset: usize, color: u16, bg_priority: u8, raw_pixels: &mut RawLine, effects: SpecialEffects, windows: Windows) {
     if (color & 0x8000) == 0 { return }
+
+    let enable_special_effects = if windows.enabled() {
+        let (show_pixel, enable_special_effects) = windows.check_window_bounds(bg, offset as u16, line as u16, raw_pixels);
+        if !show_pixel { return }
+        enable_special_effects
+    } else { true };
+
     let pixel = &mut raw_pixels[offset];
     if pixel.top.priority > bg_priority {
         pixel.bottom = pixel.top;
         pixel.top = RawPixelLayer {
             color: color,
             semi_transparent_obj: false,
-            first_target: effects.select.is_first_target(bg),
-            second_target: effects.select.is_second_target(bg),
+            first_target: enable_special_effects & effects.select.is_first_target(bg),
+            second_target: enable_special_effects & effects.select.is_second_target(bg),
             priority: bg_priority,
         };
     } else if pixel.bottom.priority > bg_priority {
         pixel.bottom = RawPixelLayer {
             color: color,
             semi_transparent_obj: false,
-            first_target: effects.select.is_first_target(bg),
-            second_target: effects.select.is_second_target(bg),
+            first_target: enable_special_effects & effects.select.is_first_target(bg),
+            second_target: enable_special_effects & effects.select.is_second_target(bg),
             priority: bg_priority,
         };
     }
@@ -225,8 +317,15 @@ pub fn poke_bg_pixel(bg: u16, offset: usize, color: u16, bg_priority: u8, raw_pi
 /// This expects that objects are always drawn before any backgrounds. It owill only check the
 /// priority of the top layer.
 #[inline]
-pub fn poke_obj_pixel(offset: usize, color: u16, obj_priority: u8, obj_mode: ObjMode, raw_pixels: &mut [RawPixel; 240], effects: SpecialEffects, _windows: Windows) {
+pub fn poke_obj_pixel(line: u32, offset: usize, color: u16, obj_priority: u8, obj_mode: ObjMode, raw_pixels: &mut RawLine, effects: SpecialEffects, windows: Windows) {
     if (color & 0x8000) == 0 { return }
+
+    let enable_special_effects = if windows.enabled() {
+        let (show_pixel, enable_special_effects) = windows.check_window_bounds(4, offset as u16, line as u16, raw_pixels);
+        if !show_pixel { return }
+        enable_special_effects
+    } else { true };
+
     let pixel = &mut raw_pixels[offset];
     if obj_mode == ObjMode::OBJWindow {
         pixel.obj_window = true;
@@ -234,9 +333,9 @@ pub fn poke_obj_pixel(offset: usize, color: u16, obj_priority: u8, obj_mode: Obj
         pixel.bottom = pixel.top;
         pixel.top = RawPixelLayer {
             color: color,
-            semi_transparent_obj: obj_mode == ObjMode::SemiTransparent,
-            first_target: effects.select.is_first_target(4),
-            second_target: effects.select.is_second_target(4),
+            semi_transparent_obj: enable_special_effects & (obj_mode == ObjMode::SemiTransparent),
+            first_target: enable_special_effects & effects.select.is_first_target(4),
+            second_target: enable_special_effects & effects.select.is_second_target(4),
             priority: obj_priority,
         };
     }
@@ -280,7 +379,7 @@ pub fn blend_raw_pixels(raw_line: &RawLine, out_line: &mut Line, effects: Specia
 pub fn get_compositing_info(ioregs: &IORegisters) -> (SpecialEffects, Windows) {
     (
         SpecialEffects::new(ioregs.bldcnt, ioregs.bldalpha, ioregs.bldy),
-        Windows::new(),
+        Windows::new(ioregs.dispcnt, ioregs.win0h, ioregs.win0v, ioregs.win1h, ioregs.win1v, ioregs.winin, ioregs.winout),
     )
 }
 

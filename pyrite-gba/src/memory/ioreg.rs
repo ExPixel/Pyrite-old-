@@ -23,12 +23,12 @@ pub struct IORegisters {
     pub bg3pd: RegFixedPoint16,
     pub bg3x: RegFixedPoint28,
     pub bg3y: RegFixedPoint28,
-    pub win0h: Reg16,
-    pub win1h: Reg16,
-    pub win0v: Reg16,
-    pub win1v: Reg16,
-    pub winin: Reg16,
-    pub winout: Reg16,
+    pub win0h: RegWINH,
+    pub win1h: RegWINH,
+    pub win0v: RegWINV,
+    pub win1v: RegWINV,
+    pub winin: RegWININ,
+    pub winout: RegWINOUT,
     pub mosaic: RegMosaic,
     pub bldcnt: RegEffectsSelect,
     pub bldalpha: RegAlpha,
@@ -924,5 +924,61 @@ ioreg! {
 ioreg! {
     RegBrightness: u16 {
         evy_coeff, set_evy_coeff: u16 = [0,  4],
+    }
+}
+
+ioreg! {
+    RegWINH: u16 {
+        right, set_right: u16 = [0, 7],
+        left, set_left: u16 = [8, 15],
+    }
+}
+
+ioreg! {
+    RegWINV: u16 {
+        bottom, set_bottom: u16 = [0, 7],
+        top, set_top: u16 = [8, 15],
+    }
+}
+
+ioreg! {
+    RegWININ: u16 {
+        win0_special_effects, set_win0_special_effects: bool = [ 5,  5],
+        win1_special_effects, set_win1_special_effects: bool = [13, 13],
+    }
+}
+
+impl RegWININ {
+    #[inline]
+    pub fn is_in_window0(&self, layer: u16) -> bool {
+        debug_assert!(layer <= 4, "invalid window 0 layer");
+        return (self.inner & (1 << layer)) != 0;
+    }
+
+    #[inline]
+    pub fn is_in_window1(&self, layer: u16) -> bool {
+        debug_assert!(layer <= 4, "invalid window 1 layer");
+        return (self.inner & (1 << (layer + 8))) != 0;
+    }
+}
+
+ioreg! {
+    RegWINOUT: u16 {
+        winout_special_effects, set_winout_special_effects: bool = [ 5,  5],
+        winobj_special_effects, set_winobj_special_effects: bool = [13, 13],
+    }
+}
+
+impl RegWINOUT {
+    #[inline]
+    pub fn is_in_window_out(&self, layer: u16) -> bool {
+        debug_assert!(layer <= 4, "invalid window out layer");
+        return (self.inner & (1 << layer)) != 0;
+    }
+
+    #[inline]
+    pub fn is_in_window_obj(&self, layer: u16) -> bool {
+        debug_assert!(layer <= 4, "invalid window obj layer");
+        return (self.inner & (1 << (layer + 8))) != 0;
     }
 }
