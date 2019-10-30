@@ -101,6 +101,7 @@ impl ArmCpu {
         } else {
             self.step_arm(memory);
         }
+        self.after_step(memory);
         self.total_cycles += self.cycles as u64;
         return self.cycles;
     }
@@ -119,15 +120,6 @@ impl ArmCpu {
         } else {
             self.cycles += clock::cycles_prefetch(memory, false, self.registers.read(15));
         }
-
-        let pc = self.registers.read(15);
-        if self.registers.getf_t() {
-            self.fetched = memory.load16(pc) as u32;
-            self.registers.write(15, pc + 2);
-        } else {
-            self.fetched = memory.load32(pc);
-            self.registers.write(15, pc + 4);
-        }
     }
 
     fn step_thumb(&mut self, memory: &mut dyn ArmMemory) {
@@ -140,7 +132,9 @@ impl ArmCpu {
 
         let thumb_fn = thumb::THUMB_OPCODE_TABLE[opcode_idx as usize];
         thumb_fn(self, memory, opcode);
+    }
 
+    fn after_step(&mut self, memory: &mut dyn ArmMemory) {
         let pc = self.registers.read(15);
         if self.registers.getf_t() {
             self.fetched = memory.load16(pc) as u32;
