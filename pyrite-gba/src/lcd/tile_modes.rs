@@ -79,20 +79,20 @@
 //! 
 //! The size and VRAM base address of the separate BG maps for BG0-3 are set up by BG0CNT-BG3CNT registers.
 
-use super::{ Line, PixelInfoLine, obj };
-use super::blending::{ apply_mosaic, PixelInfo, poke_bg_pixel, poke_obj_pixel, get_compositing_info };
+use super::{ Line, RawLine, obj };
+use super::blending::{ apply_mosaic, poke_bg_pixel, poke_obj_pixel, get_compositing_info };
 use super::super::GbaMemory;
 use super::super::memory::ioreg::{ RegBGxCNT, RegBGxHOFS, RegBGxVOFS, RegMosaic };
 use super::super::memory::palette::Palette;
 use super::super::memory::read16_le;
 use crate::util::fixedpoint::{ FixedPoint32 };
 
-pub fn mode0(line: u32, out: &mut Line, pixel_info: &mut PixelInfoLine, memory: &mut GbaMemory) {
+pub fn mode0(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
     let (special_effects, windows) = get_compositing_info(&memory.ioregs);
 
     if memory.ioregs.dispcnt.screen_display_obj() {
         obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x10000, |off, col, priority, mode| {
-            poke_obj_pixel(off, col, priority, mode, out, pixel_info, special_effects, windows);
+            poke_obj_pixel(off, col, priority, mode, raw_pixels, special_effects, windows);
         });
     }
 
@@ -115,22 +115,22 @@ pub fn mode0(line: u32, out: &mut Line, pixel_info: &mut PixelInfoLine, memory: 
 
             if cnt.pal256() {
                 draw_bg_text_mode_8bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    poke_bg_pixel(bg_idx as _, off, col, priority as u8, out, pixel_info, special_effects, windows);
+                    poke_bg_pixel(bg_idx as _, off, col, priority as u8, raw_pixels, special_effects, windows);
                 });
             } else {
                 draw_bg_text_mode_4bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    poke_bg_pixel(bg_idx as _, off, col, priority as u8, out, pixel_info, special_effects, windows);
+                    poke_bg_pixel(bg_idx as _, off, col, priority as u8, raw_pixels, special_effects, windows);
                 });
             }
         }
     }
 }
 
-pub fn mode1(line: u32, out: &mut Line, pixel_info: &mut PixelInfoLine, memory: &mut GbaMemory) {
+pub fn mode1(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
     let (special_effects, windows) = get_compositing_info(&memory.ioregs);
 
     obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x10000, |off, col, priority, mode| {
-        poke_obj_pixel(off, col, priority, mode, out, pixel_info, special_effects, windows);
+        poke_obj_pixel(off, col, priority, mode, raw_pixels, special_effects, windows);
     });
 
     for priority in 0u16..=3u16 {
@@ -155,7 +155,7 @@ pub fn mode1(line: u32, out: &mut Line, pixel_info: &mut PixelInfoLine, memory: 
                     memory.ioregs.mosaic);
 
                 draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    poke_bg_pixel(bg_idx as _, off, col, priority as u8, out, pixel_info, special_effects, windows);
+                    poke_bg_pixel(bg_idx as _, off, col, priority as u8, raw_pixels, special_effects, windows);
                 });
 
                 memory.ioregs.internal_bg2x += memory.ioregs.bg2pb.to_fp32();
@@ -167,11 +167,11 @@ pub fn mode1(line: u32, out: &mut Line, pixel_info: &mut PixelInfoLine, memory: 
 
                 if cnt.pal256() {
                     draw_bg_text_mode_8bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                        poke_bg_pixel(bg_idx as _, off, col, priority as u8, out, pixel_info, special_effects, windows);
+                        poke_bg_pixel(bg_idx as _, off, col, priority as u8, raw_pixels, special_effects, windows);
                     });
                 } else {
                     draw_bg_text_mode_4bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                        poke_bg_pixel(bg_idx as _, off, col, priority as u8, out, pixel_info, special_effects, windows);
+                        poke_bg_pixel(bg_idx as _, off, col, priority as u8, raw_pixels, special_effects, windows);
                     });
                 }
             }
@@ -179,11 +179,11 @@ pub fn mode1(line: u32, out: &mut Line, pixel_info: &mut PixelInfoLine, memory: 
     }
 }
 
-pub fn mode2(line: u32, out: &mut Line, pixel_info: &mut PixelInfoLine, memory: &mut GbaMemory) {
+pub fn mode2(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
     let (special_effects, windows) = get_compositing_info(&memory.ioregs);
 
     obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x10000, |off, col, priority, mode| {
-        poke_obj_pixel(off, col, priority, mode, out, pixel_info, special_effects, windows);
+        poke_obj_pixel(off, col, priority, mode, raw_pixels, special_effects, windows);
     });
 
     for priority in 0u16..=3u16 {
@@ -208,7 +208,7 @@ pub fn mode2(line: u32, out: &mut Line, pixel_info: &mut PixelInfoLine, memory: 
                     memory.ioregs.mosaic);
 
                 draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    poke_bg_pixel(bg_idx as _, off, col, priority as u8, out, pixel_info, special_effects, windows);
+                    poke_bg_pixel(bg_idx as _, off, col, priority as u8, raw_pixels, special_effects, windows);
                 });
 
                 memory.ioregs.internal_bg2x += memory.ioregs.bg2pb.to_fp32();
@@ -222,7 +222,7 @@ pub fn mode2(line: u32, out: &mut Line, pixel_info: &mut PixelInfoLine, memory: 
                     memory.ioregs.mosaic);
 
                 draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    poke_bg_pixel(bg_idx as _, off, col, priority as u8, out, pixel_info, special_effects, windows);
+                    poke_bg_pixel(bg_idx as _, off, col, priority as u8, raw_pixels, special_effects, windows);
                 });
 
                 memory.ioregs.internal_bg3x += memory.ioregs.bg3pb.to_fp32();
