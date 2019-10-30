@@ -219,38 +219,6 @@ pub fn poke_bg_pixel(bg: u16, offset: usize, color: u16, bg_priority: u8, raw_pi
             priority: bg_priority,
         };
     }
-    // if (color & 0x8000) != 0 {
-    //     if pixel_info[offset].priority > bg_priority  {
-    //         pixel_info[offset].priority = bg_priority;
-    //         pixel_info[offset].is_semi_transparent_obj = false;
-    //         if effects.select.is_first_target(bg) {
-    //             if pixel_info[offset].is_second_target {
-    //                 out[offset] = effects.blend(color, out[offset]);
-    //             } else {
-    //                 out[offset] = effects.blend(color, 0);
-    //             }
-    //             pixel_info[offset].is_second_target = false;
-    //             pixel_info[offset].first_target_color = color;
-    //         } else {
-    //             pixel_info[offset].first_target_color = 0;
-    //             pixel_info[offset].is_second_target = effects.select.is_second_target(bg);
-    //             out[offset] = color;
-    //         }
-    //     } else if pixel_info[offset].first_target_color != 0 && effects.select.is_second_target(bg) {
-    //         // here we draw a second target pixel that would have been at a higher priority than
-    //         // the previous second target pixel but is at a lower priority than the current first
-    //         // target pixel. So we blend with the current high priority first target pixel.
-    //         // @NOTE: having a higher priority NUMBER means that a layer has a LOWER priority.
-    //         //          e.g. priority 0 is higher than priority 2
-
-    //         if pixel_info[offset].is_semi_transparent_obj {
-    //             // semi-transparent objects always force alpha blending as the first target
-    //             out[offset] = effects.alpha_blend(pixel_info[offset].first_target_color, color);
-    //         } else {
-    //             out[offset] = effects.blend(pixel_info[offset].first_target_color, color);
-    //         }
-    //     }
-    // }
 }
 
 /// This expects that objects are always drawn before any backgrounds. It owill only check the
@@ -271,35 +239,6 @@ pub fn poke_obj_pixel(offset: usize, color: u16, obj_priority: u8, obj_mode: Obj
             priority: obj_priority,
         };
     }
-    // if (color & 0x8000) != 0 && pixel_info[offset].priority > obj_priority {
-    //     // offset should never be out of bounds here
-    //     unsafe {
-    //         let is_semi_transparent = obj_mode == ObjMode::SemiTransparent;
-    //         let info = pixel_info.get_unchecked_mut(offset);
-    //         if effects.select.is_first_target(4) || is_semi_transparent {
-    //             (*info).first_target_color = color;
-    //             (*info).is_semi_transparent_obj = is_semi_transparent;
-
-    //             *out.get_unchecked_mut(offset) = if is_semi_transparent && (*info).is_second_target {
-    //                 effects.alpha_blend(color, *out.get_unchecked(offset))
-    //             } else if !is_semi_transparent {
-    //                 match effects.select.special_effect() {
-    //                     ColorSpecialEffect::BrightnessIncrease => effects.brightness_increase(color),
-    //                     ColorSpecialEffect::BrightnessDecrease => effects.brightness_decrease(color),
-    //                     _ => color,
-    //                 }
-    //             } else {
-    //                 color
-    //             };
-    //         } else {
-    //             (*info).first_target_color = 0;
-    //             (*info).is_semi_transparent_obj = false;
-    //             (*info).is_second_target = effects.select.is_second_target(4);
-    //             *out.get_unchecked_mut(offset) = color;
-    //         }
-    //         (*info).priority = obj_priority;
-    //     }
-    // }
 }
 
 pub fn blend_raw_pixels(raw_line: &RawLine, out_line: &mut Line, effects: SpecialEffects) {
