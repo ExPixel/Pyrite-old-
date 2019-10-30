@@ -23,11 +23,8 @@ use super::super::memory::read16_le;
 pub fn mode3(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
     let (special_effects, windows) = get_compositing_info(&memory.ioregs);
 
-    // Bitmap Modes use BG2
     if memory.ioregs.dispcnt.screen_display_obj() {
-        obj::draw_objects(line, &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority, mode| {
-            poke_obj_pixel(off, col, priority, mode, raw_pixels, special_effects, windows);
-        });
+        obj::draw_objects(line, &memory, 0x14000, raw_pixels, special_effects, windows);
     }
 
     if memory.ioregs.dispcnt.screen_display_bg2() {
@@ -51,9 +48,7 @@ pub fn mode4(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
     let (special_effects, windows) = get_compositing_info(&memory.ioregs);
 
     if memory.ioregs.dispcnt.screen_display_obj() {
-        obj::draw_objects(line, &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority, mode| {
-            poke_obj_pixel(off, col, priority, mode, raw_pixels, special_effects, windows);
-        });
+        obj::draw_objects(line, &memory, 0x14000, raw_pixels, special_effects, windows);
     }
 
     if memory.ioregs.dispcnt.screen_display_bg2() {
@@ -77,9 +72,7 @@ pub fn mode5(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
     let (special_effects, windows) = get_compositing_info(&memory.ioregs);
 
     if memory.ioregs.dispcnt.screen_display_obj() {
-        obj::draw_objects(line, &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority, mode| {
-            poke_obj_pixel(off, col, priority, mode, raw_pixels, special_effects, windows);
-        });
+        obj::draw_objects(line, &memory, 0x14000, raw_pixels, special_effects, windows);
     }
 
     if memory.ioregs.dispcnt.screen_display_bg2() && line < 128 {

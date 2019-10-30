@@ -91,9 +91,7 @@ pub fn mode0(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
     let (special_effects, windows) = get_compositing_info(&memory.ioregs);
 
     if memory.ioregs.dispcnt.screen_display_obj() {
-        obj::draw_objects(line, &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x10000, |off, col, priority, mode| {
-            poke_obj_pixel(off, col, priority, mode, raw_pixels, special_effects, windows);
-        });
+        obj::draw_objects(line, &memory, 0x10000, raw_pixels, special_effects, windows);
     }
 
     for priority in 0u16..=3u16 {
@@ -129,9 +127,9 @@ pub fn mode0(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
 pub fn mode1(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
     let (special_effects, windows) = get_compositing_info(&memory.ioregs);
 
-    obj::draw_objects(line, &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x10000, |off, col, priority, mode| {
-        poke_obj_pixel(off, col, priority, mode, raw_pixels, special_effects, windows);
-    });
+    if memory.ioregs.dispcnt.screen_display_obj() {
+        obj::draw_objects(line, &memory, 0x10000, raw_pixels, special_effects, windows);
+    }
 
     for priority in 0u16..=3u16 {
         for bg_idx in 0usize..=2usize {
@@ -182,9 +180,9 @@ pub fn mode1(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
 pub fn mode2(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
     let (special_effects, windows) = get_compositing_info(&memory.ioregs);
 
-    obj::draw_objects(line, &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x10000, |off, col, priority, mode| {
-        poke_obj_pixel(off, col, priority, mode, raw_pixels, special_effects, windows);
-    });
+    if memory.ioregs.dispcnt.screen_display_obj() {
+        obj::draw_objects(line, &memory, 0x10000, raw_pixels, special_effects, windows);
+    }
 
     for priority in 0u16..=3u16 {
         for bg_idx in 2usize..=3usize {
