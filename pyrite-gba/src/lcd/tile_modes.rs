@@ -80,7 +80,7 @@
 //! The size and VRAM base address of the separate BG maps for BG0-3 are set up by BG0CNT-BG3CNT registers.
 
 use super::{ RawLine, obj };
-use super::blending::{ apply_mosaic, poke_bg_pixel, poke_obj_pixel, get_compositing_info };
+use super::blending::{ apply_mosaic, poke_bg_pixel, get_compositing_info, SpecialEffects, Windows };
 use super::super::GbaMemory;
 use super::super::memory::ioreg::{ RegBGxCNT, RegBGxHOFS, RegBGxVOFS, RegMosaic };
 use super::super::memory::palette::Palette;
@@ -88,10 +88,10 @@ use super::super::memory::read16_le;
 use crate::util::fixedpoint::{ FixedPoint32 };
 
 pub fn mode0(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
-    let (special_effects, windows) = get_compositing_info(&memory.ioregs);
+    let (effects, windows) = get_compositing_info(&memory.ioregs);
 
     if memory.ioregs.dispcnt.screen_display_obj() {
-        obj::draw_objects(line, &memory, 0x10000, raw_pixels, special_effects, windows);
+        obj::draw_objects(line, &memory, 0x10000, raw_pixels, effects, windows);
     }
 
     for priority in 0u16..=3u16 {
@@ -109,26 +109,22 @@ pub fn mode0(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
 
             let xoffset = memory.ioregs.bg_hofs[bg_idx];
             let yoffset = memory.ioregs.bg_vofs[bg_idx];
-            let bg = TextBG::new(cnt, xoffset, yoffset, memory.ioregs.mosaic);
+            let bg = TextBG::new(bg_idx as u16, priority as u8, cnt, xoffset, yoffset, memory.ioregs.mosaic);
 
             if cnt.pal256() {
-                draw_bg_text_mode_8bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    poke_bg_pixel(bg_idx as _, off, col, priority as u8, raw_pixels, special_effects, windows);
-                });
+                draw_bg_text_mode_8bpp(line, bg, &memory.mem_vram, &memory.palette, raw_pixels, effects, windows);
             } else {
-                draw_bg_text_mode_4bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    poke_bg_pixel(bg_idx as _, off, col, priority as u8, raw_pixels, special_effects, windows);
-                });
+                draw_bg_text_mode_4bpp(line, bg, &memory.mem_vram, &memory.palette, raw_pixels, effects, windows);
             }
         }
     }
 }
 
 pub fn mode1(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
-    let (special_effects, windows) = get_compositing_info(&memory.ioregs);
+    let (effects, windows) = get_compositing_info(&memory.ioregs);
 
     if memory.ioregs.dispcnt.screen_display_obj() {
-        obj::draw_objects(line, &memory, 0x10000, raw_pixels, special_effects, windows);
+        obj::draw_objects(line, &memory, 0x10000, raw_pixels, effects, windows);
     }
 
     for priority in 0u16..=3u16 {
@@ -145,32 +141,26 @@ pub fn mode1(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
             if !enabled { continue; }
 
             if bg_idx == 2 {
-                let bg = AffineBG::new(cnt,
+                let bg = AffineBG::new(bg_idx as u16, priority as u8, cnt,
                     memory.ioregs.internal_bg2x,
                     memory.ioregs.internal_bg2y,
                     memory.ioregs.bg2pa.to_fp32(),
                     memory.ioregs.bg2pc.to_fp32(),
                     memory.ioregs.mosaic);
 
-                draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    poke_bg_pixel(bg_idx as _, off, col, priority as u8, raw_pixels, special_effects, windows);
-                });
+                draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, raw_pixels, effects, windows);
 
                 memory.ioregs.internal_bg2x += memory.ioregs.bg2pb.to_fp32();
                 memory.ioregs.internal_bg2y += memory.ioregs.bg2pd.to_fp32();
             } else {
                 let xoffset = memory.ioregs.bg_hofs[bg_idx];
                 let yoffset = memory.ioregs.bg_vofs[bg_idx];
-                let bg = TextBG::new(cnt, xoffset, yoffset, memory.ioregs.mosaic);
+                let bg = TextBG::new(bg_idx as u16, priority as u8, cnt, xoffset, yoffset, memory.ioregs.mosaic);
 
                 if cnt.pal256() {
-                    draw_bg_text_mode_8bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                        poke_bg_pixel(bg_idx as _, off, col, priority as u8, raw_pixels, special_effects, windows);
-                    });
+                    draw_bg_text_mode_8bpp(line, bg, &memory.mem_vram, &memory.palette, raw_pixels, effects, windows);
                 } else {
-                    draw_bg_text_mode_4bpp(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                        poke_bg_pixel(bg_idx as _, off, col, priority as u8, raw_pixels, special_effects, windows);
-                    });
+                    draw_bg_text_mode_4bpp(line, bg, &memory.mem_vram, &memory.palette, raw_pixels, effects, windows);
                 }
             }
         }
@@ -178,10 +168,10 @@ pub fn mode1(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
 }
 
 pub fn mode2(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
-    let (special_effects, windows) = get_compositing_info(&memory.ioregs);
+    let (effects, windows) = get_compositing_info(&memory.ioregs);
 
     if memory.ioregs.dispcnt.screen_display_obj() {
-        obj::draw_objects(line, &memory, 0x10000, raw_pixels, special_effects, windows);
+        obj::draw_objects(line, &memory, 0x10000, raw_pixels, effects, windows);
     }
 
     for priority in 0u16..=3u16 {
@@ -198,30 +188,26 @@ pub fn mode2(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
             if !enabled { continue; }
 
             if bg_idx == 2 {
-                let bg = AffineBG::new(cnt,
+                let bg = AffineBG::new(bg_idx as u16, priority as u8, cnt,
                     memory.ioregs.internal_bg2x,
                     memory.ioregs.internal_bg2y,
                     memory.ioregs.bg2pa.to_fp32(),
                     memory.ioregs.bg2pc.to_fp32(),
                     memory.ioregs.mosaic);
 
-                draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    poke_bg_pixel(bg_idx as _, off, col, priority as u8, raw_pixels, special_effects, windows);
-                });
+                draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, raw_pixels, effects, windows);
 
                 memory.ioregs.internal_bg2x += memory.ioregs.bg2pb.to_fp32();
                 memory.ioregs.internal_bg2y += memory.ioregs.bg2pd.to_fp32();
             } else if bg_idx == 3 {
-                let bg = AffineBG::new(cnt,
+                let bg = AffineBG::new(bg_idx as u16, priority as u8, cnt,
                     memory.ioregs.internal_bg3x,
                     memory.ioregs.internal_bg3y,
                     memory.ioregs.bg3pa.to_fp32(),
                     memory.ioregs.bg3pc.to_fp32(),
                     memory.ioregs.mosaic);
 
-                draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, |off, col| {
-                    poke_bg_pixel(bg_idx as _, off, col, priority as u8, raw_pixels, special_effects, windows);
-                });
+                draw_affine_bg(line, bg, &memory.mem_vram, &memory.palette, raw_pixels, effects, windows);
 
                 memory.ioregs.internal_bg3x += memory.ioregs.bg3pb.to_fp32();
                 memory.ioregs.internal_bg3y += memory.ioregs.bg3pd.to_fp32();
@@ -258,7 +244,7 @@ const ROTSCAL_SCREEN_SIZE: [(u32, u32); 4] = [
     (1024, 1024),
 ];
 
-fn draw_affine_bg<F: FnMut(usize, u16)>(_line: u32, bg: AffineBG, vram: &[u8], palette: &Palette, mut poke: F) {
+fn draw_affine_bg(_line: u32, bg: AffineBG, vram: &[u8], palette: &Palette, raw_pixels: &mut RawLine, effects: SpecialEffects, windows: Windows) {
     let (x_mask, y_mask) = if bg.wraparound {
         ((bg.width - 1) as i32, (bg.height - 1) as i32)
     } else {
@@ -280,12 +266,12 @@ fn draw_affine_bg<F: FnMut(usize, u16)>(_line: u32, bg: AffineBG, vram: &[u8], p
             let tile_number = vram[(bg.screen_base + (ty * (bg.width / 8)) + tx) as usize];
             let tile_pixel_data_offset = bg.char_base + (64 * tile_number as u32) + (8 * (real_y % 8)) + (real_x % 8);
             let tile_pixel = palette.get_bg256(vram[tile_pixel_data_offset as usize]);
-            poke(idx, tile_pixel);
+            poke_bg_pixel(bg.index, idx, tile_pixel, bg.priority, raw_pixels, effects, windows);
         }
     }
 }
 
-fn draw_bg_text_mode_4bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u8], palette: &Palette, mut poke: F) {
+fn draw_bg_text_mode_4bpp(line: u32, bg: TextBG, vram: &[u8], palette: &Palette, raw_pixels: &mut RawLine, effects: SpecialEffects, windows: Windows) {
     pub const BYTES_PER_TILE: u32 = 32;
     pub const BYTES_PER_LINE: u32 = 4;
 
@@ -321,20 +307,20 @@ fn draw_bg_text_mode_4bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
             let pinc = if horizontal_flip { -1i32 as u32 } else { 1u32 };
             for _ in 0..4 {
                 let palette_entry = vram[pixel_offset as usize];
-                poke(dx as usize, palette.get_bg16(tile_palette, palette_entry & 0xF));
-                poke((dx + 1) as usize, palette.get_bg16(tile_palette, palette_entry >> 4));
+                poke_bg_pixel(bg.index, dx as usize, palette.get_bg16(tile_palette, palette_entry & 0xF), bg.priority, raw_pixels, effects, windows);
+                poke_bg_pixel(bg.index, (dx + 1) as usize, palette.get_bg16(tile_palette, palette_entry >> 4), bg.priority, raw_pixels, effects, windows);
                 dx += 2;
                 pixel_offset = pixel_offset.wrapping_add(pinc);
             }
         } else {
             let palette_entry = (vram[pixel_offset as usize] >> ((tx % 2) << 2)) & 0xF;
-            poke(dx as usize, palette.get_bg16(tile_palette, palette_entry));
+            poke_bg_pixel(bg.index, dx as usize, palette.get_bg16(tile_palette, palette_entry), bg.priority, raw_pixels, effects, windows);
             dx += 1;
         }
     }
 }
 
-fn draw_bg_text_mode_8bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u8], palette: &Palette, mut poke: F) {
+fn draw_bg_text_mode_8bpp(line: u32, bg: TextBG, vram: &[u8], palette: &Palette, raw_pixels: &mut RawLine, effects: SpecialEffects, windows: Windows) {
     pub const BYTES_PER_TILE: u32 = 64;
     pub const BYTES_PER_LINE: u32 = 8;
 
@@ -369,13 +355,13 @@ fn draw_bg_text_mode_8bpp<F: FnMut(usize, u16)>(line: u32, bg: TextBG, vram: &[u
             let pinc = if horizontal_flip { -1i32 as u32 } else { 1u32 };
             for _ in 0..8 {
                 let palette_entry = vram[pixel_offset as usize];
-                poke(dx as usize, palette.get_bg256(palette_entry));
+                poke_bg_pixel(bg.index, dx as usize, palette.get_bg256(palette_entry), bg.priority, raw_pixels, effects, windows);
                 dx += 1;
                 pixel_offset = pixel_offset.wrapping_add(pinc);
             }
         } else {
             let palette_entry = vram[pixel_offset as usize];
-            poke(dx as usize, palette.get_bg256(palette_entry));
+            poke_bg_pixel(bg.index, dx as usize, palette.get_bg256(palette_entry), bg.priority, raw_pixels, effects, windows);
             dx += 1;
         }
     }
@@ -393,6 +379,9 @@ fn get_tile_info_offset(bg: &TextBG, scx: u32, scy: u32) -> u32 {
 }
 
 struct TextBG {
+    index:      u16,
+    priority:   u8,
+
     char_base:      u32,
     screen_base:    u32,
 
@@ -407,8 +396,11 @@ struct TextBG {
 
 impl TextBG {
     #[inline]
-    pub fn new(bg_cnt: RegBGxCNT, bg_hofs: RegBGxHOFS, bg_vofs: RegBGxVOFS, mosaic: RegMosaic) -> TextBG {
+    pub fn new(index: u16, priority: u8, bg_cnt: RegBGxCNT, bg_hofs: RegBGxHOFS, bg_vofs: RegBGxVOFS, mosaic: RegMosaic) -> TextBG {
         TextBG {
+            index:      index,
+            priority:   priority,
+
             char_base:      bg_cnt.char_base_block() as u32 * (1024 * 16),
             screen_base:    bg_cnt.screen_base_block() as u32 *  (1024 * 2),
 
@@ -424,6 +416,9 @@ impl TextBG {
 }
 
 struct AffineBG {
+    index:      u16,
+    priority:   u8,
+
     char_base:      u32,
     screen_base:    u32,
     wraparound:     bool,
@@ -441,8 +436,11 @@ struct AffineBG {
 
 impl AffineBG {
     #[inline]
-    pub fn new(bg_cnt: RegBGxCNT, ref_x: FixedPoint32, ref_y: FixedPoint32, dx: FixedPoint32, dy: FixedPoint32, mosaic: RegMosaic) -> AffineBG {
+    pub fn new(index: u16, priority: u8, bg_cnt: RegBGxCNT, ref_x: FixedPoint32, ref_y: FixedPoint32, dx: FixedPoint32, dy: FixedPoint32, mosaic: RegMosaic) -> AffineBG {
         AffineBG {
+            index:      index,
+            priority:   priority,
+
             char_base:      bg_cnt.char_base_block() as u32 * (1024 * 16),
             screen_base:    bg_cnt.screen_base_block() as u32 *  (1024 * 2),
             wraparound:     bg_cnt.display_area_overflow_wrap(),
