@@ -5,7 +5,8 @@ use super::blending::apply_mosaic_cond;
 use super::super::memory::read16_le;
 use crate::util::fixedpoint::{ FixedPoint32, FixedPoint16 };
 
-pub fn draw_objects<F: FnMut(usize, u16, u8, ObjMode)>(line: u32, one_dimensional: bool, vram: &[u8], oam: &[u8], ioregs: &IORegisters, palette: &Palette, tile_data_start: u32, mut poke: F) {
+pub fn draw_objects<F: FnMut(usize, u16, u8, ObjMode)>(line: u32, vram: &[u8], oam: &[u8], ioregs: &IORegisters, palette: &Palette, tile_data_start: u32, mut poke: F) {
+    let one_dimensional = ioregs.dispcnt.obj_one_dimensional();
     // let debug_on = ioregs.keyinput.inner & (1 << 2) == 0; // #TODO remove this debug code.
  
     let mosaic_x = ioregs.mosaic.obj_h_size() as u32 + 1;

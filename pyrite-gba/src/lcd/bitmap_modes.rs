@@ -25,7 +25,7 @@ pub fn mode3(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
 
     // Bitmap Modes use BG2
     if memory.ioregs.dispcnt.screen_display_obj() {
-        obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority, mode| {
+        obj::draw_objects(line, &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority, mode| {
             poke_obj_pixel(off, col, priority, mode, raw_pixels, special_effects, windows);
         });
     }
@@ -51,7 +51,7 @@ pub fn mode4(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
     let (special_effects, windows) = get_compositing_info(&memory.ioregs);
 
     if memory.ioregs.dispcnt.screen_display_obj() {
-        obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority, mode| {
+        obj::draw_objects(line, &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority, mode| {
             poke_obj_pixel(off, col, priority, mode, raw_pixels, special_effects, windows);
         });
     }
@@ -77,7 +77,7 @@ pub fn mode5(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
     let (special_effects, windows) = get_compositing_info(&memory.ioregs);
 
     if memory.ioregs.dispcnt.screen_display_obj() {
-        obj::draw_objects(line, memory.ioregs.dispcnt.obj_one_dimensional(), &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority, mode| {
+        obj::draw_objects(line, &memory.mem_vram, &memory.mem_oam, &memory.ioregs, &memory.palette, 0x14000, |off, col, priority, mode| {
             poke_obj_pixel(off, col, priority, mode, raw_pixels, special_effects, windows);
         });
     }
