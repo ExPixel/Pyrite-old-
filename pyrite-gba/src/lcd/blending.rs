@@ -1,6 +1,6 @@
 use crate::memory::ioreg::{ IORegisters, RegEffectsSelect, RegAlpha, RegBrightness, ColorSpecialEffect };
 use super::obj::ObjMode;
-use super::Line;
+use super::{ Line, RawLine };
 
 #[inline]
 pub fn apply_mosaic(value: u32, mosaic: u32) -> u32 {
@@ -99,7 +99,7 @@ impl SpecialEffects {
 
     pub fn blend(&self, first_target: u16, second_target: u16) -> u16 {
         match self.select.special_effect() {
-            ColorSpecialEffect::AlphaBlending if (second_target != 0) => {
+            ColorSpecialEffect::AlphaBlending => {
                 self.alpha_blend(first_target, second_target)
             },
 
@@ -111,7 +111,27 @@ impl SpecialEffects {
                 self.brightness_decrease(first_target)
             },
 
-            _ => {
+            ColorSpecialEffect::None => {
+                first_target
+            }
+        }
+    }
+
+    pub fn blend_single_target(&self, first_target: u16) -> u16 {
+        match self.select.special_effect() {
+            ColorSpecialEffect::AlphaBlending => {
+                first_target
+            },
+
+            ColorSpecialEffect::BrightnessIncrease => {
+                self.brightness_increase(first_target)
+            },
+
+            ColorSpecialEffect::BrightnessDecrease => {
+                self.brightness_decrease(first_target)
+            },
+
+            ColorSpecialEffect::None => {
                 first_target
             }
         }
@@ -179,6 +199,7 @@ impl Windows {
 
 #[inline]
 pub fn poke_bg_pixel(bg: u16, offset: usize, color: u16, bg_priority: u8, raw_pixels: &mut [RawPixel; 240], effects: SpecialEffects, _windows: Windows) {
+    if (color & 0x8000) == 0 { return }
     let pixel = &mut raw_pixels[offset];
     if pixel.top.priority > bg_priority {
         pixel.bottom = pixel.top;
@@ -236,8 +257,11 @@ pub fn poke_bg_pixel(bg: u16, offset: usize, color: u16, bg_priority: u8, raw_pi
 /// priority of the top layer.
 #[inline]
 pub fn poke_obj_pixel(offset: usize, color: u16, obj_priority: u8, obj_mode: ObjMode, raw_pixels: &mut [RawPixel; 240], effects: SpecialEffects, _windows: Windows) {
+    if (color & 0x8000) == 0 { return }
     let pixel = &mut raw_pixels[offset];
-    if pixel.top.priority > obj_priority {
+    if obj_mode == ObjMode::OBJWindow {
+        pixel.obj_window = true;
+    } else if pixel.top.priority > obj_priority {
         pixel.bottom = pixel.top;
         pixel.top = RawPixelLayer {
             color: color,
@@ -276,6 +300,26 @@ pub fn poke_obj_pixel(offset: usize, color: u16, obj_priority: u8, obj_mode: Obj
     //         (*info).priority = obj_priority;
     //     }
     // }
+}
+
+pub fn blend_raw_pixels(raw_line: &RawLine, out_line: &mut Line, effects: SpecialEffects) {
+    for idx in 0..240 {
+        let raw = raw_line.get(idx).unwrap();
+
+        if raw.top.first_target || raw.top.semi_transparent_obj {
+            if raw.bottom.second_target {
+                if raw.top.semi_transparent_obj {
+                    out_line[idx] = effects.alpha_blend(raw.top.color, raw.bottom.color);
+                } else {
+                    out_line[idx] = effects.blend(raw.top.color, raw.bottom.color);
+                }
+            } else {
+                out_line[idx] = effects.blend_single_target(raw.top.color);
+            }
+        } else {
+            out_line[idx] = raw.top.color;
+        };
+    }
 }
 
 #[inline]

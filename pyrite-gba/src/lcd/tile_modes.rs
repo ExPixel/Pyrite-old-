@@ -79,7 +79,7 @@
 //! 
 //! The size and VRAM base address of the separate BG maps for BG0-3 are set up by BG0CNT-BG3CNT registers.
 
-use super::{ Line, RawLine, obj };
+use super::{ RawLine, obj };
 use super::blending::{ apply_mosaic, poke_bg_pixel, poke_obj_pixel, get_compositing_info };
 use super::super::GbaMemory;
 use super::super::memory::ioreg::{ RegBGxCNT, RegBGxHOFS, RegBGxVOFS, RegMosaic };

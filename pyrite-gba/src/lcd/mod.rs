@@ -4,7 +4,7 @@ mod blending;
 mod obj;
 
 use super::{ GbaVideoOutput, GbaMemory, ArmCpu };
-use blending::{ RawPixel, RawPixelLayer };
+use blending::{ RawPixel };
 
 pub const HDRAW_WIDTH: u32 = 240;
 pub const VDRAW_LINES: u32 = 160;
@@ -124,12 +124,8 @@ impl GbaLCD {
     }
 
     fn render_line(&mut self, memory: &mut GbaMemory) {
-        // first we clear the background completely.
-        let backdrop = memory.palette.get_bg256(0) | 0x8000;
-        for p in self.line_pixels.iter_mut() { *p = backdrop; }
-        // ^ TODO remove this when we get all of the raw pixel stuff working
-
-        let backdrop_raw = RawPixel::backdrop(memory.ioregs.bldcnt, backdrop);
+        let backdrop_color = memory.palette.get_bg256(0) | 0x8000;
+        let backdrop_raw = RawPixel::backdrop(memory.ioregs.bldcnt, backdrop_color);
         for p in self.line_raw.iter_mut() { *p = backdrop_raw; }
 
         match memory.ioregs.dispcnt.bg_mode() {
@@ -147,5 +143,8 @@ impl GbaLCD {
                 }
             },
         }
+
+        let special_effects = blending::SpecialEffects::new(memory.ioregs.bldcnt, memory.ioregs.bldalpha, memory.ioregs.bldy);
+        blending::blend_raw_pixels(&self.line_raw, &mut self.line_pixels, special_effects);
     }
 }
