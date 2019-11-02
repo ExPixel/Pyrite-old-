@@ -77,14 +77,8 @@ pub struct IORegisters {
     pub internal_dma_registers: [InternalDMARegister; 4],
 
     // Timer Registers
-    pub tm0cnt_l: Reg16,
-    pub tm0cnt_h: Reg16,
-    pub tm1cnt_l: Reg16,
-    pub tm1cnt_h: Reg16,
-    pub tm2cnt_l: Reg16,
-    pub tm2cnt_h: Reg16,
-    pub tm3cnt_l: Reg16,
-    pub tm3cnt_h: Reg16,
+    pub tm_cnt_l: [Reg16; 4],
+    pub tm_cnt_h: [RegTMCNT; 4],
 
     // Serial Communication (1)
     /// This an `siomulti1` make up `SIODATA32`
@@ -293,14 +287,14 @@ impl IORegisters {
             0x00E0 => None, // Not Used
 
             // Timer Registers
-            0x0100 => Some(self.tm0cnt_l.inner),
-            0x0102 => Some(self.tm0cnt_h.inner),
-            0x0104 => Some(self.tm1cnt_l.inner),
-            0x0106 => Some(self.tm1cnt_h.inner),
-            0x0108 => Some(self.tm2cnt_l.inner),
-            0x010A => Some(self.tm2cnt_h.inner),
-            0x010C => Some(self.tm3cnt_l.inner),
-            0x010E => Some(self.tm3cnt_h.inner),
+            0x0100 => Some(self.tm_cnt_l[0].inner),
+            0x0102 => Some(self.tm_cnt_h[0].inner),
+            0x0104 => Some(self.tm_cnt_l[1].inner),
+            0x0106 => Some(self.tm_cnt_h[1].inner),
+            0x0108 => Some(self.tm_cnt_l[2].inner),
+            0x010A => Some(self.tm_cnt_h[2].inner),
+            0x010C => Some(self.tm_cnt_l[3].inner),
+            0x010E => Some(self.tm_cnt_h[3].inner),
             0x0110 => None, // Not Used
 
             // Serial Communication (1)
@@ -465,14 +459,14 @@ impl IORegisters {
             0x00E0 => (), // Not Used
 
             // Timer Registers
-            0x0100 => self.tm0cnt_l.inner = value,
-            0x0102 => self.tm0cnt_h.inner = value,
-            0x0104 => self.tm1cnt_l.inner = value,
-            0x0106 => self.tm1cnt_h.inner = value,
-            0x0108 => self.tm2cnt_l.inner = value,
-            0x010A => self.tm2cnt_h.inner = value,
-            0x010C => self.tm3cnt_l.inner = value,
-            0x010E => self.tm3cnt_h.inner = value,
+            0x0100 => self.tm_cnt_l[0].inner = value,
+            0x0102 => self.tm_cnt_h[0].inner = value,
+            0x0104 => self.tm_cnt_l[1].inner = value,
+            0x0106 => self.tm_cnt_h[1].inner = value,
+            0x0108 => self.tm_cnt_l[2].inner = value,
+            0x010A => self.tm_cnt_h[2].inner = value,
+            0x010C => self.tm_cnt_l[3].inner = value,
+            0x010E => self.tm_cnt_h[3].inner = value,
             0x0110 => (), // Not Used
 
             // Serial Communication (1)
@@ -1022,5 +1016,14 @@ impl InternalDMARegister {
     #[inline(always)]
     pub fn is_first_transfer(&self) -> bool {
         self.original_count == self.count
+    }
+}
+
+ioreg! {
+    RegTMCNT: u16 {
+        prescaler_selection, set_prescaler_selection: u16 = [0, 1],
+        count_up_timing, set_count_up_timing: u16 = [2, 2],
+        irq, set_irq: u16 = [6, 6],
+        start, set_start: u16 = [7, 7],
     }
 }
