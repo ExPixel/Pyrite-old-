@@ -3,6 +3,7 @@ mod tile_modes;
 mod blending;
 mod obj;
 
+use super::dma;
 use super::{ GbaVideoOutput, GbaMemory, ArmCpu };
 use blending::{ RawPixel };
 
@@ -10,7 +11,7 @@ pub const HDRAW_WIDTH: u32 = 240;
 pub const VDRAW_LINES: u32 = 160;
 
 pub const HBLANK_WIDTH: u32 = 68;
-pub const VBLANK_LINES: u32 = 68;
+pub const VBLANK_LINES: u32 = 67;
 
 pub const HDRAW_CYCLES: u32 = 960;
 pub const HBLANK_CYCLES: u32 = 272;
@@ -88,25 +89,44 @@ impl GbaLCD {
         }
 
         memory.ioregs.dispstat.set_hblank(true);
+
+        // activate all H-Blank DMAs on VISIBLE H-Blanks
+        if self.line_number < VDRAW_LINES {
+            for channel in 0..4 {
+                let channel_control = memory.ioregs.dma_cnt_h[channel];
+                let dma_active = memory.ioregs.internal_dma_registers[channel].active;
+                if channel_control.enabled() && !dma_active && channel_control.start_timing() == dma::DMA_TIMING_HBLANK {
+                    memory.ioregs.internal_dma_registers[channel].active = true;
+                }
+            }
+        }
     }
 
     fn enter_next_line_hdraw(&mut self, _cpu: &mut ArmCpu, memory: &mut GbaMemory, video: &mut dyn GbaVideoOutput) {
         self.line_number += 1;
         memory.ioregs.dispstat.set_hblank(false);
 
-        if self.line_number >= (VDRAW_LINES + VBLANK_LINES) {
-            self.line_number = 0;
+        if self.line_number == (VDRAW_LINES + VBLANK_LINES) {
             memory.ioregs.dispstat.set_vblank(false);
 
             // on VDRAW start (VBLANK end) we copy the internal point registers into the
             // internal reference point registers for affine BGs.
             self.copy_bg_reference_point_registers(memory);
+        } if self.line_number >= (VDRAW_LINES + VBLANK_LINES + 1) {
+            self.line_number = 0;
 
             video.pre_frame();
-        } else if self.line_number >= VDRAW_LINES {
+        } else if self.line_number == VDRAW_LINES {
             memory.ioregs.dispstat.set_vblank(true);
-        } else {
-            memory.ioregs.dispstat.set_vblank(false);
+            
+            // activate all V-Blank DMAs
+            for channel in 0..4 {
+                let channel_control = memory.ioregs.dma_cnt_h[channel];
+                let dma_active = memory.ioregs.internal_dma_registers[channel].active;
+                if channel_control.enabled() && !dma_active && channel_control.start_timing() == dma::DMA_TIMING_VBLANK {
+                    memory.ioregs.internal_dma_registers[channel].active = true;
+                }
+            }
         }
 
         memory.ioregs.dispstat.set_vcounter(self.line_number as u16 == memory.ioregs.dispstat.vcount_setting());

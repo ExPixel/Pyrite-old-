@@ -69,22 +69,12 @@ pub struct IORegisters {
     pub fifo_b: Reg32,
 
     // DMA Transfer Channels
-    pub dma0sad: Reg32,
-    pub dma0dad: Reg32,
-    pub dma0cnt_l: Reg16,
-    pub dma0cnt_h: Reg16,
-    pub dma1sad: Reg32,
-    pub dma1dad: Reg32,
-    pub dma1cnt_l: Reg16,
-    pub dma1cnt_h: Reg16,
-    pub dma2sad: Reg32,
-    pub dma2dad: Reg32,
-    pub dma2cnt_l: Reg16,
-    pub dma2cnt_h: Reg16,
-    pub dma3sad: Reg32,
-    pub dma3dad: Reg32,
-    pub dma3cnt_l: Reg16,
-    pub dma3cnt_h: Reg16,
+    pub dma_sad:    [Reg32; 4],
+    pub dma_dad:    [Reg32; 4],
+    pub dma_cnt_l:  [Reg16; 4],
+    pub dma_cnt_h:  [RegDMACNT; 4],
+
+    pub internal_dma_registers: [InternalDMARegister; 4],
 
     // Timer Registers
     pub tm0cnt_l: Reg16,
@@ -284,22 +274,22 @@ impl IORegisters {
             0x00A8 => None, // Not Used
 
             // DMA Transfer Channels
-            0x00B0 | 0x00B2 => Some(get_halfword_of_word(self.dma0sad.inner, aligned_addr)),
-            0x00B4 | 0x00B6 => Some(get_halfword_of_word(self.dma0dad.inner, aligned_addr)),
-            0x00B8 => Some(self.dma0cnt_l.inner),
-            0x00BA => Some(self.dma0cnt_h.inner),
-            0x00BC | 0x00BE => Some(get_halfword_of_word(self.dma1sad.inner, aligned_addr)),
-            0x00C0 | 0x00C2 => Some(get_halfword_of_word(self.dma1dad.inner, aligned_addr)),
-            0x00C4 => Some(self.dma1cnt_l.inner),
-            0x00C6 => Some(self.dma1cnt_h.inner),
-            0x00C8 | 0x00CA => Some(get_halfword_of_word(self.dma2sad.inner, aligned_addr)),
-            0x00CC | 0x00CE => Some(get_halfword_of_word(self.dma2dad.inner, aligned_addr)),
-            0x00D0 => Some(self.dma2cnt_l.inner),
-            0x00D2 => Some(self.dma2cnt_h.inner),
-            0x00D4 | 0x00D6 => Some(get_halfword_of_word(self.dma3sad.inner, aligned_addr)),
-            0x00D8 | 0x00DA => Some(get_halfword_of_word(self.dma3dad.inner, aligned_addr)),
-            0x00DC => Some(self.dma3cnt_l.inner),
-            0x00DE => Some(self.dma3cnt_h.inner),
+            0x00B0 | 0x00B2 => Some(get_halfword_of_word(self.dma_sad[0].inner, aligned_addr)),
+            0x00B4 | 0x00B6 => Some(get_halfword_of_word(self.dma_dad[0].inner, aligned_addr)),
+            0x00B8 => Some(self.dma_cnt_l[0].inner),
+            0x00BA => Some(self.dma_cnt_h[0].inner),
+            0x00BC | 0x00BE => Some(get_halfword_of_word(self.dma_sad[1].inner, aligned_addr)),
+            0x00C0 | 0x00C2 => Some(get_halfword_of_word(self.dma_dad[1].inner, aligned_addr)),
+            0x00C4 => Some(self.dma_cnt_l[1].inner),
+            0x00C6 => Some(self.dma_cnt_h[1].inner),
+            0x00C8 | 0x00CA => Some(get_halfword_of_word(self.dma_sad[2].inner, aligned_addr)),
+            0x00CC | 0x00CE => Some(get_halfword_of_word(self.dma_dad[2].inner, aligned_addr)),
+            0x00D0 => Some(self.dma_cnt_l[2].inner),
+            0x00D2 => Some(self.dma_cnt_h[2].inner),
+            0x00D4 | 0x00D6 => Some(get_halfword_of_word(self.dma_sad[3].inner, aligned_addr)),
+            0x00D8 | 0x00DA => Some(get_halfword_of_word(self.dma_dad[3].inner, aligned_addr)),
+            0x00DC => Some(self.dma_cnt_l[3].inner),
+            0x00DE => Some(self.dma_cnt_h[3].inner),
             0x00E0 => None, // Not Used
 
             // Timer Registers
@@ -456,22 +446,22 @@ impl IORegisters {
             0x00A8 => (), // Not Used
 
             // DMA Transfer Channels
-            0x00B0 | 0x00B2 => self.dma0sad.inner = set_halfword_of_word(self.dma0sad.inner, aligned_addr, value),
-            0x00B4 | 0x00B6 => self.dma0dad.inner = set_halfword_of_word(self.dma0dad.inner, aligned_addr, value),
-            0x00B8 => self.dma0cnt_l.inner = value,
-            0x00BA => self.dma0cnt_h.inner = value,
-            0x00BC | 0x00BE => self.dma1sad.inner = set_halfword_of_word(self.dma1sad.inner, aligned_addr, value),
-            0x00C0 | 0x00C2 => self.dma1dad.inner = set_halfword_of_word(self.dma1dad.inner, aligned_addr, value),
-            0x00C4 => self.dma1cnt_l.inner = value,
-            0x00C6 => self.dma1cnt_h.inner = value,
-            0x00C8 | 0x00CA => self.dma2sad.inner = set_halfword_of_word(self.dma2sad.inner, aligned_addr, value),
-            0x00CC | 0x00CE => self.dma2dad.inner = set_halfword_of_word(self.dma2dad.inner, aligned_addr, value),
-            0x00D0 => self.dma2cnt_l.inner = value,
-            0x00D2 => self.dma2cnt_h.inner = value,
-            0x00D4 | 0x00D6 => self.dma3sad.inner = set_halfword_of_word(self.dma3sad.inner, aligned_addr, value),
-            0x00D8 | 0x00DA => self.dma3dad.inner = set_halfword_of_word(self.dma3dad.inner, aligned_addr, value),
-            0x00DC => self.dma3cnt_l.inner = value,
-            0x00DE => self.dma3cnt_h.inner = value,
+            0x00B0 | 0x00B2 => self.dma_sad[0].inner = set_halfword_of_word(self.dma_sad[0].inner, aligned_addr, value),
+            0x00B4 | 0x00B6 => self.dma_dad[0].inner = set_halfword_of_word(self.dma_dad[0].inner, aligned_addr, value),
+            0x00B8 => self.dma_cnt_l[0].inner = value,
+            0x00BA => self.set_dma_cnt_h(0, value),
+            0x00BC | 0x00BE => self.dma_sad[1].inner = set_halfword_of_word(self.dma_sad[1].inner, aligned_addr, value),
+            0x00C0 | 0x00C2 => self.dma_dad[1].inner = set_halfword_of_word(self.dma_dad[1].inner, aligned_addr, value),
+            0x00C4 => self.dma_cnt_l[1].inner = value,
+            0x00C6 => self.set_dma_cnt_h(1, value),
+            0x00C8 | 0x00CA => self.dma_sad[2].inner = set_halfword_of_word(self.dma_sad[2].inner, aligned_addr, value),
+            0x00CC | 0x00CE => self.dma_dad[2].inner = set_halfword_of_word(self.dma_dad[2].inner, aligned_addr, value),
+            0x00D0 => self.dma_cnt_l[2].inner = value,
+            0x00D2 => self.set_dma_cnt_h(2, value),
+            0x00D4 | 0x00D6 => self.dma_sad[3].inner = set_halfword_of_word(self.dma_sad[3].inner, aligned_addr, value),
+            0x00D8 | 0x00DA => self.dma_dad[3].inner = set_halfword_of_word(self.dma_dad[3].inner, aligned_addr, value),
+            0x00DC => self.dma_cnt_l[3].inner = value,
+            0x00DE => self.set_dma_cnt_h(3, value),
             0x00E0 => (), // Not Used
 
             // Timer Registers
@@ -535,6 +525,18 @@ impl IORegisters {
             },
         }
         return Ok(())
+    }
+
+    fn set_dma_cnt_h(&mut self, channel: usize, value: u16) {
+        if (self.dma_cnt_h[channel].inner & 0x8000) == 0 && (value & 0x8000) != 0 {
+            self.dma_cnt_h[channel].inner = value;
+            self.internal_dma_registers[channel].destination = self.dma_dad[channel].inner;
+            self.internal_dma_registers[channel].source = self.dma_sad[channel].inner;
+            self.internal_dma_registers[channel].load_count(channel, self.dma_cnt_l[channel].inner);
+            self.internal_dma_registers[channel].active = self.dma_cnt_h[channel].start_timing() == crate::dma::DMA_TIMING_IMMEDIATE;
+        } else {
+            self.dma_cnt_h[channel].inner = value;
+        }
     }
 }
 
@@ -980,5 +982,45 @@ impl RegWINOUT {
     pub fn is_in_window_obj(&self, layer: u16) -> bool {
         debug_assert!(layer <= 4, "invalid window obj layer");
         return (self.inner & (1 << (layer + 8))) != 0;
+    }
+}
+
+ioreg! {
+    RegDMACNT: u16 {
+        dst_addr_control, set_dst_addr_control: u16 = [5, 6],
+        src_addr_control, set_src_addr_control: u16 = [7, 8],
+        repeat, set_repeat: bool = [9, 9],
+        transfer_word, set_transfer_word: bool = [10, 10],
+        gamepak_drq, set_gamepak_drq: bool = [11, 11],
+        start_timing, set_start_timing: u16 = [12, 13],
+        irq, set_irq: bool = [14, 14],
+        enabled, set_enabled: bool = [15, 15],
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct InternalDMARegister {
+    pub destination:    u32,
+    pub source:         u32,
+    pub count:          u32,
+    pub original_count: u32,
+
+    /// This is true if the DMA channel is currently active and transferring memory.
+    pub active:         bool,
+}
+
+impl InternalDMARegister {
+    pub fn load_count(&mut self, channel: usize, dma_cnt_l: u16) {
+        self.count = match dma_cnt_l {
+            0 if channel == 3 => 0x10000,
+            0 => 0x4000,
+            units => units as u32,
+        };
+        self.original_count = self.count;
+    }
+
+    #[inline(always)]
+    pub fn is_first_transfer(&self) -> bool {
+        self.original_count == self.count
     }
 }

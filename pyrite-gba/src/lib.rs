@@ -2,6 +2,7 @@ pub mod memory;
 pub mod lcd;
 pub mod sound;
 pub mod util;
+pub mod dma;
 
 use memory::GbaMemory;
 use pyrite_arm::ArmCpu;
@@ -54,7 +55,11 @@ impl Gba {
 
     #[inline]
     pub fn step(&mut self, video: &mut dyn GbaVideoOutput, _audio: &mut dyn GbaAudioOutput) {
-        let cycles = self.cpu.step(&mut self.memory);
+        let cycles = if dma::is_any_dma_active(&self.memory) {
+            dma::step_active_channels(&mut self.memory)
+        } else {
+            self.cpu.step(&mut self.memory)
+        };
         self.lcd.step(cycles, &mut self.cpu, &mut self.memory, video);
     }
 
