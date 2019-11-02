@@ -698,7 +698,7 @@ ioreg! {
 ioreg! {
     RegDISPSTAT: u16 {
         vblank, set_vblank: bool = [0, 0],
-        hvlank, set_hblank: bool = [1, 1],
+        hblank, set_hblank: bool = [1, 1],
         vcounter, set_vcounter: bool = [2, 2],
         vblank_irq_enable, set_vblank_irq_enable: bool = [3, 3],
         hblank_irq_enable, set_hblank_irq_enable: bool = [4, 4],
