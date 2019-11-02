@@ -6,6 +6,11 @@ pub const DMA_TIMING_VBLANK: u16    = 1;
 pub const DMA_TIMING_HBLANK: u16    = 2;
 pub const DMA_TIMING_SPECIAL: u16   = 3;
 
+pub const DMA_ADDR_CONTROL_INCREMENT: u16   = 0;
+pub const DMA_ADDR_CONTROL_DECREMENT: u16   = 1;
+pub const DMA_ADDR_CONTROL_FIXED: u16       = 2;
+pub const DMA_ADDR_CONTROL_RELOAD: u16      = 3;
+
 #[inline(always)]
 pub fn is_any_dma_active(memory: &GbaMemory) -> bool {
     memory.ioregs.internal_dma_registers[0].active |
@@ -30,19 +35,19 @@ fn dma_transfer(channel: usize, memory: &mut GbaMemory) -> u32 {
     let destination = memory.ioregs.internal_dma_registers[channel].destination;
     let word_transfer = memory.ioregs.dma_cnt_h[channel].transfer_word();
 
-    let source_addr_control = DMAAddressControl::new(memory.ioregs.dma_cnt_h[channel].src_addr_control());
-    let destination_addr_control = DMAAddressControl::new(memory.ioregs.dma_cnt_h[channel].dst_addr_control());
+    let source_addr_control = memory.ioregs.dma_cnt_h[channel].src_addr_control();
+    let destination_addr_control = memory.ioregs.dma_cnt_h[channel].dst_addr_control();
 
     if word_transfer {
         let data = memory.load32(source);
         memory.store32(destination, data);
-        memory.ioregs.internal_dma_registers[channel].source = source_addr_control.apply(source, 4);
-        memory.ioregs.internal_dma_registers[channel].destination = destination_addr_control.apply(destination, 4);
+        memory.ioregs.internal_dma_registers[channel].source = dma_next_addr(source, source_addr_control, 4);
+        memory.ioregs.internal_dma_registers[channel].destination = dma_next_addr(destination, destination_addr_control, 4);
     } else {
         let data = memory.load16(source);
         memory.store16(destination, data);
-        memory.ioregs.internal_dma_registers[channel].source = source_addr_control.apply(source, 2);
-        memory.ioregs.internal_dma_registers[channel].destination = destination_addr_control.apply(destination, 2);
+        memory.ioregs.internal_dma_registers[channel].source = dma_next_addr(source, source_addr_control, 2);
+        memory.ioregs.internal_dma_registers[channel].destination = dma_next_addr(destination, destination_addr_control, 2);
     }
 
     memory.ioregs.internal_dma_registers[channel].count -= 1;
@@ -50,7 +55,7 @@ fn dma_transfer(channel: usize, memory: &mut GbaMemory) -> u32 {
         memory.ioregs.internal_dma_registers[channel].active = false;
         if memory.ioregs.dma_cnt_h[channel].repeat() {
             memory.ioregs.internal_dma_registers[channel].load_count(channel, memory.ioregs.dma_cnt_l[channel].inner);
-            if destination_addr_control.reload() {
+            if destination_addr_control == DMA_ADDR_CONTROL_RELOAD {
                 memory.ioregs.internal_dma_registers[channel].destination = memory.ioregs.dma_dad[channel].inner;
             }
         } else {
@@ -74,36 +79,12 @@ fn dma_transfer(channel: usize, memory: &mut GbaMemory) -> u32 {
     };
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[repr(u16)]
-pub enum DMAAddressControl {
-    Increment = 0,
-    Decrement = 1,
-    Fixed = 2,
-    IncrementAndReload = 3,
-}
-
-impl DMAAddressControl {
-    pub fn new(value: u16) -> DMAAddressControl {
-        match value {
-            0 => DMAAddressControl::Increment,
-            1 => DMAAddressControl::Decrement,
-            2 => DMAAddressControl::Fixed,
-            3 => DMAAddressControl::IncrementAndReload,
-            _ => unreachable!("bad DMA address control"),
-        }
-    }
-
-    pub fn reload(self) -> bool {
-        self == DMAAddressControl::IncrementAndReload
-    }
-
-    pub fn apply(self, addr: u32, unit_size: u32) -> u32 {
-        match self {
-            DMAAddressControl::Increment    => addr + unit_size,
-            DMAAddressControl::Decrement    => addr - unit_size,
-            DMAAddressControl::Fixed        => addr,
-            DMAAddressControl::IncrementAndReload => addr + unit_size,
-        }
+fn dma_next_addr(address: u32, control: u16, unit_size: u32) -> u32 {
+    match control {
+        DMA_ADDR_CONTROL_INCREMENT  => address + unit_size,
+        DMA_ADDR_CONTROL_DECREMENT  => address - unit_size,
+        DMA_ADDR_CONTROL_FIXED      => address,
+        DMA_ADDR_CONTROL_RELOAD     => address + unit_size,
+        bad_control                 => unreachable!("BAD ADDR CONTROL: {}", bad_control),
     }
 }
