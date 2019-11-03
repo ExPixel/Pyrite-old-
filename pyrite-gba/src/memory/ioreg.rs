@@ -79,6 +79,7 @@ pub struct IORegisters {
     // Timer Registers
     pub tm_cnt_l: [Reg16; 4],
     pub tm_cnt_h: [RegTMCNT; 4],
+    pub internal_tm_counter: [InternalCounter; 4],
 
     // Serial Communication (1)
     /// This an `siomulti1` make up `SIODATA32`
@@ -287,13 +288,13 @@ impl IORegisters {
             0x00E0 => None, // Not Used
 
             // Timer Registers
-            0x0100 => Some(self.tm_cnt_l[0].inner),
+            0x0100 => Some(self.internal_tm_counter[0].counter()),
             0x0102 => Some(self.tm_cnt_h[0].inner),
-            0x0104 => Some(self.tm_cnt_l[1].inner),
+            0x0104 => Some(self.internal_tm_counter[1].counter()),
             0x0106 => Some(self.tm_cnt_h[1].inner),
-            0x0108 => Some(self.tm_cnt_l[2].inner),
+            0x0108 => Some(self.internal_tm_counter[2].counter()),
             0x010A => Some(self.tm_cnt_h[2].inner),
-            0x010C => Some(self.tm_cnt_l[3].inner),
+            0x010C => Some(self.internal_tm_counter[3].counter()),
             0x010E => Some(self.tm_cnt_h[3].inner),
             0x0110 => None, // Not Used
 
@@ -460,13 +461,13 @@ impl IORegisters {
 
             // Timer Registers
             0x0100 => self.tm_cnt_l[0].inner = value,
-            0x0102 => self.tm_cnt_h[0].inner = value,
+            0x0102 => self.set_tm_cnt_h(0, value),
             0x0104 => self.tm_cnt_l[1].inner = value,
-            0x0106 => self.tm_cnt_h[1].inner = value,
+            0x0106 => self.set_tm_cnt_h(1, value),
             0x0108 => self.tm_cnt_l[2].inner = value,
-            0x010A => self.tm_cnt_h[2].inner = value,
+            0x010A => self.set_tm_cnt_h(2, value),
             0x010C => self.tm_cnt_l[3].inner = value,
-            0x010E => self.tm_cnt_h[3].inner = value,
+            0x010E => self.set_tm_cnt_h(3, value),
             0x0110 => (), // Not Used
 
             // Serial Communication (1)
@@ -531,6 +532,22 @@ impl IORegisters {
         } else {
             self.dma_cnt_h[channel].inner = value;
         }
+    }
+
+    fn set_tm_cnt_h(&mut self, timer: usize, value: u16) {
+        // If the prescaler value or the count-up flag has changed, we update them in the internal
+        // counter.
+        if (self.tm_cnt_h[timer].inner & 0x7) != (value & 0x7) {
+            self.internal_tm_counter[timer].select_prescaler(value & 0x3, (value & 4) != 0);
+        }
+
+        if (self.tm_cnt_h[timer].inner & 0x80) == 0 && (value & 0x80) != 0 {
+            // when the timer is switched from the stopped state to being operational the reload
+            // value is moved into the counter.
+            self.internal_tm_counter[timer].set_counter(self.tm_cnt_l[timer].inner);
+        }
+
+        self.tm_cnt_h[timer].inner = value;
     }
 }
 
@@ -1022,8 +1039,55 @@ impl InternalDMARegister {
 ioreg! {
     RegTMCNT: u16 {
         prescaler_selection, set_prescaler_selection: u16 = [0, 1],
-        count_up_timing, set_count_up_timing: u16 = [2, 2],
-        irq, set_irq: u16 = [6, 6],
-        start, set_start: u16 = [7, 7],
+        count_up_timing, set_count_up_timing: bool = [2, 2],
+        irq, set_irq: bool = [6, 6],
+        enabled, set_enabled: bool = [7, 7],
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct InternalCounter {
+    increment_shift: u32,
+    
+    /// This is actually an unsigned fixed point number in the format 16.10. The lower 10 bits are
+    /// used for scaling. The highest 6 bits (26-31) are always set to allow proper overflowing.
+    counter_fp: u32,
+}
+
+impl InternalCounter {
+    /// Increments the counter using correct scaling and returns true if the counter overflows.
+    #[inline(always)]
+    pub fn increment(&mut self, cycles: u32) -> bool {
+        let adjusted = cycles << self.increment_shift;
+        let (new_counter, overflow) = self.counter_fp.overflowing_add(adjusted);
+        self.counter_fp = new_counter;
+        return overflow;
+    }
+
+    #[inline(always)]
+    pub fn set_counter(&mut self, counter_value: u16) {
+        self.counter_fp = ((counter_value as u32) << 10) | (0xFC000000);
+    }
+
+    #[inline(always)]
+    pub fn counter(&self) -> u16 {
+        (self.counter_fp >> 10) as u16
+    }
+
+    /// Set the prescaler cycles for this internal counter based on the prescale bits in the timer
+    /// control register.
+    pub fn select_prescaler(&mut self, prescaler_bits: u16, count_up: bool) {
+        if count_up {
+            // the prescaler value is ignored for count-up timers.
+            self.increment_shift = 0;
+        } else {
+            self.increment_shift = match prescaler_bits {
+                0 => 10,
+                1 => 4,
+                2 => 2,
+                3 => 0,
+                _ => unreachable!("BAD PRESCALER VALUE: {}", prescaler_bits),
+            };
+        }
     }
 }

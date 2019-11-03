@@ -3,6 +3,7 @@ pub mod lcd;
 pub mod sound;
 pub mod util;
 pub mod dma;
+pub mod timers;
 
 use memory::GbaMemory;
 use pyrite_arm::ArmCpu;
@@ -60,6 +61,10 @@ impl Gba {
         } else {
             self.cpu.step(&mut self.memory)
         };
+
+        if timers::is_any_timer_active(&self.memory) {
+            timers::step_active_timers(cycles, &mut self.memory);
+        }
         self.lcd.step(cycles, &mut self.cpu, &mut self.memory, video);
     }
 
