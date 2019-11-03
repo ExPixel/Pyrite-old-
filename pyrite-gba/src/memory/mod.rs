@@ -111,7 +111,7 @@ impl GbaMemory {
     /// This must be 16KB (1024 * 16 bytes) in length or this function
     /// will panic.
     pub fn set_bios(&mut self, data: Vec<u8>) {
-        assert!(data.len() == REGION_BIOS_LEN, "BIOS binary must be 16KB in length");
+        assert!(data.len() <= 0x4000, "BIOS cannot be more than 16KBytes in size");
         self.mem_bios = data;
     }
 

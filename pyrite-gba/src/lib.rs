@@ -50,6 +50,10 @@ impl Gba {
         self.memory.set_gamepak_rom(rom);
     }
 
+    pub fn set_bios(&mut self, bios: Vec<u8>) {
+        self.memory.set_bios(bios);
+    }
+
     pub fn init(&mut self, video: &mut dyn GbaVideoOutput, _audio: &mut dyn GbaAudioOutput) {
         self.lcd.init(&mut self.cpu, &mut self.memory, video);
     }
