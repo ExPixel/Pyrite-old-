@@ -91,7 +91,7 @@ pub fn mode0(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
     let (effects, windows) = get_compositing_info(&memory.ioregs);
 
     if memory.ioregs.dispcnt.screen_display_obj() {
-        obj::draw_objects(line, &memory, 0x10000, raw_pixels, effects, windows);
+        obj::draw_objects(line, &memory, false, raw_pixels, effects, windows);
     }
 
     for priority in 0u16..=3u16 {
@@ -124,7 +124,7 @@ pub fn mode1(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
     let (effects, windows) = get_compositing_info(&memory.ioregs);
 
     if memory.ioregs.dispcnt.screen_display_obj() {
-        obj::draw_objects(line, &memory, 0x10000, raw_pixels, effects, windows);
+        obj::draw_objects(line, &memory, false, raw_pixels, effects, windows);
     }
 
     for priority in 0u16..=3u16 {
@@ -171,7 +171,7 @@ pub fn mode2(line: u32, raw_pixels: &mut RawLine, memory: &mut GbaMemory) {
     let (effects, windows) = get_compositing_info(&memory.ioregs);
 
     if memory.ioregs.dispcnt.screen_display_obj() {
-        obj::draw_objects(line, &memory, 0x10000, raw_pixels, effects, windows);
+        obj::draw_objects(line, &memory, false, raw_pixels, effects, windows);
     }
 
     for priority in 0u16..=3u16 {

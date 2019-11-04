@@ -1,4 +1,5 @@
 use super::memory::GbaMemory;
+use super::irq;
 
 #[inline(always)]
 pub fn is_any_timer_active(memory: &GbaMemory) -> bool {
@@ -8,19 +9,23 @@ pub fn is_any_timer_active(memory: &GbaMemory) -> bool {
     (memory.ioregs.tm_cnt_h[3].enabled() && !memory.ioregs.tm_cnt_h[3].count_up_timing())
 }
 
-pub fn step_active_timers(cycles: u32, memory: &mut GbaMemory) {
+pub fn step_active_timers(cycles: u32, memory: &mut GbaMemory, cpu_enable_irq: bool) {
     for timer in 0usize..4usize {
         // we ignore count-up timers (unless it's timer #0), because they are incremented by the
         // previous timer.
         if memory.ioregs.tm_cnt_h[timer].enabled() && (timer == 0 || !memory.ioregs.tm_cnt_h[timer].count_up_timing()) {
-            increment_timer(timer, cycles, memory);
+            increment_timer(timer, cycles, memory, cpu_enable_irq);
         }
     }
 }
 
-fn increment_timer(mut timer: usize, mut cycles: u32, memory: &mut GbaMemory) {
+fn increment_timer(mut timer: usize, mut cycles: u32, memory: &mut GbaMemory, cpu_enable_irq: bool) {
     loop {
         if memory.ioregs.internal_tm_counter[timer].increment(cycles) {
+            if memory.ioregs.tm_cnt_h[timer].irq() && cpu_enable_irq {
+                irq::request_interrupt(memory, irq::GbaInterrupt::for_timer(timer as u16));
+            }
+
             // timers are reloaded on overflow:
             memory.ioregs.internal_tm_counter[timer].set_counter(memory.ioregs.tm_cnt_l[timer].inner);
 

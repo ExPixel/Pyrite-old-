@@ -18,15 +18,18 @@ fn run_emulator() -> i32 {
     }
 
     let mut gba = Gba::new();
-    
-    // Since I can't be sure that I have everything I need for the BIOS to function properly all
-    // exceptions are just disabled for now.
-    gba.cpu.set_exception_handler(Box::new(|_cpu, _memory, exception, exception_addr| {
-        println!("error: {} exception at 0x{:08X}", exception.name(), exception_addr);
 
-        // consume the exception
-        true 
-    }));
+    const BIOS_FILE: &str = "roms/legal/gba-bios.bin";
+    match load_binary(&BIOS_FILE) {
+        Ok(bios_binary) => {
+            gba.set_bios(bios_binary);
+        },
+
+        Err(err) => {
+            eprintln!("error occurred while loading BIOS ({}): {}", BIOS_FILE, err);
+            return 1;
+        },
+    }
 
     if let Some(rom_file) = std::env::args().nth(1) {
         match load_binary(&rom_file) {
@@ -39,7 +42,7 @@ fn run_emulator() -> i32 {
                 return 1;
             }
         }
-        gba.reset(true);
+        gba.reset(false);
     } else {
         eprintln!("error: must pass a GBA ROM as the first argument");
         return 1;

@@ -42,19 +42,17 @@ macro_rules! dataproc {
                 let res = $operation(cpu, lhs, rhs);
                 let spsr = cpu.registers.read_spsr();
                 cpu.registers.write_cpsr(spsr);
-                cpu.arm_branch_to(res & 0xFFFFFFFC, memory);
+                cpu.branch_to(res, memory);
+                cpu.cycles += clock::cycles_branch_refill(memory, cpu.registers.getf_t(), cpu.registers.read(15));
             } else {
                 let rhs = $get_operand(cpu, instr);
                 let res = $operation(cpu, lhs, rhs);
                 if unlikely!(rd == 15) {
                     cpu.arm_branch_to(res & 0xFFFFFFFC, memory);
+                    cpu.cycles += clock::cycles_branch_refill(memory, cpu.registers.getf_t(), cpu.registers.read(15));
                 } else {
                     cpu.registers.write(rd, res);
                 }
-            }
-
-            if rd == 15 {
-                cpu.cycles += clock::cycles_branch_refill(memory, cpu.registers.getf_t(), cpu.registers.read(15))
             }
         }
     )

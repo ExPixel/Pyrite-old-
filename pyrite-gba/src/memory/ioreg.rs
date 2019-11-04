@@ -1,5 +1,12 @@
 use crate::util::fixedpoint::{ FixedPoint16, FixedPoint32 };
 
+/// Changes only the writeable bits of a value. The last argument is a bit mask with all writeable
+/// bits set and all read-only bits cleared.
+#[inline(always)]
+pub const fn set_writeable_bits(original: u16, new_value: u16, writeable: u16) -> u16 {
+    (original & !writeable) | (new_value & writeable)
+}
+
 use super::{align16, align32, get_halfword_of_word, set_halfword_of_word};
 #[derive(Default)]
 pub struct IORegisters {
@@ -109,11 +116,12 @@ pub struct IORegisters {
     /// IE register
     pub interrupt_enable: Reg16,
     /// IF register (Interrupt Request Flags / IRQ Acknowledge)
-    pub interrupt_flags: Reg16,
+    pub interrupt_request: Reg16,
     pub waitcnt: RegWAITCNT,
     pub ime: Reg16,
     pub postflg: Reg8,
     pub haltcnt: Reg8,
+    pub internal_halt: bool,
 
     pub internal_memory_control: RegIMC,
 }
@@ -160,6 +168,13 @@ impl IORegisters {
     }
 
     pub fn write_byte(&mut self, addr: u32, value: u8) -> Result<(), &'static str> {
+        // @NOTE writes to 0x04000300 have to be caught specifically because the write_halfword would
+        // also write to 0x04000301 which would halt or stop the CPU.
+        if addr == 0x04000300 {
+            self.postflg.inner = value as u8;
+            return Ok(());
+        }
+
         if let Some(hw) = self.read_halfword(addr) {
             let new_value = if (addr & 1) == 0 {
                 (hw & 0xFF00) | (value as u16)
@@ -324,7 +339,7 @@ impl IORegisters {
 
             // Interrupt, Waitstate, and Power-Down Control
             0x0200 => Some(self.interrupt_enable.inner),
-            0x0202 => Some(self.interrupt_flags.inner),
+            0x0202 => Some(self.interrupt_request.inner),
             0x0204 => Some(self.waitcnt.inner),
             0x0206 => None, // Not Used
             0x0208 => Some(self.ime.inner),
@@ -357,7 +372,7 @@ impl IORegisters {
             // LCD I/O Registers
             0x0000 => self.dispcnt.inner = value,
             0x0002 => self.green_swap.inner = value,
-            0x0004 => self.dispstat.inner = value,
+            0x0004 => self.dispstat.inner = set_writeable_bits(self.dispstat.inner, value, 0xFFB8),
             0x0006 => self.vcount.inner = value,
             0x0008 => self.bg_cnt[0].inner = value,
             0x000A => self.bg_cnt[1].inner = value,
@@ -480,7 +495,7 @@ impl IORegisters {
             0x012C => (), // Not Used
 
             // Keypad Input
-            0x0130 => self.keyinput.inner = value,
+            // 0x0130 => self.keyinput.inner = value,
             0x0132 => self.keycnt.inner = value,
 
             // Serial Communication (2)
@@ -496,7 +511,7 @@ impl IORegisters {
 
             // Interrupt, Waitstate, and Power-Down Control
             0x0200 => self.interrupt_enable.inner = value,
-            0x0202 => self.interrupt_flags.inner = value,
+            0x0202 => self.interrupt_request.inner &= !value, // @NOTE setting a bit in IE actually clears it internally
             0x0204 => self.waitcnt.inner = value,
             0x0206 => (), // Not Used
             0x0208 => self.ime.inner = value,
@@ -504,6 +519,12 @@ impl IORegisters {
             0x0300 => {
                 self.postflg.inner = value as u8;
                 self.haltcnt.inner = (value >> 8) as u8;
+
+                if (self.haltcnt.inner & 0x8) == 0 {
+                    self.internal_halt = true;
+                } else {
+                    unimplemented!("STOP");
+                }
             },
 
             0x0302 => (), // Not Used
@@ -1060,7 +1081,7 @@ impl InternalCounter {
     pub fn increment(&mut self, cycles: u32) -> bool {
         let adjusted = cycles << self.increment_shift;
         let (new_counter, overflow) = self.counter_fp.overflowing_add(adjusted);
-        self.counter_fp = new_counter;
+        self.counter_fp = new_counter | 0xFC000000;
         return overflow;
     }
 
@@ -1079,7 +1100,7 @@ impl InternalCounter {
     pub fn select_prescaler(&mut self, prescaler_bits: u16, count_up: bool) {
         if count_up {
             // the prescaler value is ignored for count-up timers.
-            self.increment_shift = 0;
+            self.increment_shift = 10;
         } else {
             self.increment_shift = match prescaler_bits {
                 0 => 10,

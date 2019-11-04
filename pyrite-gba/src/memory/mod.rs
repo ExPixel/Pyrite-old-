@@ -448,7 +448,8 @@ impl ArmMemory for GbaMemory {
             },
 
             REGION_SRAM => {
-                unimplemented!("GbaMemory::read_byte(REGION_SRAM)");
+                eprintln!("GbaMemory::read_byte(REGION_SRAM)"); // @TODO
+                0xFF
             },
 
             _ => {
@@ -524,7 +525,8 @@ impl ArmMemory for GbaMemory {
             },
 
             REGION_SRAM => {
-                unimplemented!("GbaMemory::read_byte(REGION_SRAM)");
+                eprintln!("GbaMemory::read_byte(REGION_SRAM)"); // @TODO
+                0xFF
             },
 
             _ => {
@@ -597,7 +599,7 @@ impl ArmMemory for GbaMemory {
             },
 
             REGION_SRAM => {
-                unimplemented!("GbaMemory::write_byte(REGION_SRAM)");
+                eprintln!("GbaMemory::write_byte(REGION_SRAM)");
             },
 
             _ => {
@@ -673,7 +675,8 @@ impl ArmMemory for GbaMemory {
             },
 
             REGION_SRAM => {
-                unimplemented!("GbaMemory::read_halfword(REGION_SRAM)");
+                eprintln!("GbaMemory::read_halfword(REGION_SRAM)"); // @TODO
+                0xFF
             },
 
             _ => {
@@ -750,7 +753,8 @@ impl ArmMemory for GbaMemory {
             },
 
             REGION_SRAM => {
-                unimplemented!("GbaMemory::read_halfword(REGION_SRAM)");
+                eprintln!("GbaMemory::read_halfword(REGION_SRAM)"); // @TODO
+                0xFF
             },
 
             _ => {
@@ -824,7 +828,7 @@ impl ArmMemory for GbaMemory {
             },
 
             REGION_SRAM => {
-                unimplemented!("GbaMemory::write_halfword(REGION_SRAM)");
+                eprintln!("GbaMemory::write_halfword(REGION_SRAM)"); // @TODO
             },
 
             _ => {
@@ -900,7 +904,8 @@ impl ArmMemory for GbaMemory {
             },
 
             REGION_SRAM => {
-                unimplemented!("GbaMemory::read_word(REGION_SRAM)");
+                eprintln!("GbaMemory::read_word(REGION_SRAM)"); // @TODO
+                0xFF
             },
 
             _ => {
@@ -977,7 +982,8 @@ impl ArmMemory for GbaMemory {
             },
 
             REGION_SRAM => {
-                unimplemented!("GbaMemory::read_word(REGION_SRAM)");
+                eprintln!("GbaMemory::read_word(REGION_SRAM)"); // @TODO
+                0xFF
             },
 
             _ => {
@@ -1051,7 +1057,7 @@ impl ArmMemory for GbaMemory {
             },
 
             REGION_SRAM => {
-                unimplemented!("GbaMemory::write_word(REGION_SRAM)");
+                eprintln!("GbaMemory::write_word(REGION_SRAM)"); // @TODO
             },
 
             _ => {

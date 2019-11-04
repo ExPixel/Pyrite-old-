@@ -4,7 +4,8 @@ mod blending;
 mod obj;
 
 use super::dma;
-use super::{ GbaVideoOutput, GbaMemory, ArmCpu };
+use super::irq;
+use super::{ GbaVideoOutput, GbaMemory };
 use blending::{ RawPixel };
 
 pub const HDRAW_WIDTH: u32 = 240;
@@ -44,23 +45,23 @@ impl GbaLCD {
         }
     }
 
-    pub fn init(&mut self, _cpu: &mut ArmCpu, _memory: &mut GbaMemory, video: &mut dyn GbaVideoOutput) {
+    pub fn init(&mut self, video: &mut dyn GbaVideoOutput) {
         video.pre_frame();
     }
 
     #[inline(always)]
-    pub fn step(&mut self, cycles: u32, cpu: &mut ArmCpu, memory: &mut GbaMemory, video: &mut dyn GbaVideoOutput) {
+    pub fn step(&mut self, cycles: u32, memory: &mut GbaMemory, video: &mut dyn GbaVideoOutput, cpu_enable_irq: bool) {
         self.end_of_frame = false;
         if cycles >= self.cycles_remaining {
             // #NOTE: having this in a separate function and forcing the compiler to inline this
             // one increased performance by like 5-10%
-            self.fire(cycles, cpu, memory, video);
+            self.fire(cycles, memory, video, cpu_enable_irq);
         } else {
             self.cycles_remaining -= cycles;
         }
     }
 
-    fn fire(&mut self, cycles: u32, cpu: &mut ArmCpu, memory: &mut GbaMemory, video: &mut dyn GbaVideoOutput) {
+    fn fire(&mut self, cycles: u32, memory: &mut GbaMemory, video: &mut dyn GbaVideoOutput, cpu_enable_irq: bool) {
         if cycles > self.cycles_remaining {
             self.cycles_remaining = cycles - self.cycles_remaining;
         } else {
@@ -68,17 +69,17 @@ impl GbaLCD {
         }
 
         if self.in_hblank {
-            self.enter_next_line_hdraw(cpu, memory, video);
+            self.enter_next_line_hdraw(memory, video, cpu_enable_irq);
             self.in_hblank = false;
             self.cycles_remaining += HDRAW_CYCLES;
         } else {
-            self.enter_hblank(cpu, memory, video);
+            self.enter_hblank(memory, video, cpu_enable_irq);
             self.in_hblank = true;
             self.cycles_remaining += HBLANK_CYCLES;
         }
     }
 
-    fn enter_hblank(&mut self, _cpu: &mut ArmCpu, memory: &mut GbaMemory, video: &mut dyn GbaVideoOutput) {
+    fn enter_hblank(&mut self, memory: &mut GbaMemory, video: &mut dyn GbaVideoOutput, cpu_enable_irq: bool) {
         if self.line_number < VDRAW_LINES {
             self.render_line(memory);
             video.display_line(self.line_number, &self.line_pixels);
@@ -89,6 +90,10 @@ impl GbaLCD {
         }
 
         memory.ioregs.dispstat.set_hblank(true);
+
+        if memory.ioregs.dispstat.hblank_irq_enable() && cpu_enable_irq {
+            irq::request_interrupt(memory, irq::GbaInterrupt::HBlank);
+        }
 
         // activate all H-Blank DMAs on VISIBLE H-Blanks
         if self.line_number < VDRAW_LINES {
@@ -102,7 +107,7 @@ impl GbaLCD {
         }
     }
 
-    fn enter_next_line_hdraw(&mut self, _cpu: &mut ArmCpu, memory: &mut GbaMemory, video: &mut dyn GbaVideoOutput) {
+    fn enter_next_line_hdraw(&mut self, memory: &mut GbaMemory, video: &mut dyn GbaVideoOutput, cpu_enable_irq: bool) {
         self.line_number += 1;
         memory.ioregs.dispstat.set_hblank(false);
 
@@ -118,6 +123,10 @@ impl GbaLCD {
             video.pre_frame();
         } else if self.line_number == VDRAW_LINES {
             memory.ioregs.dispstat.set_vblank(true);
+
+            if memory.ioregs.dispstat.vblank_irq_enable() && cpu_enable_irq {
+                irq::request_interrupt(memory, irq::GbaInterrupt::VBlank);
+            }
             
             // activate all V-Blank DMAs
             for channel in 0..4 {
@@ -129,8 +138,13 @@ impl GbaLCD {
             }
         }
 
-        memory.ioregs.dispstat.set_vcounter(self.line_number as u16 == memory.ioregs.dispstat.vcount_setting());
+        let vcounter_match = self.line_number as u16 == memory.ioregs.dispstat.vcount_setting();
+        memory.ioregs.dispstat.set_vcounter(vcounter_match);
         memory.ioregs.vcount.set_current_scanline(self.line_number as u16);
+
+        if memory.ioregs.dispstat.vcount_irq_enable() && cpu_enable_irq && vcounter_match {
+            irq::request_interrupt(memory, irq::GbaInterrupt::VCounterMatch);
+        }
     }
 
     /// Copies the BG2 and BG3 reference point registers into the internal reference point

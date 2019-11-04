@@ -5,7 +5,7 @@ use super::blending::{ apply_mosaic_cond, poke_obj_pixel, Windows, SpecialEffect
 use super::super::memory::read16_le;
 use crate::util::fixedpoint::{ FixedPoint32, FixedPoint16 };
 
-pub fn draw_objects(line: u32, memory: &GbaMemory, tile_data_start: u32, raw_pixels: &mut RawLine, effects: SpecialEffects, windows: Windows) {
+pub fn draw_objects(line: u32, memory: &GbaMemory, bitmap_mode: bool, raw_pixels: &mut RawLine, effects: SpecialEffects, windows: Windows) {
     let vram    = &memory.mem_vram;
     let oam     = &memory.mem_oam;
     let ioregs  = &memory.ioregs;
@@ -22,7 +22,10 @@ pub fn draw_objects(line: u32, memory: &GbaMemory, tile_data_start: u32, raw_pix
         1210
     };
 
-    'obj_main_loop: for obj_idx in 0..128 {
+    // @TODO I'm not sure if I'm supposed to do 2 passes (one for OBJWindow objects and then
+    // another for all of the rest.) For now I just process that objects in reverse because that
+    // seems to fix the issues that I have with GBA startup.
+    'obj_main_loop: for obj_idx in (0..128).rev() {
         let obj_all_attrs = read48_le(oam, obj_idx as usize * 8);
         let attr = ObjAttr::new(obj_all_attrs as u16, (obj_all_attrs >> 16) as u16, (obj_all_attrs >> 32) as u16);
 
@@ -124,16 +127,20 @@ pub fn draw_objects(line: u32, memory: &GbaMemory, tile_data_start: u32, raw_pix
         let mut obj_x = FixedPoint32::from( attr.width / 2) + (obj_ydraw_start_distance * obj_dmx) + (obj_xdraw_start_distance * obj_dx);
         let mut obj_y = FixedPoint32::from(attr.height / 2) + (obj_ydraw_start_distance * obj_dmy) + (obj_xdraw_start_distance * obj_dy);
 
-        let tile_data = &vram[(tile_data_start as usize)..];
+        let tile_data = &vram[0x10000..];
         let tile_stride = if one_dimensional {
             attr.width / 8
         } else {
-            32
+            if attr.pal256 {
+                16
+            } else {
+                32
+            }
         };
 
         if attr.pal256 {
-            const BYTES_PER_TILE: u32 = 32;
-            const BYTES_PER_LINE: u32 = 4;
+            const BYTES_PER_TILE: u32 = 64;
+            const BYTES_PER_LINE: u32 = 8;
 
             for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize) {
                 // converting them to u32s and comparing like this will also handle the 'less than 0' case
@@ -141,11 +148,13 @@ pub fn draw_objects(line: u32, memory: &GbaMemory, tile_data_start: u32, raw_pix
                     let obj_x_i = apply_mosaic_cond(attr.mosaic, obj_x.integer() as u32, mosaic_x);
                     let obj_y_i = apply_mosaic_cond(attr.mosaic, obj_y.integer() as u32, mosaic_y);
 
-                    let tile = ((attr.tile_number as u32) + ((obj_y_i / 8) * tile_stride) + (obj_x_i/8)) & 0x3FF;
-                    let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_y_i % 8) * BYTES_PER_LINE) + (obj_x_i % 8);
-                    let palette_entry = tile_data[pixel_offset as usize];
-                    let color = palette.get_obj256(palette_entry);
-                    poke_obj_pixel(line, obj_screen_draw, color, attr.priority, attr.mode, raw_pixels, effects, windows);
+                    let tile = (((attr.tile_number / 2) as u32) + ((obj_y_i / 8) * tile_stride) + (obj_x_i/8)) & 0x3FF;
+                    if !bitmap_mode || tile >= 512 {
+                        let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_y_i % 8) * BYTES_PER_LINE) + (obj_x_i % 8);
+                        let palette_entry = tile_data[pixel_offset as usize];
+                        let color = palette.get_obj256(palette_entry);
+                        poke_obj_pixel(line, obj_screen_draw, color, attr.priority, attr.mode, raw_pixels, effects, windows);
+                    }
                 }
 
                 obj_x += obj_dx;

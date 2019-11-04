@@ -320,18 +320,17 @@ pub fn poke_bg_pixel(line: u32, bg: u16, offset: usize, color: u16, bg_priority:
 pub fn poke_obj_pixel(line: u32, offset: usize, color: u16, obj_priority: u8, obj_mode: ObjMode, raw_pixels: &mut RawLine, effects: SpecialEffects, windows: Windows) {
     if (color & 0x8000) == 0 { return }
 
-    let enable_special_effects = if windows.enabled() {
-        let (show_pixel, enable_special_effects) = windows.check_window_bounds(4, offset as u16, line as u16, raw_pixels);
-        if !show_pixel { return }
-        enable_special_effects
-    } else { true };
-
-    let pixel = &mut raw_pixels[offset];
     if obj_mode == ObjMode::OBJWindow {
-        pixel.obj_window = true;
-    } else if pixel.top.priority > obj_priority {
-        pixel.bottom = pixel.top;
-        pixel.top = RawPixelLayer {
+        raw_pixels[offset].obj_window = true;
+    } else if raw_pixels[offset].top.priority > obj_priority {
+        let enable_special_effects = if windows.enabled() {
+            let (show_pixel, enable_special_effects) = windows.check_window_bounds(4, offset as u16, line as u16, raw_pixels);
+            if !show_pixel { return }
+            enable_special_effects
+        } else { true };
+
+        raw_pixels[offset].bottom = raw_pixels[offset].top;
+        raw_pixels[offset].top = RawPixelLayer {
             color: color,
             semi_transparent_obj: enable_special_effects & (obj_mode == ObjMode::SemiTransparent),
             first_target: enable_special_effects & effects.select.is_first_target(4),

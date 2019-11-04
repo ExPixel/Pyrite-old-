@@ -84,6 +84,9 @@ impl GbaImGui {
 
                         Some(VirtualKeyCode::A) => self.gba.set_key_pressed(KeypadInput::ButtonL, pressed),
                         Some(VirtualKeyCode::S) => self.gba.set_key_pressed(KeypadInput::ButtonR, pressed),
+
+                        Some(VirtualKeyCode::P) if pressed => self.dump_gba_memory(),
+
                         _ => { /* NOP */ },
                     }
                 }
@@ -97,6 +100,29 @@ impl GbaImGui {
             },
 
             _ => { /* NOP */ },
+        }
+    }
+
+    fn dump_gba_memory(&self) {
+        std::fs::create_dir_all("gba-dump").expect("failed to create dump directory");
+
+        write_binary("gba-dump/ewram.bin", &self.gba.memory.mem_ewram);
+        write_binary("gba-dump/iwram.bin", &self.gba.memory.mem_iwram);
+        write_binary("gba-dump/vram.bin", &self.gba.memory.mem_vram);
+        write_binary("gba-dump/oam.bin", &self.gba.memory.mem_oam);
+
+        println!("DUMPED GBA MEMORY");
+
+//         fn write_str(filepath: &str, text: &str) {
+//             write_binary(filepath, text.as_bytes());
+//         }
+
+        fn write_binary(filepath: &str, data: &[u8]) {
+            use std::io::prelude::*;
+            use std::fs::File;
+            let mut file = File::create(filepath).expect(&format!("failed to open file {} for writing", filepath));
+            file.write_all(data).expect(&format!("failed to write data to file {}", filepath));
+            file.sync_all().expect(&format!("failed to sync file {}", filepath));
         }
     }
 

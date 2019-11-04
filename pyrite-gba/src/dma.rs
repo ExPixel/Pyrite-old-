@@ -1,5 +1,6 @@
 use pyrite_arm::cpu::ArmMemory;
 use super::memory::GbaMemory;
+use super::irq;
 
 pub const DMA_TIMING_IMMEDIATE: u16 = 0;
 pub const DMA_TIMING_VBLANK: u16    = 1;
@@ -19,17 +20,17 @@ pub fn is_any_dma_active(memory: &GbaMemory) -> bool {
     memory.ioregs.internal_dma_registers[3].active
 }
 
-pub fn step_active_channels(memory: &mut GbaMemory) -> u32 {
+pub fn step_active_channels(memory: &mut GbaMemory, cpu_enable_irq: bool) -> u32 {
     for channel in 0usize..4 {
         if memory.ioregs.internal_dma_registers[channel].active {
-            return dma_transfer(channel, memory);
+            return dma_transfer(channel, memory, cpu_enable_irq);
         }
     }
     unreachable!("no DMA channels were actually active");
 }
 
 #[inline(always)]
-fn dma_transfer(channel: usize, memory: &mut GbaMemory) -> u32 {
+fn dma_transfer(channel: usize, memory: &mut GbaMemory, cpu_enable_irq: bool) -> u32 {
     let first_transfer = memory.ioregs.internal_dma_registers[channel].is_first_transfer();
     let source = memory.ioregs.internal_dma_registers[channel].source;
     let destination = memory.ioregs.internal_dma_registers[channel].destination;
@@ -52,8 +53,12 @@ fn dma_transfer(channel: usize, memory: &mut GbaMemory) -> u32 {
 
     memory.ioregs.internal_dma_registers[channel].count -= 1;
     if memory.ioregs.internal_dma_registers[channel].count == 0 {
+        if memory.ioregs.dma_cnt_h[channel].irq() && cpu_enable_irq {
+            irq::request_interrupt(memory, irq::GbaInterrupt::for_dma(channel as u16));
+        }
+
         memory.ioregs.internal_dma_registers[channel].active = false;
-        if memory.ioregs.dma_cnt_h[channel].repeat() {
+        if memory.ioregs.dma_cnt_h[channel].repeat() && !memory.ioregs.dma_cnt_h[channel].start_timing() != DMA_TIMING_IMMEDIATE {
             memory.ioregs.internal_dma_registers[channel].load_count(channel, memory.ioregs.dma_cnt_l[channel].inner);
             if destination_addr_control == DMA_ADDR_CONTROL_RELOAD {
                 memory.ioregs.internal_dma_registers[channel].destination = memory.ioregs.dma_dad[channel].inner;

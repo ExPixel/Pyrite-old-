@@ -4,9 +4,11 @@ pub mod sound;
 pub mod util;
 pub mod dma;
 pub mod timers;
+pub mod irq;
 
 use memory::GbaMemory;
 use pyrite_arm::ArmCpu;
+use pyrite_arm::cpu::CpuException;
 use lcd::GbaLCD;
 
 pub struct Gba {
@@ -17,11 +19,34 @@ pub struct Gba {
 
 impl Gba {
     pub fn new() -> Gba {
-        Gba {
+        let mut g = Gba {
             memory: GbaMemory::new(true),
             cpu: ArmCpu::new(),
             lcd: GbaLCD::new(),
-        }
+        };
+        g.setup_handler();
+        return g;
+    }
+
+    fn setup_handler(&mut self) {
+        self.cpu.set_exception_handler(Box::new(|_cpu, _memory, exception, exception_addr| {
+            match exception {
+                CpuException::Reset => false,
+                CpuException::SWI   => {
+                    // println!("SWI from {:08X}", exception_addr);
+                    false
+                },
+                CpuException::IRQ   => {
+                    // println!("IRQ from {:08X}", exception_addr);
+                    false
+                },
+                _ => {
+                    eprintln!("error: {} exception at 0x{:08X}", exception.name(), exception_addr);
+                    // consume the exception
+                    true 
+                },
+            }
+        }));
     }
 
     pub fn reset(&mut self, skip_bios: bool) {
@@ -55,21 +80,29 @@ impl Gba {
     }
 
     pub fn init(&mut self, video: &mut dyn GbaVideoOutput, _audio: &mut dyn GbaAudioOutput) {
-        self.lcd.init(&mut self.cpu, &mut self.memory, video);
+        self.lcd.init(video);
     }
 
     #[inline]
     pub fn step(&mut self, video: &mut dyn GbaVideoOutput, _audio: &mut dyn GbaAudioOutput) {
         let cycles = if dma::is_any_dma_active(&self.memory) {
-            dma::step_active_channels(&mut self.memory)
-        } else {
+            dma::step_active_channels(&mut self.memory, !self.cpu.registers.getf_i())
+        } else if !self.memory.ioregs.internal_halt {
             self.cpu.step(&mut self.memory)
+        } else {
+            8 // number of cycles that we advance each step while halted
         };
 
         if timers::is_any_timer_active(&self.memory) {
-            timers::step_active_timers(cycles, &mut self.memory);
+            timers::step_active_timers(cycles, &mut self.memory, !self.cpu.registers.getf_i());
         }
-        self.lcd.step(cycles, &mut self.cpu, &mut self.memory, video);
+
+        self.lcd.step(cycles, &mut self.memory, video, !self.cpu.registers.getf_i());
+
+        if !self.cpu.registers.getf_i() && self.memory.ioregs.interrupt_request.inner != 0 {
+            self.memory.ioregs.internal_halt = false;
+            self.cpu.set_pending_exception(CpuException::IRQ);
+        }
     }
 
     #[inline]

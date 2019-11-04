@@ -958,10 +958,10 @@ pub fn thumb_bl_off(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
 
 pub fn thumb_swi(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _opcode: u32) {
     cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
-    cpu.handle_exception(super::super::cpu::CpuException::SWI, memory);
+    cpu.handle_exception(super::super::cpu::CpuException::SWI, memory, cpu.registers.read(15).wrapping_sub(2));
 }
 
 pub fn thumb_undefined(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory ,_opcode: u32) {
     cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
-    cpu.handle_exception(super::super::cpu::CpuException::Undefined, memory);
+    cpu.handle_exception(super::super::cpu::CpuException::Undefined, memory, cpu.registers.read(15).wrapping_sub(2));
 }

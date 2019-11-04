@@ -171,13 +171,13 @@ pub fn arm_swpb(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
 /// SWI INSTR
 fn arm_swi(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _instr: u32) {
     cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15));
-    cpu.handle_exception(super::cpu::CpuException::SWI, memory);
+    cpu.handle_exception(super::cpu::CpuException::SWI, memory, cpu.registers.read(15).wrapping_sub(4));
 }
 
 /// UNDEFINED INSTR
 fn arm_undefined(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _instr: u32) {
     cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15));
-    cpu.handle_exception(super::cpu::CpuException::Undefined, memory);
+    cpu.handle_exception(super::cpu::CpuException::Undefined, memory, cpu.registers.read(15).wrapping_sub(4));
 }
 
 #[allow(dead_code)]
