@@ -1,16 +1,30 @@
 mod util;
-use pyrite_arm::{ ArmCpu, FlatMemory };
+use pyrite_arm::{ ArmCpu, ArmMemory };
 use util::run_cpu;
 
 pub const MAX_PROGRAM_SIZE: u32 = 0x1000;
+
+fn set_memory_bytes(memory: &mut dyn ArmMemory, mut addr: u32, src: &[u8]) {
+    for src_byte in src.iter() {
+        memory.write_data_byte(addr, *src_byte, false, &mut 0);
+        addr += 1;
+    }
+}
+
+fn get_memory_bytes(memory: &mut dyn ArmMemory, mut addr: u32, dst: &mut [u8]) {
+    for dst_byte in dst.iter_mut() {
+        *dst_byte = memory.read_data_byte(addr, false, &mut 0);
+        addr += 1;
+    }
+}
 
 #[test]
 pub fn test_division() {
     static DIVISION_BIN: &[u8] = include_bytes!("../data/bin/arm_division.bin");
 
     let mut cpu = ArmCpu::new();
-    let mut mem = FlatMemory::new(MAX_PROGRAM_SIZE);
-    mem.set_bytes(0, DIVISION_BIN);
+    let mut mem = DIVISION_BIN.to_vec();
+    mem.resize(0x1000, 0xCE);
 
     // some guard values for these registers which are supported
     // to be saved and restored.
@@ -68,25 +82,26 @@ pub fn test_chacha20() {
         static CHACHA20_BIN: &[u8] = include_bytes!("../data/bin/chacha20.bin");
 
         let mut cpu = ArmCpu::new();
-        let mut mem = FlatMemory::new(MAX_PROGRAM_SIZE);
-        mem.set_bytes(0, CHACHA20_BIN);
+        let mut mem = CHACHA20_BIN.to_vec();
+        mem.resize(0x1000, 0xCE);
+        cpu.set_pc(0, &mut mem); // reset the program counter
 
         while let Some((signal_type, signal_value)) = run_cpu(&mut cpu, &mut mem) {
             match signal_type {
                 0 => {
                     let key_addr = signal_value;
-                    mem.set_bytes(key_addr, &key[0..32]);
+                    set_memory_bytes(&mut mem, key_addr, &key[0..32]);
                 },
                 1 => {
                     let nonce_addr = signal_value;
-                    mem.set_bytes(nonce_addr, &nonce[0..12]);
+                    set_memory_bytes(&mut mem, nonce_addr, &nonce[0..12]);
                 },
                 2 => {
                     cpu.registers.write(0, iterations);
                 },
                 3 => {
                     let dest_addr = signal_value;
-                    mem.get_bytes(dest_addr, dest);
+                    get_memory_bytes(&mut mem, dest_addr, dest);
                 },
                 _ => panic!("unrecognized signal: [{}](0x{:08X})", signal_type, signal_value),
             }
@@ -124,26 +139,27 @@ pub fn test_chacha20_thumb() {
         static CHACHA20_BIN_THUMB: &[u8] = include_bytes!("../data/bin/chacha20_thumb.bin");
 
         let mut cpu = ArmCpu::new();
-        let mut mem = FlatMemory::new(MAX_PROGRAM_SIZE);
-        mem.set_bytes(0, CHACHA20_BIN_THUMB);
+        let mut mem = CHACHA20_BIN_THUMB.to_vec();
+        mem.resize(0x1000, 0xCE);
+        cpu.set_pc(0, &mut mem); // reset the program counter
 
         while let Some((signal_type, signal_value)) = run_cpu(&mut cpu, &mut mem) {
             match signal_type {
                 0 => {
                     let key_addr = signal_value;
                     println!("key_addr: 0x{:08X}", key_addr);
-                    mem.set_bytes(key_addr, &key[0..32]);
+                    set_memory_bytes(&mut mem, key_addr, &key[0..32]);
                 },
                 1 => {
                     let nonce_addr = signal_value;
-                    mem.set_bytes(nonce_addr, &nonce[0..12]);
+                    set_memory_bytes(&mut mem, nonce_addr, &nonce[0..12]);
                 },
                 2 => {
                     cpu.registers.write(0, iterations);
                 },
                 3 => {
                     let dest_addr = signal_value;
-                    mem.get_bytes(dest_addr, dest);
+                    get_memory_bytes(&mut mem, dest_addr, dest);
                 },
                 _ => panic!("unrecognized signal: [{}](0x{:08X})", signal_type, signal_value),
             }

@@ -5,12 +5,9 @@ pub mod alu;
 pub mod arm;
 pub mod thumb;
 pub mod cpu;
-pub mod clock;
 pub mod registers;
-pub mod flat_memory;
-pub mod disasm;
+// pub mod disasm; @TODO reenable this when it's fixed
+pub mod memory;
 
 pub use cpu::ArmCpu;
-pub use cpu::ArmMemory;
-
-pub use flat_memory::FlatMemory;
+pub use memory::ArmMemory;

@@ -69,6 +69,13 @@ macro_rules! bit_set {
     );
 }
 
+#[macro_export]
+macro_rules! bit_set_b {
+    ($dest:expr, $src:expr, $start:expr) => (
+        bits_set!($dest, if $src { 1 } else { 0 }, $start, $start)
+    );
+}
+
 /// #TODO maybe I should use wrapping_shl and wrapping_shr for this
 ///       but I'm not sure. The high bits that are going to be replaced
 ///       by the sign bit SHOULD be empty so maybe allowing this to panic is good.

@@ -1,4 +1,4 @@
-use super::super::{ ArmCpu, ArmMemory, clock };
+use super::super::{ ArmCpu, ArmMemory };
 use super::super::alu::*;
 
 pub const S_SET: bool = true;
@@ -14,6 +14,8 @@ macro_rules! dataproc {
         //       gen so that I can log an error when Rs is R15 which is not supported
         //       by these sets of instructions.
         pub fn $name(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
+            cpu.arm_prefetch(memory);
+
             let rd = bits!(instr, 12, 15);
             let rn = bits!(instr, 16, 19);
 
@@ -26,12 +28,13 @@ macro_rules! dataproc {
                 cpu.registers.read(rn)
             };
 
+            // @TODO cycles
             // clock the instruction prefetch
-            cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15));
+            // cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15));
             // clock the register shift
-            if $r_shift {
-                cpu.cycles += clock::cycles_dataop_regshift(memory);
-            }
+            // if $r_shift {
+                // cpu.cycles += clock::cycles_dataop_regshift(memory);
+            // }
 
             // If S=1, Rd=R15; should not be used in user mode:
             //   CPSR = SPSR_<current mode>
@@ -43,13 +46,15 @@ macro_rules! dataproc {
                 let spsr = cpu.registers.read_spsr();
                 cpu.registers.write_cpsr(spsr);
                 cpu.branch_to(res, memory);
-                cpu.cycles += clock::cycles_branch_refill(memory, cpu.registers.getf_t(), cpu.registers.read(15));
+                // @TODO cycles
+                // cpu.cycles += clock::cycles_branch_refill(memory, cpu.registers.getf_t(), cpu.registers.read(15));
             } else {
                 let rhs = $get_operand(cpu, instr);
                 let res = $operation(cpu, lhs, rhs);
                 if unlikely!(rd == 15) {
                     cpu.arm_branch_to(res & 0xFFFFFFFC, memory);
-                    cpu.cycles += clock::cycles_branch_refill(memory, cpu.registers.getf_t(), cpu.registers.read(15));
+                    // @TODO cycles
+                    // cpu.cycles += clock::cycles_branch_refill(memory, cpu.registers.getf_t(), cpu.registers.read(15));
                 } else {
                     cpu.registers.write(rd, res);
                 }
@@ -66,6 +71,8 @@ macro_rules! dataproc_no_write {
         //       gen so that I can log an error when Rs is R15 which is not supported
         //       by these sets of instructions.
         pub fn $name(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
+            cpu.arm_prefetch(memory);
+
             let rd = bits!(instr, 12, 15);
             let rn = bits!(instr, 16, 19);
             // When using R15 as operand (Rm or Rn), the returned value
@@ -78,10 +85,10 @@ macro_rules! dataproc_no_write {
             };
 
             // clock the instruction prefetch
-            cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15));
+            // cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15)); @TODO cycles
             // clock the register shift
             if $r_shift {
-                cpu.cycles += clock::cycles_dataop_regshift(memory);
+                // cpu.cycles += clock::cycles_dataop_regshift(memory); @TODO cycles
             }
 
             // If S=1, Rd=R15; should not be used in user mode:
@@ -101,11 +108,11 @@ macro_rules! dataproc_no_write {
             if rd == 15 {
                 if cpu.registers.getf_t() {
                     let dest = cpu.registers.read(15) & 0xFFFFFFFE;
-                    cpu.cycles += clock::cycles_branch_refill(memory, true, dest);
+                    // cpu.cycles += clock::cycles_branch_refill(memory, true, dest); @TODO cycles
                     cpu.thumb_branch_to(dest, memory);
                 } else {
                     let dest = cpu.registers.read(15) & 0xFFFFFFFC;
-                    cpu.cycles += clock::cycles_branch_refill(memory, false,dest);
+                    // cpu.cycles += clock::cycles_branch_refill(memory, false,dest); @TODO cycles
                     cpu.arm_branch_to(dest, memory);
                 }
             }

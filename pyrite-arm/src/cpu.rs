@@ -1,5 +1,6 @@
-use super::{ arm, thumb, clock };
+use super::{ arm, thumb };
 use super::registers::{ CpuMode, ArmRegisters };
+use super::memory::ArmMemory;
 
 pub const EXCEPTION_BASE: u32 = 0;
 
@@ -51,15 +52,19 @@ impl ArmCpu {
     /// function.
     #[inline]
     pub(crate) fn arm_branch_to(&mut self, pc: u32, memory: &mut dyn ArmMemory) {
-        self.decoded = memory.load32(pc);
-        self.registers.write(15, pc.wrapping_add(4));
+        let next_pc = pc.wrapping_add(4);
+        self.registers.write(15, next_pc);
+        self.decoded = memory.read_code_word(pc, false, &mut self.cycles);
+        self.fetched = memory.read_code_word(next_pc, true, &mut self.cycles);
     }
 
     /// See `arm_branch_to`
     #[inline]
     pub(crate) fn thumb_branch_to(&mut self, pc: u32, memory: &mut dyn ArmMemory) {
-        self.decoded = memory.load16(pc) as u32;
-        self.registers.write(15, pc.wrapping_add(2));
+        let next_pc = pc.wrapping_add(2);
+        self.registers.write(15, next_pc);
+        self.decoded = memory.read_code_halfword(pc, false, &mut self.cycles) as u32;
+        self.fetched = memory.read_code_halfword(next_pc, true, &mut self.cycles) as u32;
     }
 
     /// Like `arm_branch_to` and `thumb_branch_to` but this will select which one to call for you
@@ -75,9 +80,6 @@ impl ArmCpu {
 
     /// Flushes the CPU's pipeline, sets the program counter
     /// and "fetches" and "decodes" the next instruction.
-    /// PC will point to the instruction that will be fetched during the next step
-    /// This should only be used after the CPU has been reset and is being
-    /// prepared to start execution.
     pub fn set_pc(&mut self, value: u32, memory: &mut dyn ArmMemory) {
         if self.registers.getf_t() {
             self.thumb_set_pc(value, memory);
@@ -86,18 +88,46 @@ impl ArmCpu {
         }
     }
 
+    // @TODO remove this
     #[inline]
     fn arm_set_pc(&mut self, value: u32, memory: &mut dyn ArmMemory) {
-        self.decoded = memory.load32(value);
-        self.fetched = memory.load32(value.wrapping_add(4));
-        self.registers.write(15, value.wrapping_add(8)); // the next fetch will be at EXECUTING_PC + 8
+        self.arm_branch_to(value, memory);
     }
 
+    // @TODO remove this
     #[inline]
     fn thumb_set_pc(&mut self, value: u32, memory: &mut dyn ArmMemory) {
-        self.decoded = memory.load16(value) as u32;
-        self.fetched = memory.load16(value.wrapping_add(2)) as u32;
-        self.registers.write(15, value.wrapping_add(4)); // the next fetch will be at EXECUTING_PC + 4
+        self.thumb_branch_to(value, memory);
+    }
+
+    pub fn arm_prefetch(&mut self, memory: &mut dyn ArmMemory) {
+        let next_pc = self.registers.read(15).wrapping_add(4);
+        self.registers.write(15, next_pc);
+        self.fetched = memory.read_code_word(next_pc, true, &mut self.cycles);
+    }
+
+    /// Gets the cycles for a prefetch without actually fetching the memory.
+    /// Used by branch instructions so that we aren't doing useless reads.
+    #[inline(always)]
+    pub fn arm_prefetch_cycles(&mut self, memory: &mut dyn ArmMemory) {
+        let next_pc = self.registers.read(15).wrapping_add(4);
+        self.registers.write(15, next_pc);
+        self.cycles += memory.code_cycles_word(next_pc, true);
+    }
+
+    pub fn thumb_prefetch(&mut self, memory: &mut dyn ArmMemory) {
+        let next_pc = self.registers.read(15).wrapping_add(2);
+        self.registers.write(15, next_pc);
+        self.fetched = memory.read_code_halfword(next_pc, true, &mut self.cycles) as u32;
+    }
+
+    /// Gets the cycles for a prefetch without actually fetching the memory.
+    /// Used by branch instructions so that we aren't doing useless reads.
+    #[inline(always)]
+    pub fn thumb_prefetch_cycles(&mut self, memory: &mut dyn ArmMemory) {
+        let next_pc = self.registers.read(15).wrapping_add(2);
+        self.registers.write(15, next_pc);
+        self.cycles += memory.code_cycles_halfword(next_pc, true);
     }
 
     /// Resets a CPU's registers
@@ -110,10 +140,13 @@ impl ArmCpu {
 
     /// Causes the CPU to run for one step, which is USUALLY one instruction
     /// but might not always be.
+    #[inline]
     pub fn step(&mut self, memory: &mut dyn ArmMemory) -> u32 {
         self.cycles = 0;
         if let Some(exception) = self.pending_exception.take() {
-            self.handle_exception(exception, memory, self.registers.read(15).wrapping_sub(if self.registers.getf_t() { 4 } else { 8 }));
+            // @TODO I think I need to subtract one instruction here because PC should be one
+            // instruction ahead of the next instruction to be executed at this point, I think...
+            self.handle_exception(exception, memory, self.registers.read(15));
         } else {
             if self.registers.getf_t() {
                 self.step_thumb(memory);
@@ -121,7 +154,6 @@ impl ArmCpu {
                 self.step_arm(memory);
             }
         }
-        self.after_step(memory);
         self.total_cycles += self.cycles as u64;
         return self.cycles;
     }
@@ -147,7 +179,7 @@ impl ArmCpu {
             let arm_fn = arm::ARM_OPCODE_TABLE[opcode_idx as usize];
             arm_fn(self, memory, opcode);
         } else {
-            self.cycles += clock::cycles_prefetch(memory, false, self.registers.read(15));
+            self.arm_prefetch(memory);
         }
     }
 
@@ -161,17 +193,6 @@ impl ArmCpu {
 
         let thumb_fn = thumb::THUMB_OPCODE_TABLE[opcode_idx as usize];
         thumb_fn(self, memory, opcode);
-    }
-
-    fn after_step(&mut self, memory: &mut dyn ArmMemory) {
-        let pc = self.registers.read(15);
-        if self.registers.getf_t() {
-            self.fetched = memory.load16(pc) as u32;
-            self.registers.write(15, pc.wrapping_add(2));
-        } else {
-            self.fetched = memory.load32(pc);
-            self.registers.write(15, pc.wrapping_add(4));
-        }
     }
 
     /// Sets the new exception handler. This will return the old exception handler.
@@ -199,7 +220,7 @@ impl ArmCpu {
         if (exception_info.disable & 0b01) != 0 && self.registers.getf_i() { return false; }
         if (exception_info.disable & 0b10) != 0 && self.registers.getf_f() { return false; }
 
-        let exception_addr = self.registers.read(15).wrapping_sub(if self.registers.getf_t() { 4 } else { 8 });
+        let exception_addr = next_instr_address.wrapping_sub(if self.registers.getf_t() { 2 } else { 4 });
 
         // we temporarily remove the handler while processing an exception
         // because we don't want possible reentrant into the handler and
@@ -226,7 +247,6 @@ impl ArmCpu {
 
         let exception_vector = EXCEPTION_BASE + exception_info.offset;
         self.arm_branch_to(exception_vector, memory);               // PC = exception_vector
-        self.cycles += clock::cycles_branch_refill(memory, false, exception_vector);
         return true;
     }
 }
@@ -342,42 +362,5 @@ pub const EXCEPTION_FIQ: CpuExceptionInfo               = CpuExceptionInfo::new(
 
 // #TODO I don't actually know the priority for the 26bit address overflow exception.
 pub const EXCEPTION_ADDRESS_EXCEEDS_26BIT: CpuExceptionInfo = CpuExceptionInfo::new(8, CpuMode::Supervisor, None, 4, 0x14, 0b00);
-
-
-pub trait ArmMemory {
-    // NOTE: reading from certain addresses (e.g. IO) can change their state,
-    // so loads still require a mutable `ArmMemory`.
-    fn  load8(&mut self, addr: u32) ->  u8;
-    fn load16(&mut self, addr: u32) -> u16;
-    fn load32(&mut self, addr: u32) -> u32;
-
-    fn  store8(&mut self, addr: u32, value:  u8);
-    fn store16(&mut self, addr: u32, value: u16);
-    fn store32(&mut self, addr: u32, value: u32);
-
-    // NOTE: this set of functions, unlike the loadX functions, are used for debugging
-    //       and should not mutate the memory on read.
-    fn  view8(&self, addr: u32) ->  u8;
-    fn view16(&self, addr: u32) -> u16;
-    fn view32(&self, addr: u32) -> u32;
-
-    fn code_access_seq8(&self, addr: u32) -> u32;
-    fn data_access_seq8(&self, addr: u32) -> u32;
-
-    fn code_access_nonseq8(&self, addr: u32) -> u32;
-    fn data_access_nonseq8(&self, addr: u32) -> u32;
-
-    fn code_access_seq16(&self, addr: u32) -> u32;
-    fn data_access_seq16(&self, addr: u32) -> u32;
-
-    fn code_access_nonseq16(&self, addr: u32) -> u32;
-    fn data_access_nonseq16(&self, addr: u32) -> u32;
-
-    fn code_access_seq32(&self, addr: u32) -> u32;
-    fn data_access_seq32(&self, addr: u32) -> u32;
-
-    fn code_access_nonseq32(&self, addr: u32) -> u32;
-    fn data_access_nonseq32(&self, addr: u32) -> u32;
-}
 
 pub type ExceptionHandler = Box<dyn FnMut(&mut ArmCpu, &mut dyn ArmMemory, CpuException, u32) -> bool>;

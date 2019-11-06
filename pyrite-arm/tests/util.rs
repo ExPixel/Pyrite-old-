@@ -3,10 +3,10 @@ use pyrite_arm::{ ArmCpu, ArmMemory };
 
 pub fn read_swi_comment(memory: &mut dyn ArmMemory, addr: u32, thumb: bool) -> u32 {
     if thumb {
-        let opcode = memory.load16(addr) as u32;
+        let opcode = memory.read_data_halfword(addr, false, &mut 0) as u32;
         return opcode & 0xFF;
     } else {
-        let opcode = memory.load32(addr);
+        let opcode = memory.read_data_word(addr, false, &mut 0);
         return opcode & 0xFFFFFF;
     }
 }

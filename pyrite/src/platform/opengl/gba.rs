@@ -9,18 +9,30 @@ use super::globj::{
 pub struct GbaTexture {
     texture: Texture,
     data: Box<[u16; 240 * 160]>,
+    pub frame_ready: bool,
 }
 
 impl GbaTexture {
     pub fn new() -> GbaTexture {
-        GbaTexture {
+        let mut x = GbaTexture {
             texture: Texture::new::<&[u8]>(240, 160, InternalPixelFormat::RGBA, PixelDataFormat::BGRA, PixelDataType::UnsignedShort_1_5_5_5_Rev, None),
             data: Box::new([0xFFFF; 240 * 160]),
-        }
+            frame_ready: false,
+        };
+        x.build_texture();
+        return x;
     }
 
     pub fn get_texture_handle(&self) -> gl::types::GLuint {
         self.texture.get_handle()
+    }
+
+    pub fn build_texture(&mut self) {
+        self.texture.bind();
+        unsafe {
+            gl::PixelStorei(gl::UNPACK_ALIGNMENT, 2);
+            self.texture.set_pixels::<&[u8]>(0, 0, 240, 160, PixelDataFormat::RGBA, PixelDataType::UnsignedShort_1_5_5_5_Rev, std::mem::transmute(&self.data[0..]));
+        }
     }
 }
 
@@ -35,10 +47,6 @@ impl GbaVideoOutput for GbaTexture {
     }
 
     fn post_frame(&mut self) {
-        self.texture.bind();
-        unsafe {
-            gl::PixelStorei(gl::UNPACK_ALIGNMENT, 2);
-            self.texture.set_pixels::<&[u8]>(0, 0, 240, 160, PixelDataFormat::RGBA, PixelDataType::UnsignedShort_1_5_5_5_Rev, std::mem::transmute(&self.data[0..]));
-        }
+        self.frame_ready = true;
     }
 }

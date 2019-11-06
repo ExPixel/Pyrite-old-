@@ -42,7 +42,7 @@ fn run_emulator() -> i32 {
                 return 1;
             }
         }
-        gba.reset(false);
+        gba.reset(true);
     } else {
         eprintln!("error: must pass a GBA ROM as the first argument");
         return 1;

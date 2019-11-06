@@ -141,7 +141,7 @@ impl EmulatorStatsWindow {
 
     pub fn draw(&mut self) {
         if imgui::begin(imgui::str!("Stats"), &mut self.open, imgui::WindowFlags::AlwaysAutoResize | imgui::WindowFlags::NoScrollbar) {
-            let io = imgui::get_io().expect("NO IO");;
+            let io = imgui::get_io().expect("NO IO");
 
             let emu_frame_delay = io.DeltaTime * 1000.0;
             let gba_frame_delay = (self.gba_frame_duration.as_secs_f64() * 1000.0) as f32;
@@ -189,9 +189,9 @@ impl EmulatorStatsWindow {
             imgui::plot_histogram_ex(imgui::str!("GBA Frame Delay"),
                 &self.gba_delay_history.get_internal_buffer(), self.gba_delay_history.get_internal_head() as i32,
                 None, 0.0, gba_scale_max, imgui::vec2(0.0, 0.0), -1);
-            imgui::text(imgui::str_gbuf!("    Average: {:.02}", gba_average_frame_delay));
-            imgui::text(imgui::str_gbuf!("        Min: {:.02}", gba_min_frame_delay));
-            imgui::text(imgui::str_gbuf!("        Max: {:.02}", gba_max_frame_delay));
+            imgui::text(imgui::str_gbuf!("    Average: {:.02} ({:.02} FPS)", gba_average_frame_delay, 1000.0 / gba_average_frame_delay));
+            imgui::text(imgui::str_gbuf!("        Min: {:.02} ({:.02} FPS)", gba_min_frame_delay, 1000.0 / gba_min_frame_delay));
+            imgui::text(imgui::str_gbuf!("        Max: {:.02} ({:.02} FPS)", gba_max_frame_delay, 1000.0 / gba_max_frame_delay));
             let frame_percentage = if gba_frame_delay >= emu_frame_delay {
                 100.0
             } else {

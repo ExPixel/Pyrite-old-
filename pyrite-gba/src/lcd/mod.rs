@@ -1,184 +1,351 @@
-mod bitmap_modes;
-mod tile_modes;
-mod blending;
-mod obj;
+pub mod palette;
+pub mod obj;
+pub mod bitmap;
 
-use super::dma;
-use super::irq;
-use super::{ GbaVideoOutput, GbaMemory };
-use blending::{ RawPixel };
+use self::palette::GbaPalette;
+use crate::util::fixedpoint::{ FixedPoint16, FixedPoint32 };
+use crate::hardware::{ OAM, VRAM };
+use crate::GbaVideoOutput;
+use pyrite_common::bits;
 
-pub const HDRAW_WIDTH: u32 = 240;
-pub const VDRAW_LINES: u32 = 160;
-
-pub const HBLANK_WIDTH: u32 = 68;
-pub const VBLANK_LINES: u32 = 67;
+pub const OBJ_LAYER: u16 = 4;
+pub const  BD_LAYER: u16 = 5;
 
 pub const HDRAW_CYCLES: u32 = 960;
 pub const HBLANK_CYCLES: u32 = 272;
 
-pub type Line = [u16; 240];
-pub type RawLine = [RawPixel; 240];
+
+#[inline(always)]
+const fn set_halfword_of_word(word: u32, value: u16, off: u32) -> u32 {
+    let shift = (off as u32 & 0x10) << 3;
+    (word & !(0xFFFF << shift)) | ((value as u32) << shift)
+}
 
 pub struct GbaLCD {
-    pub(crate) end_of_frame: bool,
-
-    /// cycles remaining in the current state (HDRAW or HBLANK)
-    cycles_remaining:   u32,
-    in_hblank:          bool,
-    line_number:        u32,
-    line_pixels:        Line,
-
-    /// A line before blending is applied.
-    line_raw:           Box<RawLine>,
+    pub(crate) registers:   LCDRegisters,
+    hblank:                 bool,
+    next_state_cycles:      u32,
+    pixels:                 [u16; 240],
+    frame_ready:            bool,
 }
 
 impl GbaLCD {
     pub fn new() -> GbaLCD {
         GbaLCD {
-            cycles_remaining:   HDRAW_CYCLES,
-            in_hblank:          false,
-            line_number:        0,
-            line_pixels:        [0; 240],
-            line_raw:           Box::new([RawPixel::empty(); 240]),
-            end_of_frame:       false,
+            registers:          LCDRegisters::default(),
+            hblank:             false,
+            next_state_cycles:  HDRAW_CYCLES,
+            pixels:             [0xFFFF; 240],
+            frame_ready:        false,
         }
     }
 
-    pub fn init(&mut self, video: &mut dyn GbaVideoOutput) {
-        video.pre_frame();
+    #[inline]
+    pub fn step(&mut self, cycles: u32, vram: &VRAM, oam: &OAM, palette: &GbaPalette, video: &mut dyn GbaVideoOutput) {
+        let original_cycles = self.next_state_cycles;
+        self.next_state_cycles = self.next_state_cycles.saturating_sub(cycles);
+        if self.next_state_cycles == 0 {
+            self.hblank = !self.hblank;
+            if self.hblank {
+                self.next_state_cycles = HDRAW_CYCLES - (cycles - original_cycles);
+                self.hblank(vram, oam, palette, video);
+            } else {
+                self.next_state_cycles = HBLANK_CYCLES - (cycles - original_cycles);
+                self.hdraw();
+            }
+        }
+    }
+
+    fn hdraw(&mut self) {
+        self.registers.dispstat.set_hblank(true);
+        self.registers.line += 1;
+
+        match self.registers.line {
+            160 => self.registers.dispstat.set_vblank(true),
+            227 => self.registers.dispstat.set_vblank(false),
+            228 => self.registers.line = 0,
+            _ => { /* NOP */ },
+        }
+    }
+
+    fn hblank(&mut self, vram: &VRAM, oam: &OAM, palette: &GbaPalette, video: &mut dyn GbaVideoOutput) {
+        self.registers.dispstat.set_hblank(false);
+
+        if self.registers.line < 160 {
+            if self.registers.line ==   0 {  video.pre_frame(); }
+            self.draw_line(vram, oam, palette);
+            video.display_line(self.registers.line as u32, &self.pixels);
+            if self.registers.line == 159 { video.post_frame(); self.frame_ready = true; }
+        }
+    }
+
+    fn draw_line(&mut self, vram: &VRAM, oam: &OAM, palette: &GbaPalette) {
+        let mode = self.registers.dispcnt.mode();
+        
+        match mode {
+            0 => eprintln!("unhandled BG mode 0"),
+            1 => eprintln!("unhandled BG mode 0"),
+            2 => eprintln!("unhandled BG mode 0"),
+            3 => bitmap::render_mode3(&self.registers,vram, oam, palette, &mut self.pixels),
+            4 => eprintln!("unhandled BG mode 0"),
+            5 => eprintln!("unhandled BG mode 0"),
+            _ => eprintln!("bad mode {}", mode),
+        }
+    }
+}
+
+pub struct LCDLineBuffer {
+    pixels: [u32; 240],
+}
+
+impl LCDLineBuffer {
+    /// Pushes a pixel onto the LCD.
+    pub fn push(pixel: u16, offset: usize) {
+    }
+}
+
+#[derive(Default)]
+pub struct LCDRegisters {
+    /// The current line being rendered by the LCD.
+    pub line: u16,
+
+    /// LCD control register.
+    pub dispcnt:    DisplayControl,
+
+    /// LCD status register.
+    pub dispstat:   DisplayStatus,
+
+    // @TODO implement whatever this is.
+    pub greenswap:  u16,
+
+    // Background Control Registers:
+    pub bg_cnt:     [BGControl; 4],
+    pub bg_ofs:     [BGOffset; 4],
+
+
+    // LCD BG Rotation / Scaling:
+    pub bg2_affine_params:  AffineBGParams,
+    pub bg3_affine_params:  AffineBGParams,
+
+    // LCD Windows:
+    pub win0_bounds:    WindowBounds,
+    pub win1_bounds:    WindowBounds,
+    pub winin:          WindowControl,
+    pub winout:         WindowControl,
+
+    // Special Effects
+    pub mosaic:     Mosaic,
+    pub effects:    EffectsSelection,
+    pub alpha:      u16,
+    pub brightness: u16,
+}
+
+impl LCDRegisters {
+    #[inline(always)]
+    pub fn set_dispstat(&mut self, value: u16) {
+        pub const DISPSTAT_WRITEABLE: u16 = 0xFFB4;
+        self.dispstat.value = (self.dispstat.value & !DISPSTAT_WRITEABLE) | (value & DISPSTAT_WRITEABLE);
+    }
+}
+
+bitfields! (DisplayStatus: u16 {
+    vblank, set_vblank: bool = [0, 0],
+    hblank, set_hblank: bool = [1, 1],
+    vcounter, set_vcounter: bool = [2, 2],
+
+    vblank_irq_enable, set_vblank_irq_enable: bool = [3, 3],
+    hblank_irq_enable, set_hblank_irq_enable: bool = [4, 4],
+    vcounter_irq_enable, set_vcounter_irq_enable: bool = [5, 5],
+});
+
+bitfields! (DisplayControl: u16 {
+    mode, set_mode: u16 = [0, 2],
+    frame_select, set_frame_select: u16 = [4, 4],
+    hblank_internal_free, set_hblank_interval_free: bool = [5, 5],
+    one_dimensional_obj, set_one_dimensional_obj: bool = [6, 6],
+    forced_blank, set_forced_blank: bool = [7, 7],
+
+    display_window0, set_display_window0: bool = [13, 13],
+    display_window1, set_display_window1: bool = [14, 14],
+    display_window_obj, set_display_window_obj: bool = [15, 15],
+
+    windows_enabled, set_windows_enabled: bool = [13, 15],
+});
+
+bitfields! (BGControl: u16 {
+    priority, set_priority: u16 = [0, 1],
+    char_base_block, set_char_base_block: u16 = [2, 3],
+    mosaic, set_mosaic: bool = [6, 6],
+    palette256, set_palette256: bool = [7, 7],
+    screen_base_block, set_screen_base_block: u16 = [8, 12],
+    wraparound, set_wraparound: bool = [13, 13],
+    screen_size, set_screen_size: u16 = [14, 15],
+});
+
+impl DisplayControl {
+    pub fn display_layer(layer: u16) -> bool {
+        assert!(layer <= 4,"display layer index must be in range [0, 4]");
+        ((layer >> (layer + 8)) & 1) != 0
+    }
+}
+
+#[derive(Default)]
+pub struct EffectsSelection {
+    inner: u16,
+}
+
+impl EffectsSelection {
+    #[inline(always)] pub fn value(&self) -> u16 { self.inner }
+    #[inline(always)] pub fn set_value(&mut self, value: u16) { self.inner = value; }
+
+    pub fn is_first_target(&self, layer: u16) -> bool {
+        assert!(layer <= 5, "first target layer index must be in range [0, 5]");
+        return (self.inner & (1 << layer)) != 0;
+    }
+
+    pub fn is_second_target(&self, layer: u16) -> bool {
+        assert!(layer <= 5, "second target layer index must be in range [0, 5]");
+        return (self.inner & (1 << (layer + 8))) != 0;
+    }
+
+    pub fn effect(&self) -> SpecialEffect {
+        match bits!(self.inner, 6, 7) {
+            0 => SpecialEffect::None,
+            1 => SpecialEffect::AlphaBlending,
+            2 => SpecialEffect::BrightnessIncrease,
+            3 => SpecialEffect::BrightnessDecrease,
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum SpecialEffect {
+    None,
+    AlphaBlending,
+    BrightnessIncrease,
+    BrightnessDecrease,
+}
+
+
+#[derive(Default)]
+pub struct Mosaic {
+    pub  bg: (/* horizontal */ u8, /* vertical */ u8),
+    pub obj: (/* horizontal */ u8, /* vertical */ u8),
+}
+
+impl Mosaic {
+    pub fn set_value(&mut self, value: u16) {
+         self.bg.0 = (bits!(value,  0,  3) + 1) as u8;
+         self.bg.1 = (bits!(value,  4,  7) + 1) as u8;
+        self.obj.0 = (bits!(value,  8, 11) + 1) as u8;
+        self.obj.1 = (bits!(value, 12, 15) + 1) as u8;
+    }
+}
+
+#[derive(Default)]
+pub struct BGOffset {
+    pub x: u16,
+    pub y: u16,
+}
+
+impl BGOffset {
+    #[inline(always)]
+    pub fn set_x(&mut self, x: u16) {
+        self.x = x & 0x1FF;
     }
 
     #[inline(always)]
-    pub fn step(&mut self, cycles: u32, memory: &mut GbaMemory, video: &mut dyn GbaVideoOutput, cpu_enable_irq: bool) {
-        self.end_of_frame = false;
-        if cycles >= self.cycles_remaining {
-            // #NOTE: having this in a separate function and forcing the compiler to inline this
-            // one increased performance by like 5-10%
-            self.fire(cycles, memory, video, cpu_enable_irq);
-        } else {
-            self.cycles_remaining -= cycles;
-        }
+    pub fn set_y(&mut self, y: u16) {
+        self.y = y & 0x1FF;
     }
+}
 
-    fn fire(&mut self, cycles: u32, memory: &mut GbaMemory, video: &mut dyn GbaVideoOutput, cpu_enable_irq: bool) {
-        if cycles > self.cycles_remaining {
-            self.cycles_remaining = cycles - self.cycles_remaining;
-        } else {
-            self.cycles_remaining = 0;
-        }
+#[derive(Default)]
+pub struct AffineBGParams {
+    pub internal_x: FixedPoint32,
+    pub internal_y: FixedPoint32,
 
-        if self.in_hblank {
-            self.enter_next_line_hdraw(memory, video, cpu_enable_irq);
-            self.in_hblank = false;
-            self.cycles_remaining += HDRAW_CYCLES;
-        } else {
-            self.enter_hblank(memory, video, cpu_enable_irq);
-            self.in_hblank = true;
-            self.cycles_remaining += HBLANK_CYCLES;
-        }
-    }
+    pub a:  FixedPoint32,
+    pub b:  FixedPoint32,
+    pub c:  FixedPoint32,
+    pub d:  FixedPoint32,
 
-    fn enter_hblank(&mut self, memory: &mut GbaMemory, video: &mut dyn GbaVideoOutput, cpu_enable_irq: bool) {
-        if self.line_number < VDRAW_LINES {
-            self.render_line(memory);
-            video.display_line(self.line_number, &self.line_pixels);
-            if self.line_number == (VDRAW_LINES - 1) {
-                self.end_of_frame = true;
-                video.post_frame();
-            }
-        }
+    pub x:  u32,
+    pub y:  u32,
+}
 
-        memory.ioregs.dispstat.set_hblank(true);
-
-        if memory.ioregs.dispstat.hblank_irq_enable() && cpu_enable_irq {
-            irq::request_interrupt(memory, irq::GbaInterrupt::HBlank);
-        }
-
-        // activate all H-Blank DMAs on VISIBLE H-Blanks
-        if self.line_number < VDRAW_LINES {
-            for channel in 0..4 {
-                let channel_control = memory.ioregs.dma_cnt_h[channel];
-                let dma_active = memory.ioregs.internal_dma_registers[channel].active;
-                if channel_control.enabled() && !dma_active && channel_control.start_timing() == dma::DMA_TIMING_HBLANK {
-                    memory.ioregs.internal_dma_registers[channel].active = true;
-                }
-            }
-        }
-    }
-
-    fn enter_next_line_hdraw(&mut self, memory: &mut GbaMemory, video: &mut dyn GbaVideoOutput, cpu_enable_irq: bool) {
-        self.line_number += 1;
-        memory.ioregs.dispstat.set_hblank(false);
-
-        if self.line_number == (VDRAW_LINES + VBLANK_LINES) {
-            memory.ioregs.dispstat.set_vblank(false);
-
-            // on VDRAW start (VBLANK end) we copy the internal point registers into the
-            // internal reference point registers for affine BGs.
-            self.copy_bg_reference_point_registers(memory);
-        } if self.line_number >= (VDRAW_LINES + VBLANK_LINES + 1) {
-            self.line_number = 0;
-
-            video.pre_frame();
-        } else if self.line_number == VDRAW_LINES {
-            memory.ioregs.dispstat.set_vblank(true);
-
-            if memory.ioregs.dispstat.vblank_irq_enable() && cpu_enable_irq {
-                irq::request_interrupt(memory, irq::GbaInterrupt::VBlank);
-            }
-            
-            // activate all V-Blank DMAs
-            for channel in 0..4 {
-                let channel_control = memory.ioregs.dma_cnt_h[channel];
-                let dma_active = memory.ioregs.internal_dma_registers[channel].active;
-                if channel_control.enabled() && !dma_active && channel_control.start_timing() == dma::DMA_TIMING_VBLANK {
-                    memory.ioregs.internal_dma_registers[channel].active = true;
-                }
-            }
-        }
-
-        let vcounter_match = self.line_number as u16 == memory.ioregs.dispstat.vcount_setting();
-        memory.ioregs.dispstat.set_vcounter(vcounter_match);
-        memory.ioregs.vcount.set_current_scanline(self.line_number as u16);
-
-        if memory.ioregs.dispstat.vcount_irq_enable() && cpu_enable_irq && vcounter_match {
-            irq::request_interrupt(memory, irq::GbaInterrupt::VCounterMatch);
-        }
-    }
-
-    /// Copies the BG2 and BG3 reference point registers into the internal reference point
-    /// registers.
+impl AffineBGParams {
+    /// Copies the reference point registers into the internal reference point registers.
     #[inline]
-    fn copy_bg_reference_point_registers(&self, memory: &mut GbaMemory) {
-        memory.ioregs.internal_bg2x = memory.ioregs.bg2x.to_fp32();
-        memory.ioregs.internal_bg2y = memory.ioregs.bg2y.to_fp32();
-        memory.ioregs.internal_bg3x = memory.ioregs.bg3x.to_fp32();
-        memory.ioregs.internal_bg3y = memory.ioregs.bg3y.to_fp32();
+    pub fn copy_reference_points(&mut self) {
+        self.internal_x = FixedPoint32::wrap(((self.x as i32) << 4) >> 4);
+        self.internal_y = FixedPoint32::wrap(((self.y as i32) << 4) >> 4);
     }
 
-    fn render_line(&mut self, memory: &mut GbaMemory) {
-        let backdrop_color = memory.palette.get_bg256(0) | 0x8000;
-        let backdrop_raw = RawPixel::backdrop(memory.ioregs.bldcnt, backdrop_color);
-        for p in self.line_raw.iter_mut() { *p = backdrop_raw; }
+    #[inline]
+    pub fn set_a(&mut self, value: u16) { self.a = FixedPoint32::from(FixedPoint16::wrap(value as i16)); }
+    #[inline]
+    pub fn set_b(&mut self, value: u16) { self.b = FixedPoint32::from(FixedPoint16::wrap(value as i16)); }
+    #[inline]
+    pub fn set_c(&mut self, value: u16) { self.c = FixedPoint32::from(FixedPoint16::wrap(value as i16)); }
+    #[inline]
+    pub fn set_d(&mut self, value: u16) { self.d = FixedPoint32::from(FixedPoint16::wrap(value as i16)); }
+}
 
-        match memory.ioregs.dispcnt.bg_mode() {
-            0 => tile_modes::mode0(self.line_number, &mut self.line_raw, memory),
-            1 => tile_modes::mode1(self.line_number, &mut self.line_raw, memory),
-            2 => tile_modes::mode2(self.line_number, &mut self.line_raw, memory),
-            3 => bitmap_modes::mode3(self.line_number, &mut self.line_raw, memory),
-            4 => bitmap_modes::mode4(self.line_number, &mut self.line_raw, memory),
-            5 => bitmap_modes::mode5(self.line_number, &mut self.line_raw, memory),
+#[derive(Default)]
+pub struct WindowBounds {
+    pub left:   u16,
+    pub top:    u16,
+    pub right:  u16,
+    pub bottom: u16,
+}
 
-            bad_mode => {
-                println!("BAD MODE {}", bad_mode);
-                for out_pixel in self.line_pixels.iter_mut() {
-                    *out_pixel = 0;
-                }
-            },
-        }
+impl WindowBounds {
+    #[inline(always)]
+    pub fn set_left(&mut self, left: u16) {
+        self.left = std::cmp::min(left, 240);
+    }
 
-        let special_effects = blending::SpecialEffects::new(memory.ioregs.bldcnt, memory.ioregs.bldalpha, memory.ioregs.bldy);
-        blending::blend_raw_pixels(&self.line_raw, &mut self.line_pixels, special_effects);
+    #[inline(always)]
+    pub fn set_right(&mut self, right: u16) {
+        self.right = std::cmp::min(right, 240);
+    }
+
+    #[inline(always)]
+    pub fn set_top(&mut self, top: u16) {
+        self.top = std::cmp::min(top, 160);
+    }
+
+    #[inline(always)]
+    pub fn set_bottom(&mut self, bottom: u16) {
+        self.bottom = std::cmp::min(bottom, 160);
+    }
+}
+
+#[derive(Default)]
+pub struct WindowControl {
+    inner: u16,
+}
+
+impl WindowControl {
+    pub fn set_value(&mut self, value: u16) {
+        self.inner = value;
+    }
+
+    #[inline(always)]
+    pub fn value(&self) -> u16 { self.inner }
+
+    /// Returns true if the given background or OBJ layer (layer #4) is enabled in the given window
+    /// (0 or 1). #NOTE That if this window control is for WINOUT, window 0 is the outside window
+    /// and window 1 is the OBJ window.
+    #[inline(always)]
+    pub fn enabled(&self, window: u16, background: u16) -> bool {
+        (self.inner & (self.inner << (background + (window * 8)))) != 0
+    }
+
+    /// Returns true if color special effects is enabled for a given window.
+    pub fn effects_enabled(&self, window: u16) -> bool {
+        (self.inner & (self.inner << (5 + (window * 8)))) != 0
     }
 }

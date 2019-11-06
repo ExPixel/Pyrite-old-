@@ -1,4 +1,4 @@
-use super::super::{ ArmCpu, ArmMemory, registers::CpuMode, clock };
+use super::super::{ ArmCpu, ArmMemory, registers::CpuMode };
 
 
 const LOAD:  bool = true;
@@ -19,12 +19,12 @@ const NO_USER_MODE: bool = false;
 macro_rules! arm_gen_bdt {
     ($name:ident, $transfer:expr, $transfer_type:expr, $direction:expr, $indexing:expr, $writeback:expr, $s_bit:expr) => {
         pub fn $name(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
+            cpu.arm_prefetch(memory);
+
             let register_list = bits!(instr, 0, 15);
             let rn = bits!(instr, 16, 19);
             let reg_count = register_list.count_ones(); // the number of registers being loaded or written to.
             let base = cpu.registers.read(rn);
-
-            cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15));
 
             // The lowest register always goes into the lowest address
             // so the starting address for writes (-4) gets set up here.
@@ -55,10 +55,9 @@ macro_rules! arm_gen_bdt {
             for reg in 0..16 {
                 if (register_list & (1 << reg)) != 0 {
                     addr = addr.wrapping_add(4);
-                    $transfer(cpu, memory, reg, addr);
+                    $transfer(cpu, memory, reg, addr, first);
 
                     if first {
-                        cpu.cycles += memory.data_access_nonseq32(addr);
                         first = false;
 
                         // From Documentation:
@@ -84,9 +83,6 @@ macro_rules! arm_gen_bdt {
                                 cpu.registers.write(rn, writeback_addr);
                             }
                         }
-
-                    } else {
-                        cpu.cycles += memory.data_access_seq32(addr);
                     }
                 }
             }
@@ -105,7 +101,7 @@ macro_rules! arm_gen_bdt {
                 cpu.registers.write_mode(last_mode);
             }
 
-            cpu.cycles += clock::internal(memory, 1);
+            // cpu.cycles += clock::internal(memory, 1); @TODO cycles
 
             if $transfer_type == LOAD && (register_list & (1 << 15)) != 0 {
                 let dest_pc = cpu.registers.read(15);
@@ -114,25 +110,24 @@ macro_rules! arm_gen_bdt {
                 } else {
                     cpu.arm_branch_to(dest_pc, memory);
                 }
-                cpu.cycles += clock::cycles_branch_refill(memory, false, dest_pc);
             }
         }
     };
 }
 
 #[inline(always)]
-fn store_word(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, reg: u32, addr: u32) {
+fn store_word(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, reg: u32, addr: u32, first_transfer: bool) {
     let mut value = cpu.registers.read(reg);
     // Whenever R15 is stored to memory the stored value is the address of the STM instruction plus 12.
     if reg == 15 {
         value += 4;
     }
-    memory.store32(addr, value);
+    memory.write_data_word(addr, value, !first_transfer, &mut cpu.cycles);
 }
 
 #[inline(always)]
-fn load_word(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, reg: u32, addr: u32) {
-    let value = memory.load32(addr);
+fn load_word(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, reg: u32, addr: u32, first_transfer: bool) {
+    let value = memory.read_data_word(addr, !first_transfer, &mut cpu.cycles);
     cpu.registers.write(reg, value);
 }
 

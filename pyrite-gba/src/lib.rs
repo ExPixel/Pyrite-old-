@@ -1,28 +1,24 @@
-pub mod memory;
-pub mod lcd;
-pub mod sound;
-pub mod util;
-pub mod dma;
-pub mod timers;
-pub mod irq;
+#[macro_use] mod util;
+mod sysctl;
+#[allow(dead_code)]
+mod ioregs;
+mod hardware;
+mod lcd;
 
-use memory::GbaMemory;
+use hardware::GbaHardware;
 use pyrite_arm::ArmCpu;
 use pyrite_arm::cpu::CpuException;
-use lcd::GbaLCD;
 
 pub struct Gba {
-    pub memory: GbaMemory,
-    pub cpu: ArmCpu,
-    lcd: GbaLCD,
+    pub cpu:        ArmCpu,
+    pub hardware:   GbaHardware,
 }
 
 impl Gba {
     pub fn new() -> Gba {
         let mut g = Gba {
-            memory: GbaMemory::new(true),
-            cpu: ArmCpu::new(),
-            lcd: GbaLCD::new(),
+            cpu:        ArmCpu::new(),
+            hardware:   GbaHardware::new(),
         };
         g.setup_handler();
         return g;
@@ -51,11 +47,10 @@ impl Gba {
 
     pub fn reset(&mut self, skip_bios: bool) {
         use pyrite_arm::registers;
-        self.memory.init();
         self.cpu.registers.setf_f(); // Disables FIQ interrupts (always high on the GBA)
-
+        self.hardware.sysctl.set_reg_waitcnt(0x4317);
         if skip_bios {
-            self.cpu.set_pc(0x08000000, &mut self.memory);
+            self.cpu.set_pc(0x08000000, &mut self.hardware);
             self.cpu.registers.setf_i(); // Disables IRQ interrupts
             self.cpu.registers.write_mode(registers::CpuMode::System);
             self.cpu.registers.write_with_mode(registers::CpuMode::User, 13, 0x03007F00); // Also System
@@ -63,64 +58,70 @@ impl Gba {
             self.cpu.registers.write_with_mode(registers::CpuMode::Supervisor, 13, 0x03007FE0);
         } else {
             self.cpu.registers.setf_i(); // Disables IRQ interrupts
-            self.cpu.set_pc(0x00000000, &mut self.memory);
+            self.cpu.set_pc(0x00000000, &mut self.hardware);
             self.cpu.registers.write_mode(registers::CpuMode::Supervisor);
         }
 
-        self.memory.ioregs.keyinput.inner = 0x3FF;
+        // @TODO set the keys here
+        // self.memory.ioregs.keyinput.inner = 0x3FF;
         // @TODO some more IO registers need to be set here.
     }
 
     pub fn set_rom(&mut self, rom: Vec<u8>) {
-        self.memory.set_gamepak_rom(rom);
+        self.hardware.set_gamepak_rom(rom);
     }
 
     pub fn set_bios(&mut self, bios: Vec<u8>) {
-        self.memory.set_bios(bios);
+        self.hardware.set_bios_rom(&bios);
     }
 
     pub fn init(&mut self, video: &mut dyn GbaVideoOutput, _audio: &mut dyn GbaAudioOutput) {
-        self.lcd.init(video);
+        // @TODO reimplement lcd init
+        // self.lcd.init(video);
     }
 
     #[inline]
     pub fn step(&mut self, video: &mut dyn GbaVideoOutput, _audio: &mut dyn GbaAudioOutput) {
-        let cycles = if dma::is_any_dma_active(&self.memory) {
-            dma::step_active_channels(&mut self.memory, !self.cpu.registers.getf_i())
-        } else if !self.memory.ioregs.internal_halt {
-            self.cpu.step(&mut self.memory)
-        } else {
-            8 // number of cycles that we advance each step while halted
-        };
+        // @TODO reimplement DMA and other step stuff.
+        let cycles = self.cpu.step(&mut self.hardware);
+        self.hardware.lcd.step(cycles, &self.hardware.vram, &self.hardware.oam, &self.hardware.pal, video);
+        // let cycles = if dma::is_any_dma_active(&self.memory) {
+        //     dma::step_active_channels(&mut self.memory, !self.cpu.registers.getf_i())
+        // } else if !self.memory.ioregs.internal_halt {
+        //     self.cpu.step(&mut self.memory)
+        // } else {
+        //     8 // number of cycles that we advance each step while halted
+        // };
 
-        if timers::is_any_timer_active(&self.memory) {
-            timers::step_active_timers(cycles, &mut self.memory, !self.cpu.registers.getf_i());
-        }
+        // @TODO reimplement timers
+        // if timers::is_any_timer_active(&self.memory) {
+        //     timers::step_active_timers(cycles, &mut self.memory, !self.cpu.registers.getf_i());
+        // }
 
-        self.lcd.step(cycles, &mut self.memory, video, !self.cpu.registers.getf_i());
+        // reimplement lcd step
+        // self.lcd.step(cycles, &mut self.memory, video, !self.cpu.registers.getf_i());
 
-        if !self.cpu.registers.getf_i() && self.memory.ioregs.interrupt_request.inner != 0 {
-            self.memory.ioregs.internal_halt = false;
-            self.cpu.set_pending_exception(CpuException::IRQ);
-        }
-    }
-
-    #[inline]
-    pub fn is_frame_ready(&self) -> bool {
-        self.lcd.end_of_frame
+        // @TODO reimplement IRQ
+        // if !self.cpu.registers.getf_i() && self.memory.ioregs.interrupt_request.inner != 0 {
+        //     self.memory.ioregs.internal_halt = false;
+        //     self.cpu.set_pending_exception(CpuException::IRQ);
+        // }
     }
 
     pub fn set_key_pressed(&mut self, key: KeypadInput, pressed: bool) {
+        // @TODO reimplement key presses
         // 0 = Pressed, 1 = Released
-        if pressed {
-            self.memory.ioregs.keyinput.inner &= !key.mask();
-        } else {
-            self.memory.ioregs.keyinput.inner |= key.mask();
-        }
+        // if pressed {
+        //     self.memory.ioregs.keyinput.inner &= !key.mask();
+        // } else {
+        //     self.memory.ioregs.keyinput.inner |= key.mask();
+        // }
     }
 
     pub fn is_key_pressed(&mut self, key: KeypadInput) -> bool {
-        (self.memory.ioregs.keyinput.inner & (key.mask())) == 0
+        return false;
+        // @TODO reimplement key press checks
+        // (self.memory.ioregs.keyinput.inner & (key.mask())) == 0
     }
 }
 
@@ -169,16 +170,26 @@ pub trait GbaAudioOutput {
     fn play_samples(&mut self);
 }
 
-pub struct NoVideoOutput;
+pub struct NoVideoOutput {
+    pub frame_ready: bool,
+}
+
+impl NoVideoOutput {
+    pub const fn new() -> NoVideoOutput {
+        NoVideoOutput {
+            frame_ready: false,
+        }
+    }
+}
+
 pub struct NoAudioOutput;
 
 impl GbaVideoOutput for NoVideoOutput {
     fn pre_frame(&mut self) { /* NOP */ }
-    fn post_frame(&mut self) { /* NOP */ }
-
-    fn display_line(&mut self, _line: u32, _pixels: &[u16]) {
-        /* NOP */
+    fn post_frame(&mut self) {
+        self.frame_ready = true;
     }
+    fn display_line(&mut self, _line: u32, _pixels: &[u16]) { /* NOP */ }
 }
 
 impl GbaAudioOutput for NoAudioOutput {

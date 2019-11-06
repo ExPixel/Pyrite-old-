@@ -85,8 +85,6 @@ impl GbaImGui {
                         Some(VirtualKeyCode::A) => self.gba.set_key_pressed(KeypadInput::ButtonL, pressed),
                         Some(VirtualKeyCode::S) => self.gba.set_key_pressed(KeypadInput::ButtonR, pressed),
 
-                        Some(VirtualKeyCode::P) if pressed => self.dump_gba_memory(),
-
                         _ => { /* NOP */ },
                     }
                 }
@@ -103,35 +101,13 @@ impl GbaImGui {
         }
     }
 
-    fn dump_gba_memory(&self) {
-        std::fs::create_dir_all("gba-dump").expect("failed to create dump directory");
-
-        write_binary("gba-dump/ewram.bin", &self.gba.memory.mem_ewram);
-        write_binary("gba-dump/iwram.bin", &self.gba.memory.mem_iwram);
-        write_binary("gba-dump/vram.bin", &self.gba.memory.mem_vram);
-        write_binary("gba-dump/oam.bin", &self.gba.memory.mem_oam);
-
-        println!("DUMPED GBA MEMORY");
-
-//         fn write_str(filepath: &str, text: &str) {
-//             write_binary(filepath, text.as_bytes());
-//         }
-
-        fn write_binary(filepath: &str, data: &[u8]) {
-            use std::io::prelude::*;
-            use std::fs::File;
-            let mut file = File::create(filepath).expect(&format!("failed to open file {} for writing", filepath));
-            file.write_all(data).expect(&format!("failed to write data to file {}", filepath));
-            file.sync_all().expect(&format!("failed to sync file {}", filepath));
-        }
-    }
-
     fn render_gba_frame(&mut self) {
         let mut no_audio = pyrite_gba::NoAudioOutput;
         loop {
             self.gba.step(&mut self.gba_texture, &mut no_audio);
-            if self.gba.is_frame_ready() { break }
+            if self.gba_texture.frame_ready { break }
         }
+        self.gba_texture.frame_ready = false;
     }
 
     pub fn render_frame(&mut self, window: &glutin::Window) {
@@ -148,6 +124,7 @@ impl GbaImGui {
         self.render_gba_frame();
         let frame_gba_end_time = std::time::Instant::now();
 
+        self.gba_texture.build_texture();
 
         // initialize imgui frame
         imgui::impls::opengl3::new_frame();

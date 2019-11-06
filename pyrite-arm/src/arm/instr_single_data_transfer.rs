@@ -1,4 +1,4 @@
-use super::super::{ ArmCpu, ArmMemory, registers::CpuMode, clock };
+use super::super::{ ArmCpu, ArmMemory, registers::CpuMode };
 use super::super::alu::bs::{lli, lri, ari, rri};
 
 const LOAD: bool = true;
@@ -21,6 +21,8 @@ const NO_USER_MODE: bool = false;
 macro_rules! arm_gen_sdt {
     ($name:ident, $transfer:expr, $transfer_type:expr, $data_size:expr, $get_offset:expr, $direction:expr, $indexing:expr, $writeback:expr, $user_mode:expr) => (
         pub fn $name(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
+            cpu.arm_prefetch(memory);
+
             let rd = bits!(instr, 12, 15);
             let rn = bits!(instr, 16, 19);
 
@@ -57,8 +59,6 @@ macro_rules! arm_gen_sdt {
                 cpu.registers.write(rn, writeback_addr);
             }
 
-            let pc = cpu.registers.read(15); // used for counting cycles
-            let oaddr = addr; // used for counting cycles
             $transfer(cpu, memory, rd, addr);
 
             // Switch back to our original mode if the "T Bit" is set and we weren't originally in
@@ -71,12 +71,15 @@ macro_rules! arm_gen_sdt {
                 if rd == 15 || ($writeback == WRITEBACK && rn == 15) {
                     let dest_pc = cpu.registers.read(15);
                     cpu.arm_branch_to(dest_pc, memory);
-                    cpu.cycles += clock::cycles_load_register_pc(memory, pc, $data_size, oaddr, dest_pc);
+                    // @TODO cycles
+                    // cpu.cycles += clock::cycles_load_register_pc(memory, pc, $data_size, oaddr, dest_pc);
                 } else {
-                    cpu.cycles += clock::cycles_load_register(memory, false, pc, $data_size, oaddr);
+                    // @TODO cycles
+                    // cpu.cycles += clock::cycles_load_register(memory, false, pc, $data_size, oaddr);
                 }
             } else {
-                cpu.cycles += clock::cycles_store_register(memory,false,  pc, $data_size, oaddr);
+                // @TODO cycles
+                // cpu.cycles += clock::cycles_store_register(memory,false,  pc, $data_size, oaddr);
             }
         }
     );
@@ -94,13 +97,13 @@ fn sdt_ldr(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) {
     //  be rotated into the register so that the addressed byte occupies bit 0-7.
     // Basically we rotate the word to the right by the number of bits that the address
     // is unaligned (offset from the word boundary).
-    let value = memory.load32(addr & 0xFFFFFFFC).rotate_right(8 * (addr % 4));
+    let value = memory.read_data_word(addr & 0xFFFFFFFC, false, &mut cpu.cycles).rotate_right(8 * (addr % 4));
     cpu.registers.write(rd, value);
 }
 
 #[inline(always)]
 fn sdt_ldrb(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) {
-    let value = memory.load8(addr);
+    let value = memory.read_data_byte(addr, false, &mut cpu.cycles);
     cpu.registers.write(rd, value as u32);
 }
 
@@ -110,7 +113,7 @@ fn sdt_str(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) {
     // If the Program Counter is used as the source register in a word store, it will be 12 bytes
     // ahead instead of 8 when read.
     if rd == 15 { value = value.wrapping_add(4); }
-    memory.store32(addr & 0xFFFFFFFC, value);
+    memory.write_data_word(addr & 0xFFFFFFFC, value, false, &mut cpu.cycles);
 }
 
 #[inline(always)]
@@ -119,7 +122,7 @@ fn sdt_strb(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) {
     // If the Program Counter is used as the source register in a byte store, it will be 12 bytes
     // ahead instead of 8 when read.
     if rd == 15 { value = value.wrapping_add(4); }
-    memory.store8(addr, (value & 0xFF) as u8);
+    memory.write_data_byte(addr, (value & 0xFF) as u8, false, &mut cpu.cycles);
 }
 
 #[inline(always)]
