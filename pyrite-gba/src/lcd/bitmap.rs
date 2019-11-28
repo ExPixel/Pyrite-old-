@@ -1,13 +1,13 @@
 use crate::hardware::{ VRAM, OAM };
 use crate::util::memory::read_u16_unchecked;
 use super::obj::ObjectPriority;
-use super::LCDRegisters;
+use super::{ LCDRegisters, LCDLineBuffer };
 use super::palette::GbaPalette;
 
 pub type Mode4FrameBuffer = [u8; 0x9600];
 pub type Mode5FrameBuffer = [u8; 0xA000];
 
-pub fn render_mode3(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut [u16; 240]) {
+pub fn render_mode3(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut LCDLineBuffer) {
     let object_priorities = ObjectPriority::sorted(oam);
     let bg2_priority = registers.bg_cnt[2].priority();
 
@@ -24,7 +24,7 @@ pub fn render_mode3(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
     render_objects_placeholder(object_priorities.objects_with_priority(0), vram, oam, pal, pixels); 
 }
 
-fn render_mode3_bitmap_no_obj_window(line: usize, left: usize, right: usize, vram: &VRAM, pixels: &mut [u16; 240]) {
+fn render_mode3_bitmap_no_obj_window(line: usize, left: usize, right: usize, vram: &VRAM, pixels: &mut LCDLineBuffer) {
     assert!(line < 160);
     assert!(left < 240 && right <= 240);
 
@@ -34,11 +34,11 @@ fn render_mode3_bitmap_no_obj_window(line: usize, left: usize, right: usize, vra
         // This ensures that we never go above 75KB (max address is actually 0x12BFE).
         // The compiler just doesn't seem to be able to optimize the checks away here though.
         // Doing it this way removes bounds checks and allows auto vectorization :o
-        pixels[x] = unsafe { read_u16_unchecked(vram, line_offset + x * 2) } | 0x8000;
+        pixels.push_pixel_fast(x, unsafe { read_u16_unchecked(vram, line_offset + x * 2) } | 0x8000);
     }
 }
 
-pub fn render_mode4(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut [u16; 240]) {
+pub fn render_mode4(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut LCDLineBuffer) {
     const FRAMEBUFFER0_OFFSET: usize = 0x0000;
     const FRAMEBUFFER1_OFFSET: usize = 0xA000;
     const FRAMEBUFFER_SIZE: usize = 0x9600;
@@ -65,7 +65,7 @@ pub fn render_mode4(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
     render_objects_placeholder(object_priorities.objects_with_priority(0), vram, oam, pal, pixels); 
 }
 
-fn render_mode4_bitmap_no_obj_window(line: usize, left: usize, right: usize, framebuffer: &Mode4FrameBuffer, pal: &GbaPalette, pixels: &mut [u16; 240]) {
+fn render_mode4_bitmap_no_obj_window(line: usize, left: usize, right: usize, framebuffer: &Mode4FrameBuffer, pal: &GbaPalette, pixels: &mut LCDLineBuffer) {
     assert!(line < 160);
     assert!(left < 240 && right <= 240);
 
@@ -77,12 +77,12 @@ fn render_mode4_bitmap_no_obj_window(line: usize, left: usize, right: usize, fra
         // Doing it this way removes bounds checks and allows auto vectorization :o
         let palette_entry = framebuffer[line_offset + x];
         if palette_entry != 0 {
-            pixels[x] = pal.bg256(palette_entry as usize);
+            pixels.push_pixel_fast(x, pal.bg256(palette_entry as usize));
         }
     }
 }
 
-pub fn render_mode5(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut [u16; 240]) {
+pub fn render_mode5(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut LCDLineBuffer) {
     const FRAMEBUFFER0_OFFSET: usize = 0x0000;
     const FRAMEBUFFER1_OFFSET: usize = 0xA000;
     const FRAMEBUFFER_SIZE: usize = 0xA000;
@@ -111,7 +111,7 @@ pub fn render_mode5(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
     render_objects_placeholder(object_priorities.objects_with_priority(0), vram, oam, pal, pixels); 
 }
 
-fn render_mode5_bitmap_no_obj_window(line: usize, left: usize, right: usize, framebuffer: &Mode5FrameBuffer, pixels: &mut [u16; 240]) {
+fn render_mode5_bitmap_no_obj_window(line: usize, left: usize, right: usize, framebuffer: &Mode5FrameBuffer, pixels: &mut LCDLineBuffer) {
     assert!(line < 160);
     assert!(left < 240 && right <= 240);
 
@@ -121,10 +121,10 @@ fn render_mode5_bitmap_no_obj_window(line: usize, left: usize, right: usize, fra
         // This ensures that we never go above 75KB (max address is actually 0x12BFE).
         // The compiler just doesn't seem to be able to optimize the checks away here though.
         // Doing it this way removes bounds checks and allows auto vectorization :o
-        pixels[x] = unsafe { read_u16_unchecked(framebuffer, line_offset + x * 2) } | 0x8000;
+        pixels.push_pixel_fast(x, unsafe { read_u16_unchecked(framebuffer, line_offset + x * 2) } | 0x8000);
     }
 }
 
 #[inline(never)]
-fn render_objects_placeholder(objects: &[u16], _vram: &VRAM, _oam: &OAM, _pal: &GbaPalette, _pixels: &mut [u16; 240]) {
+fn render_objects_placeholder(objects: &[u16], _vram: &VRAM, _oam: &OAM, _pal: &GbaPalette, _pixels: &mut LCDLineBuffer) {
 }

@@ -1,10 +1,10 @@
 use crate::hardware::{ VRAM, OAM };
 use crate::util::memory::read_u16_unchecked;
 use super::obj::ObjectPriority;
-use super::{ LCDRegisters, BGControl, BGOffset };
+use super::{ LCDRegisters, LCDLineBuffer, BGControl, BGOffset };
 use super::palette::GbaPalette;
 
-pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut [u16; 240]) {
+pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut LCDLineBuffer) {
     let object_priorities = ObjectPriority::sorted(oam);
 
     for priority in (0usize..=3).rev() {
@@ -24,16 +24,16 @@ pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
     }
 }
 
-pub fn render_mode1(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut [u16; 240]) {
+pub fn render_mode1(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut LCDLineBuffer) {
 }
 
-pub fn render_mode2(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut [u16; 240]) {
+pub fn render_mode2(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut LCDLineBuffer) {
 }
 
 // #TODO implement this
 fn apply_mosaic(a: u32, _b: u32) -> u32 { a }
 
-pub fn draw_text_bg_4bpp_no_obj_window(line: u32, left: u32, right: u32, bg: &TextBG, vram: &VRAM, palette: &GbaPalette, dest: &mut [u16]) {
+pub fn draw_text_bg_4bpp_no_obj_window(line: u32, left: u32, right: u32, bg: &TextBG, vram: &VRAM, palette: &GbaPalette, dest: &mut LCDLineBuffer) {
     pub const BYTES_PER_TILE: u32 = 32;
     pub const BYTES_PER_LINE: u32 = 4;
 
@@ -74,23 +74,23 @@ pub fn draw_text_bg_4bpp_no_obj_window(line: u32, left: u32, right: u32, bg: &Te
                 let lo_palette_entry = palette_entry & 0xF;
                 let hi_palette_entry = palette_entry >> 4;
                 if lo_palette_entry != 0 {
-                    dest[dx as usize] = palette.bg16(tile_palette as usize, lo_palette_entry as usize);
+                    dest.push_pixel(dx as usize, palette.bg16(tile_palette as usize, lo_palette_entry as usize), bg.first_target, bg.second_target);
                 }
                 if hi_palette_entry != 0 {
-                    dest[dx as usize + 1] = palette.bg16(tile_palette as usize, hi_palette_entry as usize);
+                    dest.push_pixel(dx as usize + 1, palette.bg16(tile_palette as usize, hi_palette_entry as usize), bg.first_target, bg.second_target);
                 }
                 dx += 2;
                 pixel_offset = pixel_offset.wrapping_add(pinc);
             }
         } else {
             let palette_entry = (vram[pixel_offset as usize] >> ((tx % 2) << 2)) & 0xF;
-            dest[dx as usize] = palette.bg16(tile_palette as usize, palette_entry as usize);
+            dest.push_pixel(dx as usize, palette.bg16(tile_palette as usize, palette_entry as usize), bg.first_target, bg.second_target);
             dx += 1;
         }
     }
 }
 
-pub fn draw_text_bg_8bpp_no_obj_window(line: u32, left: u32, right: u32, bg: &TextBG, vram: &VRAM, palette: &GbaPalette, dest: &[u16]) {
+pub fn draw_text_bg_8bpp_no_obj_window(line: u32, left: u32, right: u32, bg: &TextBG, vram: &VRAM, palette: &GbaPalette, dest: &mut LCDLineBuffer) {
     unimplemented!();
 }
 
@@ -107,6 +107,9 @@ pub struct TextBG {
 
     mosaic_x:   u32,
     mosaic_y:   u32,
+
+    first_target:   bool,
+    second_target:  bool,
 }
 
 impl TextBG {
@@ -128,6 +131,8 @@ impl TextBG {
             height:         height,
             mosaic_x:       0,
             mosaic_y:       0,
+            first_target:   false,
+            second_target:  false,
         }
     }
 
@@ -144,5 +149,5 @@ impl TextBG {
 }
 
 #[inline(never)]
-fn render_objects_placeholder(objects: &[u16], _vram: &VRAM, _oam: &OAM, _pal: &GbaPalette, _pixels: &mut [u16; 240]) {
+fn render_objects_placeholder(objects: &[u16], _vram: &VRAM, _oam: &OAM, _pal: &GbaPalette, _pixels: &mut LCDLineBuffer) {
 }

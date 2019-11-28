@@ -24,9 +24,9 @@ const fn set_halfword_of_word(word: u32, value: u16, off: u32) -> u32 {
 
 pub struct GbaLCD {
     pub(crate) registers:   LCDRegisters,
+    pub(crate) pixels:      LCDLineBuffer,
     hblank:                 bool,
     next_state_cycles:      u32,
-    pixels:                 [u16; 240],
     frame_ready:            bool,
 }
 
@@ -36,7 +36,7 @@ impl GbaLCD {
             registers:          LCDRegisters::default(),
             hblank:             false,
             next_state_cycles:  HDRAW_CYCLES,
-            pixels:             [0xFFFF; 240],
+            pixels:             LCDLineBuffer::new(),
             frame_ready:        false,
         }
     }
@@ -74,8 +74,8 @@ impl GbaLCD {
 
         if self.registers.line < 160 {
             if self.registers.line ==   0 {  video.pre_frame(); }
-            // self.draw_line(vram, oam, palette);
-            video.display_line(self.registers.line as u32, &self.pixels);
+            self.draw_line(vram, oam, palette);
+            video.display_line(self.registers.line as u32, &self.pixels.pixels);
             if self.registers.line == 159 { video.post_frame(); self.frame_ready = true; }
         }
     }
@@ -85,7 +85,7 @@ impl GbaLCD {
 
         let backdrop = palette.backdrop();
         for x in 0..240 {
-            self.pixels[x] = backdrop;
+            self.pixels.push_pixel_fast(x, backdrop);
         }
 
         let mode = self.registers.dispcnt.mode();
@@ -99,6 +99,82 @@ impl GbaLCD {
             5 => bitmap::render_mode5(&self.registers, vram, oam, palette, &mut self.pixels),
             _ => eprintln!("bad mode {}", mode),
         }
+    }
+}
+
+pub struct LCDLineBuffer {
+    pub(crate) pixels:         [u16; 240],
+    pub(crate) second_targets: LCDPixelBits,
+    pub(crate) obj_window:     LCDPixelBits,
+}
+
+impl LCDLineBuffer {
+    pub const fn new() -> LCDLineBuffer {
+        LCDLineBuffer {
+            pixels:         [0xFFFF; 240],
+            second_targets: LCDPixelBits::new(),
+            obj_window:     LCDPixelBits::new(),
+        }
+    }
+
+    pub fn push_pixel_fast(&mut self, index: usize, color: u16) {
+        self.pixels[index] = color;
+    }
+
+    pub fn push_pixel(&mut self, index: usize, color: u16, first_target: bool, second_target: bool) {
+        if second_target {
+            self.second_targets.set(index as u8);
+        }
+        self.pixels[index] = color;
+    }
+}
+
+/// A bit vector with a bit associated with each pixel of the LCD.
+pub(crate) struct LCDPixelBits {
+    bits: [u64; 4],
+}
+
+impl LCDPixelBits {
+    pub const fn new() -> LCDPixelBits {
+        LCDPixelBits {
+             bits: [0, 0, 0, 0],
+        }
+    }
+
+    #[inline(always)]
+    pub fn set(&mut self, bit: u8) {
+        let index   = bit as usize / 64;
+        let shift   = bit as u64 % 64;
+        self.bits[index] |= 1 << shift;
+    }
+
+    #[inline(always)]
+    pub fn clear(&mut self, bit: u8) {
+        let index   = bit as usize / 64;
+        let shift   = bit as u64 % 64;
+        self.bits[index] &= !(1 << shift);
+    }
+
+    #[inline(always)]
+    pub fn put(&mut self, bit: u8, value: bool) {
+        if value {
+            self.set(bit);
+        } else {
+            self.clear(bit);
+        }
+    }
+
+    #[inline(always)]
+    pub fn get(&self, bit: u8) -> bool {
+        let index   = bit as usize / 64;
+        let shift   = bit as u64 % 64;
+
+        ((self.bits[index] >> shift) & 1) != 0
+    }
+
+    #[inline(always)]
+    pub fn set_block(&mut self, block: usize, value: u64) {
+        self.bits[block] = value;
     }
 }
 
