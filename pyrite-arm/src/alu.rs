@@ -1,6 +1,27 @@
 use super::ArmCpu;
 
 #[inline]
+pub fn internal_multiply_cycles(mut rhs: u32, signed: bool) -> u32 {
+    // if the most significant bits of RHS are set (RHS is negative), we use !RHS so that we can
+    // just check if they are zero instead to handle both the positive and negative case.
+    if signed && (rhs as i32) < 0 { rhs = !rhs }
+
+    if (rhs & 0xFFFFFF00) == 0 {
+        // m = 1, if bits [32:8] of the multiplier operand are all zero or all one
+        1
+    } else if (rhs & 0xFFFF0000) == 0 {
+        // m = 2, if bits [32:16] of the multiplier operand are all zero or all one.
+        2
+    } else if (rhs & 0xFF000000) == 0 {
+        // m = 3, if bits [32:24] of the multiplier operand are all zero or all one.
+        3
+    } else {
+        // m = 4, in all other cases
+        4
+    }
+}
+
+#[inline]
 pub fn arm_alu_adc(cpu: &mut ArmCpu, lhs: u32, rhs: u32) -> u32 {
     lhs.wrapping_add(rhs).wrapping_add(if cpu.registers.getf_c() { 1 } else { 0 })
 }

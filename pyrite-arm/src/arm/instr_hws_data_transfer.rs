@@ -53,15 +53,7 @@ macro_rules! arm_gen_hwsdt {
                 if rd == 15 || ($writeback == WRITEBACK && rn == 15) {
                     let dest_pc = cpu.registers.read(15);
                     cpu.arm_branch_to(dest_pc, memory);
-                    // @TODO cycles
-                    // cpu.cycles += clock::cycles_load_register_pc(memory, pc, $data_size, oaddr, dest_pc);
-                } else {
-                    // @TODO cycles
-                    // cpu.cycles += clock::cycles_load_register(memory, false, pc, $data_size, oaddr);
                 }
-            } else {
-                // @TODO cycles
-                // cpu.cycles += clock::cycles_store_register(memory, false, pc, $data_size, oaddr);
             }
         }
     );

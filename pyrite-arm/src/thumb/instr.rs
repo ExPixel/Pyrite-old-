@@ -39,10 +39,6 @@ macro_rules! impl_move_shifted_register {
             let res = $op(cpu, lhs, rhs);
             alu::set_nz_flags(cpu, res); // emulates a move, so we set NZ
             cpu.registers.write(rd, res);
-
-            // clock the instruction prefetch
-            // @TODO cycles
-            // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
         }
     }
 }
@@ -67,10 +63,6 @@ pub fn thumb_add_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) 
     let res = alu::arm_alu_adds(cpu, lhs, rhs);
 
     cpu.registers.write(rd, res);
-
-    // clock the instruction prefetch
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
 }
 
 /// Subtract contents of Rn from contents of Rs. Place result in Rd.
@@ -86,10 +78,6 @@ pub fn thumb_sub_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) 
     let res = alu::arm_alu_subs(cpu, lhs, rhs);
 
     cpu.registers.write(rd, res);
-
-    // clock the instruction prefetch
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
 }
 
 /// Add 3-bit immediate value to contents of Rs. Place result in Rd.
@@ -104,10 +92,6 @@ pub fn thumb_add_imm3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32)
     let res = alu::arm_alu_adds(cpu, lhs, rhs);
 
     cpu.registers.write(rd, res);
-
-    // clock the instruction prefetch
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
 }
 
 /// Subtract 3-bit immediate value from contents of Rs. Place result in Rd.
@@ -122,10 +106,6 @@ pub fn thumb_sub_imm3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32)
     let res = alu::arm_alu_subs(cpu, lhs, rhs);
 
     cpu.registers.write(rd, res);
-
-    // clock the instruction prefetch
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
 }
 
 macro_rules! mov_compare_add_subtract_imm {
@@ -138,10 +118,6 @@ macro_rules! mov_compare_add_subtract_imm {
             let rhs = opcode & 0xFF;
             let res = $op(cpu, lhs, rhs);
             cpu.registers.write(rd, res);
-
-            // clock the instruction prefetch
-            // @TODO cycles
-            // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
         }
     };
 
@@ -153,10 +129,6 @@ macro_rules! mov_compare_add_subtract_imm {
             let lhs = cpu.registers.read(rd);
             let rhs = opcode & 0xFF;
             $op(cpu, lhs, rhs);
-
-            // clock the instruction prefetch
-            // @TODO cycles
-            // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
         }
     };
 }
@@ -213,10 +185,6 @@ pub fn thumb_dp_g1(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
         3 => { let res = alu::arm_alu_lrr_s(cpu, lhs, rhs & 0xFF); alu::set_nz_flags(cpu, res); cpu.registers.write(rd, res) },
         _ => unreachable!(),
     }
-
-    // clock the instruction prefetch
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
 }
 
 pub fn thumb_dp_g2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -235,10 +203,6 @@ pub fn thumb_dp_g2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
         3 => { let res = alu::arm_alu_rrr_s(cpu, lhs, rhs & 0xFF); alu::set_nz_flags(cpu, res); cpu.registers.write(rd, res) },
         _ => unreachable!(),
     }
-
-    // clock the instruction prefetch
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
 }
 
 pub fn thumb_dp_g3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -257,10 +221,6 @@ pub fn thumb_dp_g3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
         3 => { alu::arm_alu_cmns(cpu, lhs, rhs); },
         _ => unreachable!(),
     }
-
-    // clock the instruction prefetch
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
 }
 
 pub fn thumb_dp_g4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -278,19 +238,14 @@ pub fn thumb_dp_g4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
             let res = lhs.wrapping_mul(rhs);
             cpu.registers.write(rd, res);
             alu::set_nz_flags(cpu, res);
-            // @TODO cycles
-            // cpu.cycles += clock::cycles_multiply(memory, false, cpu.registers.read(15), rhs, true);
+
+            let icycles = alu::internal_multiply_cycles(rhs, false);
+            cpu.cycles += icycles;
+            memory.on_internal_cycles(icycles);
         },
         2 => { let res = alu::arm_alu_bics(cpu, lhs, rhs); cpu.registers.write(rd, res) },
         3 => { let res = alu::arm_alu_mvns(cpu, lhs, rhs); cpu.registers.write(rd, res) },
         _ => unreachable!(),
-    }
-
-    // if this was not a multiply instruction
-    if bits!(opcode, 6, 7) != 1 {
-        // clock the instruction prefetch
-        // @TODO cycles
-        // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
     }
 }
 
@@ -308,13 +263,8 @@ pub fn thumb_addh(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
 
     cpu.registers.write(rd, res);
 
-    // clock the instruction prefetch
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
     if unlikely!(rd == 15) {
         let dest = cpu.registers.read(15) & 0xFFFFFFFE;
-        // @TODO cycles
-        // cpu.cycles += clock::cycles_branch_refill(memory, true, dest);
         cpu.thumb_branch_to(dest, memory);
     }
 }
@@ -330,10 +280,6 @@ pub fn thumb_cmph(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
     let lhs = cpu.registers.read(rd);
     let rhs = cpu.registers.read(rs);
     alu::arm_alu_cmps(cpu, lhs, rhs);
-
-    // clock the instruction prefetch
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
 }
 
 pub fn thumb_movh(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -346,13 +292,8 @@ pub fn thumb_movh(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
     let rhs = cpu.registers.read(rs);
     cpu.registers.write(rd, rhs);
 
-    // clock the instruction prefetch
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
     if unlikely!(rd == 15) {
         let dest = cpu.registers.read(15) & 0xFFFFFFFE;
-        // @TODO cycles
-        // cpu.cycles += clock::cycles_branch_refill(memory, true, dest);
         cpu.thumb_branch_to(dest, memory);
     }
 }
@@ -364,33 +305,23 @@ pub fn thumb_bx_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
     let rs = bits!(opcode, 3, 5) + (if rs_hi { 8 } else { 0 });
     let mut dest = cpu.registers.read(rs);
 
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
-
     if (dest & 1) == 0 {
         dest &= 0xFFFFFFFC;
         cpu.registers.clearf_t();
         cpu.arm_branch_to(dest, memory);
-        // @TODO cycles
-        // cpu.cycles += clock::cycles_branch_refill(memory, false, dest);
     } else {
         dest &= 0xFFFFFFFE;
         cpu.thumb_branch_to(dest, memory);
-        // @TODO cycles
-        // cpu.cycles += clock::cycles_branch_refill(memory, true, dest);
     }
 }
 
 pub fn thumb_b(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
-    // cpu.thumb_prefetch(memory);
     cpu.thumb_prefetch_cycles(memory);
 
     let offset = sign_extend_32!((opcode & 0x7FF) << 1, 12);
     let pc = cpu.registers.read(15);
     let dest = pc.wrapping_add(offset) & 0xFFFFFFFE;
     cpu.thumb_branch_to(dest, memory);
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_branch(memory, true, pc, dest);
 }
 
 #[inline(always)]
@@ -411,9 +342,6 @@ fn thumb_ldr_pc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rd: u
     //        be word aligned.
     let data = memory.read_data_word(addr, false, &mut cpu.cycles);
     cpu.registers.write(rd, data);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_load_register(memory, true, pc, 32, addr);
 }
 
 pub fn thumb_ldr_pc_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldr_pc(cpu, memory, opcode, 0) }
@@ -437,9 +365,6 @@ pub fn thumb_str_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) 
     let addr = base.wrapping_add(offset);
 
     sdt_str(cpu, memory, rd, addr);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_store_register(memory, true, cpu.registers.read(15), 32, addr);
 }
 
 pub fn thumb_ldr_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -454,9 +379,6 @@ pub fn thumb_ldr_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) 
     let addr = base.wrapping_add(offset);
 
     sdt_ldr(cpu, memory, rd, addr);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_load_register(memory, true, cpu.registers.read(15), 32, addr);
 }
 
 pub fn thumb_strb_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -472,9 +394,6 @@ pub fn thumb_strb_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32)
 
     let value = cpu.registers.read(rd);
     memory.write_data_byte(addr, (value & 0xFF) as u8, false, &mut cpu.cycles);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_store_register(memory, true, cpu.registers.read(15), 8, addr);
 }
 
 pub fn thumb_ldrb_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -490,9 +409,6 @@ pub fn thumb_ldrb_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32)
 
     let value = memory.read_data_byte(addr, false, &mut cpu.cycles);
     cpu.registers.write(rd, value as u32);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_load_register(memory, true, cpu.registers.read(15), 8, addr);
 }
 
 pub fn thumb_strh_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -508,9 +424,6 @@ pub fn thumb_strh_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32)
 
     let value = cpu.registers.read(rd) & 0xFFFF;
     memory.write_data_halfword(addr, value as u16, false, &mut cpu.cycles);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_store_register(memory, true, cpu.registers.read(15), 16, addr);
 }
 
 pub fn thumb_ldrsb_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -526,9 +439,6 @@ pub fn thumb_ldrsb_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32
 
     let value = memory.read_data_byte(addr, false, &mut cpu.cycles) as i8 as i32 as u32;
     cpu.registers.write(rd, value);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_load_register(memory, true, cpu.registers.read(15), 8, addr);
 }
 
 pub fn thumb_ldrh_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -544,9 +454,6 @@ pub fn thumb_ldrh_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32)
 
     let value = memory.read_data_halfword(addr, false, &mut cpu.cycles) as u32;
     cpu.registers.write(rd, value);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_load_register(memory, true, cpu.registers.read(15), 16, addr);
 }
 
 pub fn thumb_ldrsh_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -562,9 +469,6 @@ pub fn thumb_ldrsh_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32
 
     let value = memory.read_data_halfword(addr, false, &mut cpu.cycles) as i16 as i32 as u32;
     cpu.registers.write(rd, value);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_load_register(memory, true, cpu.registers.read(15), 16, addr);
 }
 
 pub fn thumb_str_imm5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -578,9 +482,6 @@ pub fn thumb_str_imm5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32)
     let addr = base.wrapping_add(offset);
 
     sdt_str(cpu, memory, rd, addr);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_store_register(memory, true, cpu.registers.read(15), 32, addr);
 }
 
 pub fn thumb_ldr_imm5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -594,9 +495,6 @@ pub fn thumb_ldr_imm5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32)
     let addr = base.wrapping_add(offset);
 
     sdt_ldr(cpu, memory, rd, addr);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_load_register(memory, true, cpu.registers.read(15), 32, addr);
 }
 
 pub fn thumb_strb_imm5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -611,9 +509,6 @@ pub fn thumb_strb_imm5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32
 
     let value = cpu.registers.read(rd);
     memory.write_data_byte(addr, (value & 0xFF) as u8, false, &mut cpu.cycles);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_store_register(memory, true, cpu.registers.read(15), 8, addr);
 }
 
 pub fn thumb_ldrb_imm5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -628,9 +523,6 @@ pub fn thumb_ldrb_imm5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32
 
     let value = memory.read_data_byte(addr, false, &mut cpu.cycles);
     cpu.registers.write(rd, value as u32);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_load_register(memory, true, cpu.registers.read(15), 8, addr);
 }
 
 pub fn thumb_strh_imm5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -645,9 +537,6 @@ pub fn thumb_strh_imm5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32
 
     let value = cpu.registers.read(rd) & 0xFFFF;
     memory.write_data_halfword(addr, value as u16, false, &mut cpu.cycles);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_store_register(memory, true, cpu.registers.read(15), 16, addr);
 }
 
 pub fn thumb_ldrh_imm5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -662,9 +551,6 @@ pub fn thumb_ldrh_imm5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32
 
     let value = memory.read_data_halfword(addr, false, &mut cpu.cycles) as u32;
     cpu.registers.write(rd, value);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_load_register(memory, true, cpu.registers.read(15), 16, addr);
 }
 
 #[inline(always)]
@@ -675,9 +561,6 @@ fn thumb_strsp(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rd: u3
     let addr = cpu.registers.read(13).wrapping_add(offset);
 
     sdt_str(cpu, memory, rd, addr);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_store_register(memory, true, cpu.registers.read(15), 32, addr);
 }
 
 pub fn thumb_strsp_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_strsp(cpu, memory, opcode, 0) }
@@ -697,9 +580,6 @@ fn thumb_ldrsp(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rd: u3
     let addr = cpu.registers.read(13).wrapping_add(offset);
 
     sdt_ldr(cpu, memory, rd, addr);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_load_register(memory, true, cpu.registers.read(15), 32, addr);
 }
 
 pub fn thumb_ldrsp_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldrsp(cpu, memory ,opcode, 0) }
@@ -722,10 +602,6 @@ fn thumb_addpc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rd: u3
     //      before bit 1 is forced to 0.
     let pc = cpu.registers.read(15) & 0xFFFFFFFD;
     cpu.registers.write(rd, pc.wrapping_add(offset));
-
-    // clock the instruction prefetch
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, pc);
 }
 
 #[inline(always)]
@@ -735,10 +611,6 @@ fn thumb_addsp(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rd: u3
     let offset = (opcode & 0xFF) << 2;
     let sp = cpu.registers.read(13);
     cpu.registers.write(rd, sp.wrapping_add(offset));
-
-    // clock the instruction prefetch
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
 }
 
 pub fn thumb_addpc_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_addpc(cpu, memory, opcode, 0) }
@@ -768,10 +640,6 @@ pub fn thumb_addsp_imm7(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u3
     }
     let sp = cpu.registers.read(13);
     cpu.registers.write(13, sp.wrapping_add(offset));
-
-    // clock the instruction prefetch
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
 }
 
 pub fn thumb_push(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -788,27 +656,16 @@ pub fn thumb_push(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
     // writeback the value to the base register (R13)
     cpu.registers.write(13, base.wrapping_sub(reg_count * 4));
 
-    // count prefetch cycles
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
-
     // transfer
-    let mut first = true;
+    let mut seq = false;
     for reg in 0..8 {
         if (register_list & (1 << reg)) != 0 {
             addr = addr.wrapping_add(4);
 
             let value = cpu.registers.read(reg);
-            memory.write_data_word(addr, value, false, &mut cpu.cycles);
+            memory.write_data_word(addr, value, seq, &mut cpu.cycles);
 
-            if first {
-                // @TODO cycles
-                // cpu.cycles += memory.data_access_nonseq32(addr);
-                first = false;
-            } else {
-                // @TODO cycles
-                // cpu.cycles += memory.data_access_seq32(addr);
-            }
+            if !seq { seq = true; }
         }
     }
 }
@@ -827,41 +684,23 @@ pub fn thumb_push_lr(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) 
     // writeback the value to the base register (R13)
     cpu.registers.write(13, base.wrapping_sub(reg_count * 4));
 
-    // count prefetch cycles
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
-
     // transfer
-    let mut first = true;
+    let mut seq = true;
     for reg in 0..8 {
         if (register_list & (1 << reg)) != 0 {
             addr = addr.wrapping_add(4);
 
             let value = cpu.registers.read(reg);
-            memory.write_data_word(addr, value, false, &mut cpu.cycles);
+            memory.write_data_word(addr, value, seq, &mut cpu.cycles);
 
-            if first {
-                // @TODO cycles
-                // cpu.cycles += memory.data_access_nonseq32(addr);
-                first = false;
-            } else {
-                // @TODO cycles
-                // cpu.cycles += memory.data_access_seq32(addr);
-            }
+            if !seq { seq = true; }
         }
     }
 
     // transfer LR
     addr = addr.wrapping_add(4);
     let value = cpu.registers.read(14);
-    memory.write_data_word(addr, value, false, &mut cpu.cycles);
-    if first {
-        // @TODO cycles
-        // cpu.cycles += memory.data_access_nonseq32(addr);
-    } else {
-        // @TODO cycles
-        // cpu.cycles += memory.data_access_seq32(addr);
-    }
+    memory.write_data_word(addr, value, seq, &mut cpu.cycles);
 }
 
 pub fn thumb_pop(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -878,29 +717,27 @@ pub fn thumb_pop(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
     // writeback the ending address to the base register (R13)
     cpu.registers.write(13, base.wrapping_add(reg_count * 4));
 
-    // count prefetch cycles
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
-
     // transfer
-    let mut first = true;
+    let mut seq = false;
     for reg in 0..8 {
         if (register_list & (1 << reg)) != 0 {
             addr = addr.wrapping_add(4);
 
-            let value = memory.read_data_word(addr, false, &mut cpu.cycles);
+            let value = memory.read_data_word(addr, seq, &mut cpu.cycles);
             cpu.registers.write(reg, value);
 
-            if first {
-                // @TODO cycles
-                // cpu.cycles += memory.data_access_nonseq32(addr);
-                first = false;
-            } else {
-                // @TODO cycles
-                // cpu.cycles += memory.data_access_seq32(addr);
-            }
+            if !seq { seq = true }
         }
     }
+
+    // This final internal cycle is for moving the last word into its destination
+    // register.
+    //
+    // #TODO The ARM7TDMI documentation also mentions that this can be merged with the
+    // next prefetch cycle as well to create one N cycle, but I'm not sure if the GBA does
+    // that or not.
+    cpu.cycles += 1;
+    memory.on_internal_cycles(1);
 }
 
 pub fn thumb_pop_pc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -917,42 +754,33 @@ pub fn thumb_pop_pc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
     // writeback the value to the base register (R13)
     cpu.registers.write(13, base.wrapping_add(reg_count * 4));
 
-    // count prefetch cycles
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
-
     // transfer
-    let mut first = true;
+    let mut seq = false;
     for reg in 0..8 {
         if (register_list & (1 << reg)) != 0 {
             addr = addr.wrapping_add(4);
 
-            let value = memory.read_data_word(addr, false, &mut cpu.cycles);
+            let value = memory.read_data_word(addr, seq, &mut cpu.cycles);
             cpu.registers.write(reg, value);
 
-            if first {
-                // @TODO cycles
-                // cpu.cycles += memory.data_access_nonseq32(addr);
-                first = false;
-            } else {
-                // @TODO cycles
-                // cpu.cycles += memory.data_access_seq32(addr);
-            }
+            if !seq { seq = true; }
         }
     }
 
+    // This final internal cycle is for moving the last word into its destination
+    // register.
+    //
+    // #TODO The ARM7TDMI documentation also mentions that this can be merged with the
+    // next prefetch cycle as well to create one N cycle, but I'm not sure if the GBA does
+    // that or not.
+    cpu.cycles += 1;
+    memory.on_internal_cycles(1);
+
     // transfer PC
     addr = addr.wrapping_add(4);
-    let value = memory.read_data_word(addr, false, &mut cpu.cycles);
+    let value = memory.read_data_word(addr, seq, &mut cpu.cycles);
     let dest = value & 0xFFFFFFFE;
     cpu.thumb_branch_to(dest, memory);
-    if first {
-        // @TODO cycles
-        // cpu.cycles += memory.data_access_nonseq32(addr);
-    } else {
-        // @TODO cycles
-        // cpu.cycles += memory.data_access_seq32(addr);
-    }
 }
 
 fn thumb_stmia(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rb: u32) {
@@ -965,31 +793,22 @@ fn thumb_stmia(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rb: u3
     // the lowest register always goes into the lowest address so we precalculate the lowest
     let mut addr = base.wrapping_sub(4);
 
-    // count prefetch cycles
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
-
     // transfer
-    let mut first = true;
+    let mut seq = false;
     for reg in 0..8 {
         if (register_list & (1 << reg)) != 0 {
             addr = addr.wrapping_add(4);
 
             let value = cpu.registers.read(reg);
-            memory.write_data_word(addr, value, false, &mut cpu.cycles);
+            memory.write_data_word(addr, value, seq, &mut cpu.cycles);
 
-            if first {
-                // @TODO cycles
-                // cpu.cycles += memory.data_access_nonseq32(addr);
-                first = false;
+            if !seq {
+                seq = true;
 
                 // @NOTE see ARM block data transfer instruction documentation for why this is
                 //       here.
                 // writeback the ending address to the base register
                 cpu.registers.write(rb, base.wrapping_add(reg_count * 4));
-            } else {
-                // @TODO cycles
-                // cpu.cycles += memory.data_access_seq32(addr);
             }
         }
     }
@@ -1008,29 +827,31 @@ fn thumb_ldmia(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rb: u3
     // writeback the ending address to the base register
     cpu.registers.write(rb, base.wrapping_add(reg_count * 4));
 
-    // count prefetch cycles
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, true, cpu.registers.read(15));
-
     // transfer
-    let mut first = true;
+    let mut seq = false;
     for reg in 0..8 {
         if (register_list & (1 << reg)) != 0 {
             addr = addr.wrapping_add(4);
 
-            let value = memory.read_data_word(addr, false, &mut cpu.cycles);
+            let value = memory.read_data_word(addr, seq, &mut cpu.cycles);
             cpu.registers.write(reg, value);
 
-            if first {
+            if !seq {
                 // @TODO cycles
                 // cpu.cycles += memory.data_access_nonseq32(addr);
-                first = false;
-            } else {
-                // @TODO cycles
-                // cpu.cycles += memory.data_access_seq32(addr);
+                seq = true;
             }
         }
     }
+
+    // This final internal cycle is for moving the last word into its destination
+    // register.
+    //
+    // #TODO The ARM7TDMI documentation also mentions that this can be merged with the
+    // next prefetch cycle as well to create one N cycle, but I'm not sure if the GBA does
+    // that or not.
+    cpu.cycles += 1;
+    memory.on_internal_cycles(1);
 }
 
 pub fn thumb_stmia_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_stmia(cpu, memory, opcode, 0) }
@@ -1089,9 +910,6 @@ pub fn thumb_bl_setup(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32)
     let off = sign_extend_32!((opcode & 0x7FF) << 12, 23);
     let setup = pc.wrapping_add(off);
     cpu.registers.write(14, setup);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_thumb_bl_setup(memory, pc);
 }
 
 pub fn thumb_bl_off(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
@@ -1103,9 +921,6 @@ pub fn thumb_bl_off(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
     let dest = lr.wrapping_add(off) & 0xFFFFFFFE;
     cpu.registers.write(14, (pc.wrapping_sub(2)) | 1);
     cpu.thumb_branch_to(dest, memory);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_thumb_bl_jump(memory, pc, dest);
 }
 
 pub fn thumb_swi(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _opcode: u32) {

@@ -28,13 +28,11 @@ macro_rules! dataproc {
                 cpu.registers.read(rn)
             };
 
-            // @TODO cycles
-            // clock the instruction prefetch
-            // cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15));
             // clock the register shift
-            // if $r_shift {
-                // cpu.cycles += clock::cycles_dataop_regshift(memory);
-            // }
+            if $r_shift {
+                cpu.cycles += 1;
+                memory.on_internal_cycles(1);
+            }
 
             // If S=1, Rd=R15; should not be used in user mode:
             //   CPSR = SPSR_<current mode>
@@ -46,15 +44,11 @@ macro_rules! dataproc {
                 let spsr = cpu.registers.read_spsr();
                 cpu.registers.write_cpsr(spsr);
                 cpu.branch_to(res, memory);
-                // @TODO cycles
-                // cpu.cycles += clock::cycles_branch_refill(memory, cpu.registers.getf_t(), cpu.registers.read(15));
             } else {
                 let rhs = $get_operand(cpu, instr);
                 let res = $operation(cpu, lhs, rhs);
                 if unlikely!(rd == 15) {
                     cpu.arm_branch_to(res & 0xFFFFFFFC, memory);
-                    // @TODO cycles
-                    // cpu.cycles += clock::cycles_branch_refill(memory, cpu.registers.getf_t(), cpu.registers.read(15));
                 } else {
                     cpu.registers.write(rd, res);
                 }
@@ -84,11 +78,10 @@ macro_rules! dataproc_no_write {
                 cpu.registers.read(rn)
             };
 
-            // clock the instruction prefetch
-            // cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15)); @TODO cycles
             // clock the register shift
             if $r_shift {
-                // cpu.cycles += clock::cycles_dataop_regshift(memory); @TODO cycles
+                cpu.cycles += 1;
+                memory.on_internal_cycles(1);
             }
 
             // If S=1, Rd=R15; should not be used in user mode:
@@ -108,11 +101,9 @@ macro_rules! dataproc_no_write {
             if rd == 15 {
                 if cpu.registers.getf_t() {
                     let dest = cpu.registers.read(15) & 0xFFFFFFFE;
-                    // cpu.cycles += clock::cycles_branch_refill(memory, true, dest); @TODO cycles
                     cpu.thumb_branch_to(dest, memory);
                 } else {
                     let dest = cpu.registers.read(15) & 0xFFFFFFFC;
-                    // cpu.cycles += clock::cycles_branch_refill(memory, false,dest); @TODO cycles
                     cpu.arm_branch_to(dest, memory);
                 }
             }

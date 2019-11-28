@@ -21,17 +21,13 @@ fn arm_bx(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     cpu.arm_prefetch_cycles(memory);
 
     let mut dest = cpu.registers.read(instr & 0xF);
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15));
     if (dest & 1) == 0 {
         dest &= 0xFFFFFFFC;
         cpu.arm_branch_to(dest, memory);
-        // cpu.cycles += clock::cycles_branch_refill(memory, false, dest);
     } else {
         dest &= 0xFFFFFFFE;
         cpu.registers.setf_t();
         cpu.thumb_branch_to(dest, memory);
-        // cpu.cycles += clock::cycles_branch_refill(memory, true, dest);
     }
 }
 
@@ -45,8 +41,6 @@ fn arm_b(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     let pc = cpu.registers.read(15);
     let dest = pc.wrapping_add(offset);
     cpu.arm_branch_to(dest, memory);
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_branch(memory, false, pc, dest);
 }
 
 /// Branch and Link
@@ -60,8 +54,6 @@ fn arm_bl(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     let dest = pc.wrapping_add(offset);
     cpu.registers.write(14, (pc.wrapping_sub(4)) & 0xFFFFFFFC);
     cpu.arm_branch_to(dest, memory);
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_branch(memory, false, pc, dest);
 }
 
 
@@ -75,8 +67,6 @@ pub fn arm_mrs_rc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     let rd = (instr >> 12) & 0xf;
     let cpsr = cpu.registers.read_cpsr();
     cpu.registers.write(rd, cpsr);
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15));
 }
 
 /// Move status word to register, Register, SPSR
@@ -89,8 +79,6 @@ pub fn arm_mrs_rs(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     let rd = (instr >> 12) & 0xf;
     let spsr = cpu.registers.read_spsr();
     cpu.registers.write(rd, spsr);
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15));
 }
 
 /// Move value to status word, Immediate, CPSR
@@ -103,8 +91,6 @@ pub fn arm_msr_ic(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
         let src = super::alu::bs::imm_nc(instr);
         let cpsr = cpu.registers.read_cpsr();
         cpu.registers.write_cpsr((cpsr & !0xF0000000) | (src & 0xF0000000));
-        // @TODO cycles
-        // cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15));
     } else { // CPSR_all (not supported using immediate value)
         arm_undefined(cpu, memory, instr);
     }
@@ -121,8 +107,6 @@ pub fn arm_msr_is(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
         let src = super::alu::bs::imm_nc(instr);
         let spsr = cpu.registers.read_spsr();
         cpu.registers.write_spsr((spsr & !0xF0000000) | (src & 0xF0000000));
-        // @TODO cycles
-        // cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15));
     } else { // SPSR_all (not supported using immediate value)
         arm_undefined(cpu, memory, instr);
     }
@@ -142,8 +126,6 @@ pub fn arm_msr_rc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     } else { // CPSR_all
         cpu.registers.write_cpsr(src);
     }
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15));
 }
 
 /// Move value to status word, Register, SPSR
@@ -160,8 +142,6 @@ pub fn arm_msr_rs(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     } else { // CPSR_all
         cpu.registers.write_spsr(src);
     }
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15));
 }
 
 /// Swap registers with memory word
@@ -176,10 +156,6 @@ pub fn arm_swp(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     let temp = memory.read_data_word(addr, false, &mut cpu.cycles); // we use temp because Rd and Rm might be the same.
     memory.write_data_word(addr, cpu.registers.read(rm), false, &mut cpu.cycles);
     cpu.registers.write(rd, temp);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15));
-    // cpu.cycles += memory.data_access_nonseq32(addr);
 }
 
 /// Swap registers with memory byte
@@ -194,10 +170,6 @@ pub fn arm_swpb(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     let temp = memory.read_data_byte(addr, false, &mut cpu.cycles); // we use temp because Rd and Rm might be the same.
     memory.write_data_byte(addr, cpu.registers.read(rm) as u8, false, &mut cpu.cycles);
     cpu.registers.write(rd, temp as u32);
-
-    // @TODO cycles
-    // cpu.cycles += clock::cycles_prefetch(memory, false, cpu.registers.read(15));
-    // cpu.cycles += memory.data_access_nonseq8(addr);
 }
 
 /// SWI INSTR

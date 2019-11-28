@@ -101,14 +101,23 @@ macro_rules! arm_gen_bdt {
                 cpu.registers.write_mode(last_mode);
             }
 
-            // cpu.cycles += clock::internal(memory, 1); @TODO cycles
+            if $transfer_type == LOAD {
+                // This final internal cycle is for moving the last word into its destination
+                // register.
+                //
+                // #TODO The ARM7TDMI documentation also mentions that this can be merged with the
+                // next prefetch cycle as well to create one N cycle, but I'm not sure if the GBA does
+                // that or not.
+                cpu.cycles += 1;
+                memory.on_internal_cycles(1);
 
-            if $transfer_type == LOAD && (register_list & (1 << 15)) != 0 {
-                let dest_pc = cpu.registers.read(15);
-                if cpu.registers.getf_t() {
-                    cpu.thumb_branch_to(dest_pc, memory);
-                } else {
-                    cpu.arm_branch_to(dest_pc, memory);
+                if (register_list & (1 << 15)) != 0 {
+                    let dest_pc = cpu.registers.read(15);
+                    if cpu.registers.getf_t() {
+                        cpu.thumb_branch_to(dest_pc, memory);
+                    } else {
+                        cpu.arm_branch_to(dest_pc, memory);
+                    }
                 }
             }
         }
