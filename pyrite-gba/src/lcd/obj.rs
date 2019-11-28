@@ -11,68 +11,56 @@ pub struct ObjectPriority {
 
 impl ObjectPriority {
     pub fn sorted(oam: &OAM) -> ObjectPriority {
-        let mut op = ObjectPriority::new();
-        op.sort_objects(oam);
-        return op;
-    }
+        macro_rules! mkobj {
+            ($Index:expr, $Priority:expr) => {
+                (($Index as u16) << 8) | ($Priority as u16)
+            }
+        }
 
-    pub fn new() -> ObjectPriority {
-        let mut op = ObjectPriority {
-            priority_pos:   [(0, 0); 6],
-            sorted_objects: [0u16; 128],
-        };
-        for idx in 0usize..128 { op.sorted_objects[idx] = (idx as u16) << 8; }
-        return op;
-    }
+        let mut priority_pos = [(0, 0); 6];
+        let mut objects = [0u16; 128];
 
-    #[inline(never)]
-    pub fn sort_objects(&mut self, oam: &OAM) {
-        self.priority_pos = [(0, 0); 6]; // reset
+        let mut enabled_index   = 0; // start inserting enabled objects here
+        let mut disabled_index  = 128; // start inserting disabled objects here
 
         for obj_index in 0..128 {
-            // let attr_index = obj_index * 8;
-            // let attr0_hi = oam[attr_index + 1];
-            // let attr2_hi = oam[attr_index + 5];
-            // let priority_arr = ((attr2_hi >> 3) & 0x3) as u32 | (4 << 8) | (5 << 16) | (5 << 24);
-            // let disable = (attr0_hi & 0x1 != 1) & ((attr0_hi >> 1) & 0x1 == 1);
-            // let obj_window = if (attr0_hi >> 3) & 0x3 == 2 { 1 } else { 0 };
-            // let priority_sel = ((disable as u32) << 1) | (obj_window as u32);
-            // let priority = (priority_arr >> (priority_sel << 3)) as u8; 
-
-            // /// priority cannot be greater than 5 here:
-            // unsafe {
-            //     (*self.priority_pos.get_unchecked_mut(priority as usize)).1 += 1;
-            // }
-            // self.sorted_objects[obj_index] |= priority as u16;
-
             let attr_index = obj_index * 8;
             let attr0_hi = oam[attr_index + 1];
 
             if attr0_hi & 0x1 != 1 && (attr0_hi >> 1) & 0x1 == 1 {
-                self.priority_pos[5].1 += 1;
-                self.sorted_objects[obj_index] |= 5;
+                priority_pos[5].1 += 1;
+                disabled_index -= 1;
+                objects[disabled_index] = mkobj!(obj_index, 5);
                 continue;
             }
 
             if (attr0_hi >> 3) & 0x3 == 2 {
-                self.priority_pos[4].1 += 1;
-                self.sorted_objects[obj_index] |= 4;
+                priority_pos[4].1 += 1;
+                objects[enabled_index] |= mkobj!(obj_index, 4);
+                enabled_index += 1;
                 continue;
             }
 
             let attr2_hi = oam[attr_index + 5];
             let priority = (attr2_hi >> 3) & 0x3;
-            self.priority_pos[priority as usize].1 += 1;
-            self.sorted_objects[obj_index] |= priority as u16;
+            priority_pos[priority as usize].1 += 1;
+            objects[enabled_index] = mkobj!(obj_index, priority);
+            enabled_index += 1;
         }
 
-        self.sorted_objects.sort_unstable();
+        // this we only bother sorting enabled objects:
+        (&mut objects[0..(disabled_index)]).sort_unstable();
 
-        self.priority_pos[1].0 = self.priority_pos[0].1;
-        self.priority_pos[2].0 = self.priority_pos[1].0 + self.priority_pos[1].1;
-        self.priority_pos[3].0 = self.priority_pos[2].0 + self.priority_pos[2].1;
-        self.priority_pos[4].0 = self.priority_pos[3].0 + self.priority_pos[3].1;
-        self.priority_pos[5].0 = self.priority_pos[4].0 + self.priority_pos[4].1;
+        priority_pos[1].0 = priority_pos[0].1;
+        priority_pos[2].0 = priority_pos[1].0 + priority_pos[1].1;
+        priority_pos[3].0 = priority_pos[2].0 + priority_pos[2].1;
+        priority_pos[4].0 = priority_pos[3].0 + priority_pos[3].1;
+        priority_pos[5].0 = disabled_index;
+
+        return ObjectPriority {
+            priority_pos:   priority_pos,
+            sorted_objects: objects,
+        }
     }
 
     /// Returns the number of objects with a given priority. Priority 4 is mapped to OBJ window

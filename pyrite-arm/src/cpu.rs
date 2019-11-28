@@ -144,9 +144,8 @@ impl ArmCpu {
     pub fn step(&mut self, memory: &mut dyn ArmMemory) -> u32 {
         self.cycles = 0;
         if let Some(exception) = self.pending_exception.take() {
-            // @TODO I think I need to subtract one instruction here because PC should be one
-            // instruction ahead of the next instruction to be executed at this point, I think...
-            self.handle_exception(exception, memory, self.registers.read(15));
+            let instr_size = if self.registers.getf_t() { 2 } else { 4 };
+            self.handle_exception(exception, memory, self.registers.read(15).wrapping_sub(instr_size));
         } else {
             if self.registers.getf_t() {
                 self.step_thumb(memory);
@@ -167,6 +166,7 @@ impl ArmCpu {
         self.pending_exception = Some(exception);
     }
 
+    #[inline]
     fn step_arm(&mut self, memory: &mut dyn ArmMemory) {
         let opcode = self.decoded;
         self.decoded = self.fetched;
@@ -183,6 +183,7 @@ impl ArmCpu {
         }
     }
 
+    #[inline]
     fn step_thumb(&mut self, memory: &mut dyn ArmMemory) {
         let opcode = self.decoded;
         self.decoded = self.fetched;

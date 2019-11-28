@@ -1,6 +1,7 @@
 pub mod palette;
 pub mod obj;
 pub mod bitmap;
+pub mod tile;
 
 use self::palette::GbaPalette;
 use crate::util::fixedpoint::{ FixedPoint16, FixedPoint32 };
@@ -73,34 +74,31 @@ impl GbaLCD {
 
         if self.registers.line < 160 {
             if self.registers.line ==   0 {  video.pre_frame(); }
-            self.draw_line(vram, oam, palette);
+            // self.draw_line(vram, oam, palette);
             video.display_line(self.registers.line as u32, &self.pixels);
             if self.registers.line == 159 { video.post_frame(); self.frame_ready = true; }
         }
     }
 
     fn draw_line(&mut self, vram: &VRAM, oam: &OAM, palette: &GbaPalette) {
+        // setting up the backdrop:
+
+        let backdrop = palette.backdrop();
+        for x in 0..240 {
+            self.pixels[x] = backdrop;
+        }
+
         let mode = self.registers.dispcnt.mode();
         
         match mode {
-            0 => eprintln!("unhandled BG mode 0"),
-            1 => eprintln!("unhandled BG mode 0"),
-            2 => eprintln!("unhandled BG mode 0"),
-            3 => bitmap::render_mode3(&self.registers,vram, oam, palette, &mut self.pixels),
-            4 => eprintln!("unhandled BG mode 0"),
-            5 => eprintln!("unhandled BG mode 0"),
+            0 => tile::render_mode0(&self.registers, vram, oam, palette, &mut self.pixels),
+            1 => tile::render_mode1(&self.registers, vram, oam, palette, &mut self.pixels),
+            2 => tile::render_mode2(&self.registers, vram, oam, palette, &mut self.pixels),
+            3 => bitmap::render_mode3(&self.registers, vram, oam, palette, &mut self.pixels),
+            4 => bitmap::render_mode4(&self.registers, vram, oam, palette, &mut self.pixels),
+            5 => bitmap::render_mode5(&self.registers, vram, oam, palette, &mut self.pixels),
             _ => eprintln!("bad mode {}", mode),
         }
-    }
-}
-
-pub struct LCDLineBuffer {
-    pixels: [u32; 240],
-}
-
-impl LCDLineBuffer {
-    /// Pushes a pixel onto the LCD.
-    pub fn push(pixel: u16, offset: usize) {
     }
 }
 
@@ -183,9 +181,10 @@ bitfields! (BGControl: u16 {
 });
 
 impl DisplayControl {
-    pub fn display_layer(layer: u16) -> bool {
+    /// Layers 0-3 are BG 0-3 respectively. Layer 4 is OBJ
+    pub fn display_layer(&self, layer: u16) -> bool {
         assert!(layer <= 4,"display layer index must be in range [0, 4]");
-        ((layer >> (layer + 8)) & 1) != 0
+        ((self.value >> (layer + 8)) & 1) != 0
     }
 }
 
@@ -243,7 +242,7 @@ impl Mosaic {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Copy, Clone)]
 pub struct BGOffset {
     pub x: u16,
     pub y: u16,

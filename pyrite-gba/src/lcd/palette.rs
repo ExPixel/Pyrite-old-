@@ -16,22 +16,18 @@ impl GbaPalette {
     }
 
     pub fn bg256(&self, index: usize) -> u16 {
-        if index == 0 { return 0; }
         return self.bg[index] | 0x8000;
     }
 
     pub fn obj256(&self, index: usize) -> u16 {
-        if index == 0 { return 0; }
         return self.bg[index] | 0x8000;
     }
 
     pub fn bg16(&self, palette: usize, index: usize) -> u16 {
-        if index == 0 { return 0; }
         return self.bg[palette*16 + index] | 0x8000;
     }
 
     pub fn obj16(&self, palette: usize, index: usize) -> u16 {
-        if index == 0 { return 0; }
         return self.obj[palette*16 + index] | 0x8000;
     }
 

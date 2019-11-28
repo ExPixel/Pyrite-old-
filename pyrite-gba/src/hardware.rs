@@ -2,6 +2,7 @@ use crate::ioregs;
 use crate::sysctl;
 use crate::lcd::GbaLCD;
 use crate::lcd::palette::GbaPalette;
+use crate::keypad::GbaKeypad;
 use crate::util::memory::*;
 
 use pyrite_arm::memory::ArmMemory;
@@ -33,7 +34,8 @@ pub struct GbaHardware {
     // :o
     pub(crate) sysctl:  GbaSystemControl,
     pub(crate) ramctl:  GbaRAMControl,
-    pub(crate) lcd:     GbaLCD,
+    pub lcd:     GbaLCD,
+    pub keypad:  GbaKeypad,
 
     /// This singular purpose of this is to make 8bit writes to larger IO registers consistent by
     /// storing the values that were last written to them.
@@ -62,6 +64,7 @@ impl GbaHardware {
             sysctl:         GbaSystemControl::new(),
             ramctl:         GbaRAMControl::new(),
             lcd:            GbaLCD::new(),
+            keypad:         GbaKeypad::new(),
 
             ioreg_bytes:    [0u8; 0x20A],
             last_code_read: 0,
@@ -85,9 +88,7 @@ impl GbaHardware {
 
         match region_of(addr) {
             0x00 => self.bios_read32(addr),
-            // 0x02 if !self.ramctl.disabled && self.ramctl.external => read_u32(&self.ewram, addr as usize % (256 * 1024)).into(),
-            // 0x02 if !self.ramctl.disabled => read_u32(&self.iwram, addr as usize % ( 32 * 1024)).into(),
-            // 0x03 if !self.ramctl.disabled => read_u32(&self.iwram, addr as usize % ( 32 * 1024)).into(),
+            0x01 => { Self::bad_read(32, addr, "unused region 0x01"); self.last_code_read },
             0x02 => {
                 if self.ramctl.disabled {
                     self.last_code_read
@@ -114,10 +115,8 @@ impl GbaHardware {
             0x0A | 0x0B => self.gamepak_read32(addr, CART1),
             0x0C | 0x0D => self.gamepak_read32(addr, CART2),
             0x0E => self.sram.read32(addr).unwrap_or(self.last_code_read),
-            _ => {
-                eprintln!("out of range 32-bit read of memory address 0x{:08X}", addr);
-                self.last_code_read
-            },
+            0x0F => { Self::bad_read(32, addr, "unused region 0x0F"); self.last_code_read },
+            _ => unreachable!(),
         }
     }
 
@@ -127,6 +126,7 @@ impl GbaHardware {
 
         match region_of(addr) {
             0x00 => self.bios_read16(addr),
+            0x01 => { Self::bad_read(16, addr, "unused region 0x01"); halfword_of_word(self.last_code_read, addr) }
             0x02 if !self.ramctl.disabled && self.ramctl.external => read_u16(&self.ewram, addr as usize % (256 * 1024)),
             0x02 if !self.ramctl.disabled => read_u16(&self.iwram, addr as usize % ( 32 * 1024)),
             0x03 if !self.ramctl.disabled => read_u16(&self.iwram, addr as usize % ( 32 * 1024)),
@@ -138,16 +138,15 @@ impl GbaHardware {
             0x0A | 0x0B => self.gamepak_read16(addr, CART1),
             0x0C | 0x0D => self.gamepak_read16(addr, CART2),
             0x0E => self.sram.read16(addr).unwrap_or(halfword_of_word(self.last_code_read, addr)),
-            _ => {
-                eprintln!("out of range 16-bit read of memory address 0x{:08X}", addr);
-                halfword_of_word(self.last_code_read, addr)
-            },
+            0x0F => { Self::bad_read(16, addr, "unused region 0x0F"); halfword_of_word(self.last_code_read, addr) }
+            _ => unreachable!(),
         }
     }
 
     pub fn read8(&self, addr: u32) -> u8 {
         match region_of(addr) {
             0x00 => self.bios_read8(addr),
+            0x01 => { Self::bad_read(8, addr, "unused region 0x01"); byte_of_word(self.last_code_read, addr) }
             0x02 if !self.ramctl.disabled && self.ramctl.external => self.ewram[addr as usize % (256 * 1024)],
             0x02 if !self.ramctl.disabled => self.iwram[addr as usize % ( 32 * 1024)],
             0x03 if !self.ramctl.disabled => self.iwram[addr as usize % ( 32 * 1024)],
@@ -158,10 +157,8 @@ impl GbaHardware {
             0x0A | 0x0B => self.gamepak_read8(addr, CART1),
             0x0C | 0x0D => self.gamepak_read8(addr, CART2),
             0x0E => self.sram.read8(addr).unwrap_or(byte_of_word(self.last_code_read, addr)),
-            _ => {
-                eprintln!("out of range 16-bit read of memory address 0x{:08X}", addr);
-                byte_of_word(self.last_code_read, addr)
-            },
+            0x0F => { Self::bad_read(8, addr, "unused region 0x0F"); byte_of_word(self.last_code_read, addr) }
+            _ => unreachable!(),
         }
     }
 
@@ -260,20 +257,24 @@ impl GbaHardware {
     fn gamepak_read32(&self, addr: u32, cart_offset: u32) -> u32 {
         let offset = (addr - cart_offset) as usize;
         if offset <= (self.gamepak.len() - 4) {
-            read_u32(&self.gamepak, offset)
+            unsafe {
+                read_u32_unchecked(&self.gamepak, offset)
+            }
         } else {
-            eprintln!("out of range 32-bit read from GamePak address 0x{:08X}", addr);
-            self.last_code_read
+            let lo = (addr >> 1) & 0xFFFF;
+            let hi = (lo + 1) & 0xFFFF;
+            return lo | (hi << 16);
         }
     }
 
     fn gamepak_read16(&self, addr: u32, cart_offset: u32) -> u16 {
         let offset = (addr - cart_offset) as usize;
         if offset <= (self.gamepak.len() - 2) {
-            read_u16(&self.gamepak, offset)
+            unsafe {
+                read_u16_unchecked(&self.gamepak, offset)
+            }
         } else {
-            eprintln!("out of range 16-bit read from GamePak address 0x{:08X}", addr);
-            halfword_of_word(self.last_code_read, addr)
+            return (addr >> 1) as u16;
         }
     }
 
@@ -282,8 +283,7 @@ impl GbaHardware {
         if offset <= (self.gamepak.len() - 2) {
             self.gamepak[offset]
         } else {
-            eprintln!("out of range 16-bit read from GamePak address 0x{:08X}", addr);
-            byte_of_word(self.last_code_read, addr)
+            byte_of_halfword((addr >> 1) as u16, addr)
         }
     }
 
@@ -499,6 +499,9 @@ impl GbaHardware {
             ioregs::BG3PC => self.lcd.registers.bg3_affine_params.set_a(data),
             ioregs::BG3PD => self.lcd.registers.bg3_affine_params.set_a(data),
 
+            // Keypad Input
+            ioregs::KEYCNT      => self.keypad.control = data,
+
             // System Control
             ioregs::WAITCNT => self.sysctl.set_reg_waitcnt(data),
             ioregs::IMC | ioregs::IMC_HI => {
@@ -538,6 +541,10 @@ impl GbaHardware {
             ioregs::BLDCNT      => Some(self.lcd.registers.effects.value()),
             ioregs::BLDALPHA    => Some(self.lcd.registers.alpha),
 
+            // Keypad Input
+            ioregs::KEYINPUT    => Some(self.keypad.input),
+            ioregs::KEYCNT      => Some(self.keypad.control),
+
             // System Control
             ioregs::WAITCNT => Some(self.sysctl.reg_waitcnt),
             ioregs::IMC => getw!(self.ramctl.reg_control),
@@ -571,6 +578,11 @@ impl GbaHardware {
             vram128 as usize
         }
     }
+
+    #[cold]
+    fn bad_read(bits: u8, addr: u32, message: &'static str) {
+        println!("bad {}-bit read at 0x{:08X}: {}", bits, addr, message);
+   }
 }
 
 
@@ -649,6 +661,12 @@ const fn halfword_of_word(word: u32, addr: u32) -> u16 {
 #[inline(always)]
 const fn byte_of_word(word: u32, addr: u32) -> u8 {
     (word >> ((addr % 4) * 8)) as u8
+}
+
+/// Select a byte of a 16-bit word depending on the given address.
+#[inline(always)]
+const fn byte_of_halfword(halfword: u16, addr: u32) -> u8 {
+    (halfword >> ((addr % 2) * 8)) as u8
 }
 
 pub struct GbaRAMControl {

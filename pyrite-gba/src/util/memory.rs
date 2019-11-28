@@ -26,12 +26,11 @@ macro_rules! read_bytes_le_no_bounds_check {
         let src = $Src;
 
         let mut data: $Type = 0;
-        unsafe {
-            std::ptr::copy_nonoverlapping(
-                src as *const _,
-                &mut data as *mut $Type as *mut u8,
-                $Size);
-        }
+
+        std::ptr::copy_nonoverlapping(
+            src as *const _,
+            &mut data as *mut $Type as *mut u8,
+            $Size);
 
         #[cfg(target_endian = "big")]
         { data.swap_bytes() }
@@ -67,6 +66,11 @@ macro_rules! write_bytes_le {
 #[inline]
 pub fn read_u32(mem: &[u8], offset: usize) -> u32 {
     read_bytes_le!(&mem[offset..], u32, 4)
+}
+
+#[inline]
+pub unsafe fn read_u32_unchecked(mem: &[u8], offset: usize) -> u32 {
+    read_bytes_le_no_bounds_check!(mem.get_unchecked(offset), u32, 4)
 }
 
 #[inline]

@@ -3,7 +3,8 @@ mod sysctl;
 #[allow(dead_code)]
 mod ioregs;
 mod hardware;
-mod lcd;
+pub mod lcd;
+pub mod keypad;
 
 use hardware::GbaHardware;
 use pyrite_arm::ArmCpu;
@@ -61,10 +62,6 @@ impl Gba {
             self.cpu.set_pc(0x00000000, &mut self.hardware);
             self.cpu.registers.write_mode(registers::CpuMode::Supervisor);
         }
-
-        // @TODO set the keys here
-        // self.memory.ioregs.keyinput.inner = 0x3FF;
-        // @TODO some more IO registers need to be set here.
     }
 
     pub fn set_rom(&mut self, rom: Vec<u8>) {
@@ -108,41 +105,14 @@ impl Gba {
         // }
     }
 
-    pub fn set_key_pressed(&mut self, key: KeypadInput, pressed: bool) {
-        // @TODO reimplement key presses
-        // 0 = Pressed, 1 = Released
-        // if pressed {
-        //     self.memory.ioregs.keyinput.inner &= !key.mask();
-        // } else {
-        //     self.memory.ioregs.keyinput.inner |= key.mask();
-        // }
+    #[inline]
+    pub fn set_key_pressed(&mut self, key: keypad::KeypadInput, pressed: bool) {
+        self.hardware.keypad.set_pressed(key, pressed);
     }
 
-    pub fn is_key_pressed(&mut self, key: KeypadInput) -> bool {
-        return false;
-        // @TODO reimplement key press checks
-        // (self.memory.ioregs.keyinput.inner & (key.mask())) == 0
-    }
-}
-
-#[derive(Clone, Copy)]
-#[repr(u16)]
-pub enum KeypadInput {
-    ButtonA = 0,
-    ButtonB = 1,
-    Select  = 2,
-    Start   = 3,
-    Right   = 4,
-    Left    = 5,
-    Up      = 6,
-    Down    = 7,
-    ButtonR = 8,
-    ButtonL = 9,
-}
-
-impl KeypadInput {
-    fn mask(self) -> u16 {
-        1 << (self as u16)
+    #[inline]
+    pub fn is_key_pressed(&mut self, key: keypad::KeypadInput) -> bool {
+        self.hardware.keypad.is_pressed(key)
     }
 }
 

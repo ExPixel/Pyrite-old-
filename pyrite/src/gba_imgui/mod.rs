@@ -50,7 +50,7 @@ impl GbaImGui {
 
     pub fn handle_event(&mut self, window: &glutin::Window, event: &glutin::Event) {
         use glutin::VirtualKeyCode;
-        use pyrite_gba::KeypadInput;
+        use pyrite_gba::keypad::KeypadInput;
 
         imgui::impls::glutin::process_window_event(window, event);
 
