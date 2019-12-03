@@ -128,6 +128,13 @@ impl std::convert::From<u32> for FixedPoint32 {
     }
 }
 
+impl std::convert::From<u16> for FixedPoint32 {
+    #[inline]
+    fn from(original: u16) -> Self {
+        FixedPoint32::wrap((original as u32 as i32) << 8)
+    }
+}
+
 impl std::convert::From<i32> for FixedPoint32 {
     fn from(original: i32) -> Self {
         FixedPoint32::wrap(original << 8)

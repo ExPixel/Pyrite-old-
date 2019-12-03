@@ -1,7 +1,7 @@
 use crate::hardware::{ VRAM, OAM };
 use crate::util::memory::read_u16_unchecked;
-use super::obj::ObjectPriority;
-use super::{ LCDRegisters, LCDLineBuffer, BGControl, BGOffset };
+use super::obj::{ ObjectPriority, render_objects_no_obj_window };
+use super::{ LCDRegisters, LCDLineBuffer, BGControl, BGOffset, apply_mosaic };
 use super::palette::GbaPalette;
 
 pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut LCDLineBuffer) {
@@ -11,7 +11,7 @@ pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
         for bg_index in (0usize..=3).rev() {
             if !registers.dispcnt.display_layer(bg_index as u16) { continue }
             if registers.bg_cnt[bg_index].priority() == priority as u16 {
-                let textbg = TextBG::new(registers.bg_cnt[bg_index], registers.bg_ofs[bg_index]);
+                let textbg = TextBG::new(registers.bg_cnt[bg_index], registers.bg_ofs[bg_index], registers.mosaic);
 
                 if registers.bg_cnt[bg_index].palette256() {
                     draw_text_bg_8bpp_no_obj_window(registers.line as u32, 0, 240, &textbg, vram, pal, pixels);
@@ -20,7 +20,10 @@ pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
                 }
             }
         }
-        render_objects_placeholder(object_priorities.objects_with_priority(priority), vram, oam, pal, pixels);
+
+        // if registers.dispcnt.display_layer(4) {
+        //     render_objects_no_obj_window(registers, object_priorities.objects_with_priority(priority), vram, oam, pal, pixels);
+        // }
     }
 }
 
@@ -29,9 +32,6 @@ pub fn render_mode1(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
 
 pub fn render_mode2(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut LCDLineBuffer) {
 }
-
-// #TODO implement this
-fn apply_mosaic(a: u32, _b: u32) -> u32 { a }
 
 pub fn draw_text_bg_4bpp_no_obj_window(line: u32, left: u32, right: u32, bg: &TextBG, vram: &VRAM, palette: &GbaPalette, dest: &mut LCDLineBuffer) {
     pub const BYTES_PER_TILE: u32 = 32;
@@ -84,14 +84,16 @@ pub fn draw_text_bg_4bpp_no_obj_window(line: u32, left: u32, right: u32, bg: &Te
             }
         } else {
             let palette_entry = (vram[pixel_offset as usize] >> ((tx % 2) << 2)) & 0xF;
-            dest.push_pixel(dx as usize, palette.bg16(tile_palette as usize, palette_entry as usize), bg.first_target, bg.second_target);
+            if palette_entry != 0 {
+                dest.push_pixel(dx as usize, palette.bg16(tile_palette as usize, palette_entry as usize), bg.first_target, bg.second_target);
+            }
             dx += 1;
         }
     }
 }
 
 pub fn draw_text_bg_8bpp_no_obj_window(line: u32, left: u32, right: u32, bg: &TextBG, vram: &VRAM, palette: &GbaPalette, dest: &mut LCDLineBuffer) {
-    unimplemented!();
+    unimplemented!("8bpp tiles");
 }
 
 pub struct TextBG {
@@ -120,8 +122,14 @@ impl TextBG {
         (512, 512),
     ];
 
-    pub fn new(control: BGControl, offset: BGOffset) -> TextBG {
+    pub fn new(control: BGControl, offset: BGOffset, reg_mosaic: super::Mosaic) -> TextBG {
         let (width, height) = TextBG::SIZES[control.screen_size() as usize];
+        let mosaic = if control.mosaic() {
+            reg_mosaic.bg
+        } else {
+            (0, 0)
+        };
+
         TextBG {
             char_base:      control.char_base_block() as u32 * 16 * 1024,
             screen_base:    control.screen_base_block() as u32 * 2 * 1024,
@@ -129,8 +137,8 @@ impl TextBG {
             yoffset:        offset.y as u32,
             width:          width,
             height:         height,
-            mosaic_x:       0,
-            mosaic_y:       0,
+            mosaic_x:       mosaic.0 as u32,
+            mosaic_y:       mosaic.1 as u32,
             first_target:   false,
             second_target:  false,
         }
@@ -146,8 +154,4 @@ impl TextBG {
         let area_tx = area_x / 8;
         return self.screen_base + (area_idx * 2048)  + ((area_ty * 32) + area_tx)*2;
     }
-}
-
-#[inline(never)]
-fn render_objects_placeholder(objects: &[u16], _vram: &VRAM, _oam: &OAM, _pal: &GbaPalette, _pixels: &mut LCDLineBuffer) {
 }

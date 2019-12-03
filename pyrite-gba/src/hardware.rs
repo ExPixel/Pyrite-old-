@@ -287,16 +287,19 @@ impl GbaHardware {
         }
     }
 
+    #[cold]
     fn gamepak_write32(&mut self, addr: u32, _value: u32, _cart_offset: u32) -> bool {
         eprintln!("unimplemented 32-bit write to GamePak address 0x{:08X}", addr);
         false
     }
 
+    #[cold]
     fn gamepak_write16(&mut self, addr: u32, _value: u16, _cart_offset: u32) -> bool {
         eprintln!("unimplemented 16-bit write to GamePak address 0x{:08X}", addr);
         false
     }
 
+    #[cold]
     fn gamepak_write8(&mut self, addr: u32, _value: u8, _cart_offset: u32) -> bool {
         eprintln!("unimplemented 8-bit write to GamePak address 0x{:08X}", addr);
         false

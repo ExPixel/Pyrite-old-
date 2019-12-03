@@ -58,7 +58,7 @@ impl GbaLCD {
     }
 
     fn hdraw(&mut self) {
-        self.registers.dispstat.set_hblank(true);
+        self.registers.dispstat.set_hblank(false);
         self.registers.line += 1;
 
         match self.registers.line {
@@ -70,10 +70,10 @@ impl GbaLCD {
     }
 
     fn hblank(&mut self, vram: &VRAM, oam: &OAM, palette: &GbaPalette, video: &mut dyn GbaVideoOutput) {
-        self.registers.dispstat.set_hblank(false);
+        self.registers.dispstat.set_hblank(true);
 
         if self.registers.line < 160 {
-            if self.registers.line ==   0 {  video.pre_frame(); }
+            if self.registers.line == 0 {  video.pre_frame(); }
             self.draw_line(vram, oam, palette);
             video.display_line(self.registers.line as u32, &self.pixels.pixels);
             if self.registers.line == 159 { video.post_frame(); self.frame_ready = true; }
@@ -81,8 +81,14 @@ impl GbaLCD {
     }
 
     fn draw_line(&mut self, vram: &VRAM, oam: &OAM, palette: &GbaPalette) {
-        // setting up the backdrop:
+        // setup obj cycles:
+        self.pixels.obj_cycles = if self.registers.dispcnt.hblank_interval_free() {
+            954
+        } else {
+            1210
+        };
 
+        // setting up the backdrop:
         let backdrop = palette.backdrop();
         for x in 0..240 {
             self.pixels.push_pixel_fast(x, backdrop);
@@ -106,6 +112,9 @@ pub struct LCDLineBuffer {
     pub(crate) pixels:         [u16; 240],
     pub(crate) second_targets: LCDPixelBits,
     pub(crate) obj_window:     LCDPixelBits,
+
+    /// Cycles remaining for drawing objects.
+    pub(crate) obj_cycles:      u16,
 }
 
 impl LCDLineBuffer {
@@ -114,6 +123,7 @@ impl LCDLineBuffer {
             pixels:         [0xFFFF; 240],
             second_targets: LCDPixelBits::new(),
             obj_window:     LCDPixelBits::new(),
+            obj_cycles:     1210,
         }
     }
 
@@ -235,7 +245,7 @@ bitfields! (DisplayStatus: u16 {
 bitfields! (DisplayControl: u16 {
     mode, set_mode: u16 = [0, 2],
     frame_select, set_frame_select: u16 = [4, 4],
-    hblank_internal_free, set_hblank_interval_free: bool = [5, 5],
+    hblank_interval_free, set_hblank_interval_free: bool = [5, 5],
     one_dimensional_obj, set_one_dimensional_obj: bool = [6, 6],
     forced_blank, set_forced_blank: bool = [7, 7],
 
@@ -303,7 +313,7 @@ pub enum SpecialEffect {
 }
 
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct Mosaic {
     pub  bg: (/* horizontal */ u8, /* vertical */ u8),
     pub obj: (/* horizontal */ u8, /* vertical */ u8),
@@ -422,5 +432,23 @@ impl WindowControl {
     /// Returns true if color special effects is enabled for a given window.
     pub fn effects_enabled(&self, window: u16) -> bool {
         (self.inner & (self.inner << (5 + (window * 8)))) != 0
+    }
+}
+
+#[inline]
+pub fn apply_mosaic(value: u32, mosaic: u32) -> u32 {
+    if mosaic > 0 {
+        return value - (value % mosaic)
+    } else {
+        return value;
+    }
+}
+
+#[inline]
+pub fn apply_mosaic_cond(mosaic_cond: bool, value: u16, mosaic: u16) -> u16 {
+    if mosaic_cond && mosaic > 0 {
+        return value - (value % mosaic)
+    } else {
+        return value;
     }
 }

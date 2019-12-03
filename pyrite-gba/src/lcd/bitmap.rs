@@ -11,17 +11,22 @@ pub fn render_mode3(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
     let object_priorities = ObjectPriority::sorted(oam);
     let bg2_priority = registers.bg_cnt[2].priority();
 
-    if bg2_priority < 3 { render_objects_placeholder(object_priorities.objects_with_priority(3), vram, oam, pal, pixels); }
-    if bg2_priority < 2 { render_objects_placeholder(object_priorities.objects_with_priority(2), vram, oam, pal, pixels); }
-    if bg2_priority < 1 { render_objects_placeholder(object_priorities.objects_with_priority(1), vram, oam, pal, pixels); }
+    if registers.dispcnt.display_layer(4) {
+        if bg2_priority < 3 { render_objects_placeholder(object_priorities.objects_with_priority(3), vram, oam, pal, pixels); }
+        if bg2_priority < 2 { render_objects_placeholder(object_priorities.objects_with_priority(2), vram, oam, pal, pixels); }
+        if bg2_priority < 1 { render_objects_placeholder(object_priorities.objects_with_priority(1), vram, oam, pal, pixels); }
+    }
 
-    render_mode3_bitmap_no_obj_window(registers.line as usize, 0, 240, vram, pixels);
+    if registers.dispcnt.display_layer(2) {
+        render_mode3_bitmap_no_obj_window(registers.line as usize, 0, 240, vram, pixels);
+    }
 
-    if bg2_priority >= 3 { render_objects_placeholder(object_priorities.objects_with_priority(3), vram, oam, pal, pixels); }
-    if bg2_priority >= 2 { render_objects_placeholder(object_priorities.objects_with_priority(2), vram, oam, pal, pixels); }
-    if bg2_priority >= 1 { render_objects_placeholder(object_priorities.objects_with_priority(1), vram, oam, pal, pixels); }
-
-    render_objects_placeholder(object_priorities.objects_with_priority(0), vram, oam, pal, pixels); 
+    if registers.dispcnt.display_layer(4) {
+        if bg2_priority >= 3 { render_objects_placeholder(object_priorities.objects_with_priority(3), vram, oam, pal, pixels); }
+        if bg2_priority >= 2 { render_objects_placeholder(object_priorities.objects_with_priority(2), vram, oam, pal, pixels); }
+        if bg2_priority >= 1 { render_objects_placeholder(object_priorities.objects_with_priority(1), vram, oam, pal, pixels); }
+        render_objects_placeholder(object_priorities.objects_with_priority(0), vram, oam, pal, pixels); 
+    }
 }
 
 fn render_mode3_bitmap_no_obj_window(line: usize, left: usize, right: usize, vram: &VRAM, pixels: &mut LCDLineBuffer) {
@@ -46,23 +51,28 @@ pub fn render_mode4(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
     let object_priorities = ObjectPriority::sorted(oam);
     let bg2_priority = registers.bg_cnt[2].priority();
 
-    if bg2_priority < 3 { render_objects_placeholder(object_priorities.objects_with_priority(3), vram, oam, pal, pixels); }
-    if bg2_priority < 2 { render_objects_placeholder(object_priorities.objects_with_priority(2), vram, oam, pal, pixels); }
-    if bg2_priority < 1 { render_objects_placeholder(object_priorities.objects_with_priority(1), vram, oam, pal, pixels); }
+    if registers.dispcnt.display_layer(4) {
+        if bg2_priority < 3 { render_objects_placeholder(object_priorities.objects_with_priority(3), vram, oam, pal, pixels); }
+        if bg2_priority < 2 { render_objects_placeholder(object_priorities.objects_with_priority(2), vram, oam, pal, pixels); }
+        if bg2_priority < 1 { render_objects_placeholder(object_priorities.objects_with_priority(1), vram, oam, pal, pixels); }
+    }
 
-    let framebuffer_start = if registers.dispcnt.frame_select() == 0 { FRAMEBUFFER0_OFFSET } else { FRAMEBUFFER1_OFFSET };
-    let framebuffer_end = framebuffer_start + FRAMEBUFFER_SIZE;
-    assert!(vram.len() >= framebuffer_start && framebuffer_end <= vram.len());
+    if registers.dispcnt.display_layer(2) {
+        let framebuffer_start = if registers.dispcnt.frame_select() == 0 { FRAMEBUFFER0_OFFSET } else { FRAMEBUFFER1_OFFSET };
+        let framebuffer_end = framebuffer_start + FRAMEBUFFER_SIZE;
+        assert!(vram.len() >= framebuffer_start && framebuffer_end <= vram.len());
 
-    render_mode4_bitmap_no_obj_window(registers.line as usize, 0, 240, unsafe {
-        std::mem::transmute((&vram[framebuffer_start..framebuffer_end]).as_ptr())
-    }, pal, pixels);
+        render_mode4_bitmap_no_obj_window(registers.line as usize, 0, 240, unsafe {
+            std::mem::transmute((&vram[framebuffer_start..framebuffer_end]).as_ptr())
+        }, pal, pixels);
+    }
 
-    if bg2_priority >= 3 { render_objects_placeholder(object_priorities.objects_with_priority(3), vram, oam, pal, pixels); }
-    if bg2_priority >= 2 { render_objects_placeholder(object_priorities.objects_with_priority(2), vram, oam, pal, pixels); }
-    if bg2_priority >= 1 { render_objects_placeholder(object_priorities.objects_with_priority(1), vram, oam, pal, pixels); }
-
-    render_objects_placeholder(object_priorities.objects_with_priority(0), vram, oam, pal, pixels); 
+    if registers.dispcnt.display_layer(4) {
+        if bg2_priority >= 3 { render_objects_placeholder(object_priorities.objects_with_priority(3), vram, oam, pal, pixels); }
+        if bg2_priority >= 2 { render_objects_placeholder(object_priorities.objects_with_priority(2), vram, oam, pal, pixels); }
+        if bg2_priority >= 1 { render_objects_placeholder(object_priorities.objects_with_priority(1), vram, oam, pal, pixels); }
+        render_objects_placeholder(object_priorities.objects_with_priority(0), vram, oam, pal, pixels); 
+    }
 }
 
 fn render_mode4_bitmap_no_obj_window(line: usize, left: usize, right: usize, framebuffer: &Mode4FrameBuffer, pal: &GbaPalette, pixels: &mut LCDLineBuffer) {
@@ -90,25 +100,30 @@ pub fn render_mode5(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
     let object_priorities = ObjectPriority::sorted(oam);
     let bg2_priority = registers.bg_cnt[2].priority();
 
-    if bg2_priority < 3 { render_objects_placeholder(object_priorities.objects_with_priority(3), vram, oam, pal, pixels); }
-    if bg2_priority < 2 { render_objects_placeholder(object_priorities.objects_with_priority(2), vram, oam, pal, pixels); }
-    if bg2_priority < 1 { render_objects_placeholder(object_priorities.objects_with_priority(1), vram, oam, pal, pixels); }
-
-    let framebuffer_start = if registers.dispcnt.frame_select() == 0 { FRAMEBUFFER0_OFFSET } else { FRAMEBUFFER1_OFFSET };
-    let framebuffer_end = framebuffer_start + FRAMEBUFFER_SIZE;
-    assert!(vram.len() >= framebuffer_start && framebuffer_end <= vram.len());
-
-    if registers.line < 128 {
-        render_mode5_bitmap_no_obj_window(registers.line as usize, 0, 240, unsafe {
-            std::mem::transmute((&vram[framebuffer_start..framebuffer_end]).as_ptr())
-        }, pixels);
+    if registers.dispcnt.display_layer(4) {
+        if bg2_priority < 3 { render_objects_placeholder(object_priorities.objects_with_priority(3), vram, oam, pal, pixels); }
+        if bg2_priority < 2 { render_objects_placeholder(object_priorities.objects_with_priority(2), vram, oam, pal, pixels); }
+        if bg2_priority < 1 { render_objects_placeholder(object_priorities.objects_with_priority(1), vram, oam, pal, pixels); }
     }
 
-    if bg2_priority >= 3 { render_objects_placeholder(object_priorities.objects_with_priority(3), vram, oam, pal, pixels); }
-    if bg2_priority >= 2 { render_objects_placeholder(object_priorities.objects_with_priority(2), vram, oam, pal, pixels); }
-    if bg2_priority >= 1 { render_objects_placeholder(object_priorities.objects_with_priority(1), vram, oam, pal, pixels); }
+    if registers.dispcnt.display_layer(2) {
+        let framebuffer_start = if registers.dispcnt.frame_select() == 0 { FRAMEBUFFER0_OFFSET } else { FRAMEBUFFER1_OFFSET };
+        let framebuffer_end = framebuffer_start + FRAMEBUFFER_SIZE;
+        assert!(vram.len() >= framebuffer_start && framebuffer_end <= vram.len());
 
-    render_objects_placeholder(object_priorities.objects_with_priority(0), vram, oam, pal, pixels); 
+        if registers.line < 128 {
+            render_mode5_bitmap_no_obj_window(registers.line as usize, 0, 240, unsafe {
+                std::mem::transmute((&vram[framebuffer_start..framebuffer_end]).as_ptr())
+            }, pixels);
+        }
+    }
+
+    if registers.dispcnt.display_layer(4) {
+        if bg2_priority >= 3 { render_objects_placeholder(object_priorities.objects_with_priority(3), vram, oam, pal, pixels); }
+        if bg2_priority >= 2 { render_objects_placeholder(object_priorities.objects_with_priority(2), vram, oam, pal, pixels); }
+        if bg2_priority >= 1 { render_objects_placeholder(object_priorities.objects_with_priority(1), vram, oam, pal, pixels); }
+        render_objects_placeholder(object_priorities.objects_with_priority(0), vram, oam, pal, pixels); 
+    }
 }
 
 fn render_mode5_bitmap_no_obj_window(line: usize, left: usize, right: usize, framebuffer: &Mode5FrameBuffer, pixels: &mut LCDLineBuffer) {
