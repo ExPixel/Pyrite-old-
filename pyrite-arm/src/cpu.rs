@@ -144,8 +144,8 @@ impl ArmCpu {
     pub fn step(&mut self, memory: &mut dyn ArmMemory) -> u32 {
         self.cycles = 0;
         if let Some(exception) = self.pending_exception.take() {
-            let instr_size = if self.registers.getf_t() { 2 } else { 4 };
-            self.handle_exception(exception, memory, self.registers.read(15).wrapping_sub(instr_size));
+            let next = self.next_exec_address();
+            self.handle_exception(exception, memory, next);
         } else {
             if self.registers.getf_t() {
                 self.step_thumb(memory);
@@ -206,6 +206,13 @@ impl ArmCpu {
     /// Removes this CPU's exception handler and returns it (if there is one).
     pub fn remove_exception_handler(&mut self) -> Option<ExceptionHandler> {
         self.on_exception.take()
+    }
+
+    /// Returns the address of the instruction that will be executed on the next call to `step`.
+    #[inline]
+    pub fn next_exec_address(&self) -> u32 {
+        let instr_size = if self.registers.getf_t() { 2 } else { 4 };
+        self.registers.read(15).wrapping_sub(instr_size)
     }
 
     /// Actions performed by CPU when entering an exception

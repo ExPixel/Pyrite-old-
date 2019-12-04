@@ -18,6 +18,7 @@ static mut GLOBAL_FORMATTING_BUFFER: [u8; 1025] = [0u8; 1025];
 
 /// Returns a global text buffer that can be used for formatting without allocations.
 /// At the moment this is not thread safe and should be done on the same thread as ImGui.
+#[inline]
 pub fn global_fmt_buffer() -> &'static mut [u8] {
     unsafe {
         &mut GLOBAL_FORMATTING_BUFFER
@@ -126,12 +127,14 @@ pub fn end_child() {
     }
 }
 
+#[inline]
 pub fn same_line(offset_from_start_x: f32) {
     unsafe {
         sys::igSameLine(offset_from_start_x, -1.0f32);
     }
 }
 
+#[inline]
 pub fn same_line_with_spacing(offset_from_start_x: f32, spacing: f32) {
     unsafe {
         sys::igSameLine(offset_from_start_x, spacing);
@@ -296,6 +299,7 @@ pub fn plot_histogram_ex(label: &ImStr, values: &[f32], offset: i32, overlay_tex
     }
 }
 
+#[inline]
 pub fn text(s: &ImStr) {
     unsafe {
         sys::igText(s.as_ptr())
@@ -338,24 +342,28 @@ pub fn set_scroll_y(scroll_y: f32) {
     }
 }
 
+#[inline]
 pub fn set_cursor_pos_x(cursor_x: f32) {
     unsafe {
         sys::igSetCursorPosX(cursor_x)
     }
 }
 
+#[inline]
 pub fn set_cursor_pos_y(cursor_y: f32) {
     unsafe {
         sys::igSetCursorPosY(cursor_y)
     }
 }
 
+#[inline]
 pub fn set_cursor_pos(cursor_pos: ImVec2) {
     unsafe {
         sys::igSetCursorPos(cursor_pos)
     }
 }
 
+#[inline]
 pub fn get_cursor_pos_x() -> f32 {
     unsafe {
         sys::igGetCursorPosX()
@@ -363,15 +371,24 @@ pub fn get_cursor_pos_x() -> f32 {
 }
 
 
+#[inline]
 pub fn get_cursor_pos_y() -> f32 {
     unsafe {
         sys::igGetCursorPosY()
     }
 }
 
+#[inline]
 pub fn get_cursor_pos() -> ImVec2 {
     unsafe {
         sys::igGetCursorPos_nonUDT2().into()
+    }
+}
+
+#[inline]
+pub fn get_cursor_screen_pos() -> ImVec2 {
+    unsafe {
+        sys::igGetCursorScreenPos_nonUDT2().into()
     }
 }
 
@@ -402,6 +419,7 @@ pub fn input_text(label: &ImStr, buf: &mut ImStrBuf, flags: InputTextFlags, _cal
     }
 }
 
+#[inline]
 pub fn button(label: &ImStr) -> bool {
     unsafe {
         sys::igButton(label.as_ptr(), vec2(0.0, 0.0))
@@ -417,6 +435,27 @@ pub fn button_with_size(label: &ImStr, size: ImVec2) -> bool {
 pub fn set_next_item_width(item_width: f32) {
     unsafe {
         sys::igSetNextItemWidth(item_width)
+    }
+}
+
+#[inline]
+pub fn get_key_index(key: Key) -> i32 {
+    unsafe {
+        sys::igGetKeyIndex(key.bits())
+    }
+}
+
+#[inline]
+pub fn is_key_pressed(key_index: i32, repeat: bool) -> bool {
+    unsafe {
+        sys::igIsKeyPressed(key_index, repeat)
+    }
+}
+
+#[inline]
+pub fn is_key_released(key_index: i32) -> bool {
+    unsafe {
+        sys::igIsKeyReleased(key_index)
     }
 }
 
@@ -648,8 +687,20 @@ pub const G_SHIFT: u32 =  8;
 pub const B_SHIFT: u32 = 16;
 pub const A_SHIFT: u32 = 24;
 
+/// Converts 0xRRGGBB to 0xAABBGGRR placing 0xFF in AA.
 #[inline]
-pub const fn rgb(r: u8, g: u8, b: u8) -> u32 {
+pub const fn rgb(value: u32) -> u32 {
+    value.swap_bytes() | (0xFF << A_SHIFT)
+}
+
+/// Converts 0xAARRGGBB to 0xAABBGGRR
+#[inline]
+pub const fn rgba(value: u32) -> u32 {
+    value.swap_bytes().rotate_right(8)
+}
+
+#[inline]
+pub const fn rgb8(r: u8, g: u8, b: u8) -> u32 {
     ((r as u32) << R_SHIFT) |
     ((g as u32) << G_SHIFT) |
     ((b as u32) << B_SHIFT) |
@@ -657,7 +708,7 @@ pub const fn rgb(r: u8, g: u8, b: u8) -> u32 {
 }
 
 #[inline]
-pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> u32 {
+pub const fn rgba8(r: u8, g: u8, b: u8, a: u8) -> u32 {
     ((r as u32) << R_SHIFT) |
     ((g as u32) << G_SHIFT) |
     ((b as u32) << B_SHIFT) |
