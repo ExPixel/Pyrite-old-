@@ -21,9 +21,9 @@ pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
             }
         }
 
-        // if registers.dispcnt.display_layer(4) {
-        //     render_objects_no_obj_window(registers, object_priorities.objects_with_priority(priority), vram, oam, pal, pixels);
-        // }
+        if registers.dispcnt.display_layer(4) {
+            render_objects_no_obj_window(registers, object_priorities.objects_with_priority(priority), vram, oam, pal, pixels);
+        }
     }
 }
 

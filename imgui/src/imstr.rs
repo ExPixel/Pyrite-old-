@@ -29,6 +29,11 @@ impl ImStr {
         &*(bytes as *const [u8] as *const ImStr)
     }
 
+    #[inline]
+    pub fn to_str(&self) -> Result<&str, std::str::Utf8Error> {
+        std::str::from_utf8(self.to_bytes())
+    }
+
     /// Converts this to a byte slice. The returned sliec will **not** include the NUL byte.
     #[inline]
     pub fn to_bytes(&self) -> &[u8] {
@@ -45,14 +50,66 @@ impl ImStr {
     #[inline]
     pub unsafe fn begin(&self) -> *const c_char { self.inner.as_ptr() as *const _ } 
     #[inline]
-    pub unsafe fn end(&self) -> *const c_char { self.inner.as_ptr().offset(self.inner.len() as isize) as *const _ }
+    pub unsafe fn end(&self) -> *const c_char { self.inner.as_ptr().add(self.inner.len() - 1) as *const _ }
     #[inline]
     pub fn as_ptr(&self) -> *const c_char { self.inner.as_ptr() as *const _ }
 
     #[inline]
     pub unsafe fn begin_mut(&mut self) -> *mut c_char { self.inner.as_mut_ptr() as *mut _ } 
     #[inline]
-    pub unsafe fn end_mut(&mut self) -> *mut c_char { self.inner.as_mut_ptr().offset(self.inner.len() as isize) as *mut _ }
+    pub unsafe fn end_mut(&mut self) -> *mut c_char { self.inner.as_mut_ptr().add(self.inner.len() - 1) as *mut _ }
+    #[inline]
+    pub fn as_mut_ptr(&mut self) -> *mut c_char { self.inner.as_mut_ptr() as *mut _}
+}
+
+pub struct ImStrBuf {
+    inner: [u8],
+}
+
+impl ImStrBuf {
+    #[inline]
+    pub fn from_bytes(bytes: &mut [u8]) -> &mut ImStrBuf {
+        unsafe {
+            &mut *(bytes as *mut [u8] as *mut ImStrBuf)
+        }
+    }
+
+    /// Returns the index of the first NUL byte. This will return the length of the string buffer
+    /// if no NUL byte is found.
+    #[inline]
+    pub fn find_first_nul(&self) -> usize {
+        self.inner.iter().position(|&b| b == b'0').unwrap_or(self.inner.len())
+    }
+
+    /// Returns a reference to the first C-String contained in this buffer.
+    #[inline]
+    pub fn to_str(&self) -> Result<&str, std::str::Utf8Error> {
+        std::str::from_utf8(&self.inner[0..self.str_len()])
+    }
+
+    /// Returns the length of the first C-String contained in this buffer.
+    #[inline]
+    pub fn str_len(&self) -> usize {
+        self.find_first_nul()
+    }
+
+    /// This returns the length of the entire buffer.
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    #[inline]
+    pub unsafe fn begin(&self) -> *const c_char { self.inner.as_ptr() as *const _ } 
+    #[inline]
+    pub unsafe fn end(&self) -> *const c_char { self.inner.as_ptr().add(self.inner.len() - 1) as *const _ }
+    #[inline]
+    pub fn as_ptr(&self) -> *const c_char { self.inner.as_ptr() as *const _ }
+
+    #[inline]
+    pub unsafe fn begin_mut(&mut self) -> *mut c_char { self.inner.as_mut_ptr() as *mut _ } 
+    #[inline]
+    pub unsafe fn end_mut(&mut self) -> *mut c_char { self.inner.as_mut_ptr().add(self.inner.len() - 1) as *mut _ }
     #[inline]
     pub fn as_mut_ptr(&mut self) -> *mut c_char { self.inner.as_mut_ptr() as *mut _}
 }

@@ -7,12 +7,10 @@ use std::ptr;
 
 macro_rules! offset_of {
     ($Struct:path, $field:ident) => ({
-        let u: $Struct = std::mem::uninitialized::<$Struct>();
-        // use pattern matching to avoid accidentally going through Deref
-        let &$Struct{ $field: ref f, .. } = &u;
-        let o = (f as *const _ as usize).wrapping_sub(&u as *const _ as usize);
-        // check that we are still within u
-        debug_assert!( o < std::mem::size_of_val(&u) );
+        let u = std::mem::MaybeUninit::<$Struct>::uninit();
+        let uptr = u.as_ptr();
+        let field = &((*uptr).$field);
+        let o = (field as *const _ as usize).wrapping_sub(uptr as usize);
         o
     })
 }

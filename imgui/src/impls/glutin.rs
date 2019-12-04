@@ -89,12 +89,37 @@ pub fn process_window_event(gl_window: &glutin::Window, event: &Event) -> bool {
                     glutin::ElementState::Released => false,
                 };
 
-                if let Some(kc) = input.virtual_keycode {
-                    io.KeysDown[glutin_vkey_index(kc) as usize] = state_b;
-                    io.KeyShift = input.modifiers.shift;
-                    io.KeyCtrl = input.modifiers.ctrl;
-                    io.KeyAlt = input.modifiers.alt;
-                    io.KeySuper = input.modifiers.logo;
+                match input.virtual_keycode {
+                    Some(kc @ glutin::VirtualKeyCode::LShift) | Some(kc @ glutin::VirtualKeyCode::RShift) => {
+                        io.KeyShift = state_b;
+                        io.KeysDown[glutin_vkey_index(kc) as usize] = state_b;
+                    },
+
+                    Some(kc @ glutin::VirtualKeyCode::LControl) | Some(kc @ glutin::VirtualKeyCode::RControl) => {
+                        io.KeyCtrl = state_b;
+                        io.KeysDown[glutin_vkey_index(kc) as usize] = state_b;
+                    },
+
+                    Some(kc @ glutin::VirtualKeyCode::LAlt) | Some(kc @ glutin::VirtualKeyCode::RAlt) => {
+                        io.KeyAlt = state_b;
+                        io.KeysDown[glutin_vkey_index(kc) as usize] = state_b;
+                    },
+
+                    Some(kc @ glutin::VirtualKeyCode::LWin) | Some(kc @ glutin::VirtualKeyCode::RWin) => {
+                        io.KeySuper = state_b;
+                        io.KeysDown[glutin_vkey_index(kc) as usize] = state_b;
+                    },
+
+                    Some(kc) => {
+                        io.KeysDown[glutin_vkey_index(kc) as usize] = state_b;
+                        io.KeyShift = input.modifiers.shift;
+                        io.KeyCtrl = input.modifiers.ctrl;
+                        io.KeyAlt = input.modifiers.alt;
+                        io.KeySuper = input.modifiers.logo;
+                    },
+
+                    _ => {
+                    },
                 }
             },
 

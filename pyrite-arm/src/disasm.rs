@@ -40,7 +40,7 @@ const THUMB_OPCODE_TABLE: [(u16, u16); 17] = [
 
 pub fn disassemble(thumb: bool, address: u32, memory: &dyn ArmMemory) {
     if thumb {
-        let opcode = memory.view16(address);
+        let opcode = memory.view_halfword(address);
         for (select_bits, diff) in THUMB_OPCODE_TABLE.iter() {
             if ((opcode & select_bits) ^ diff) == 0 {
                 unimplemented!("thumb disassembly");
@@ -48,7 +48,7 @@ pub fn disassemble(thumb: bool, address: u32, memory: &dyn ArmMemory) {
         }
         unimplemented!("thumb undefined");
     } else {
-        let opcode = memory.view32(address);
+        let opcode = memory.view_word(address);
         for (select_bits, diff) in ARM_OPCODE_TABLE.iter() {
             if ((opcode & select_bits) ^ diff) == 0 {
                 unimplemented!("arm disassembly");
@@ -56,4 +56,28 @@ pub fn disassemble(thumb: bool, address: u32, memory: &dyn ArmMemory) {
         }
         unimplemented!("arm undefined");
     }
+}
+
+pub fn disassemble_arm(dest: &mut String, address: u32, memory: &dyn ArmMemory) {
+    use std::fmt::Write;
+    let opcode = memory.view_word(address);
+    for (select_bits, diff) in ARM_OPCODE_TABLE.iter() {
+        if ((opcode & select_bits) ^ diff) == 0 {
+            write!(dest, "undefined @ = {:08X}", memory.view_word(address)).unwrap();
+            return;
+        }
+    }
+    dest.push_str("undefined");
+}
+
+pub fn disassemble_thumb(dest: &mut String, address: u32, memory: &dyn ArmMemory) {
+    use std::fmt::Write;
+    let opcode = memory.view_halfword(address);
+    for (select_bits, diff) in THUMB_OPCODE_TABLE.iter() {
+        if ((opcode & select_bits) ^ diff) == 0 {
+            write!(dest, "undefined @ = {:04X}", memory.view_halfword(address)).unwrap();
+            return;
+        }
+    }
+    dest.push_str("undefined");
 }

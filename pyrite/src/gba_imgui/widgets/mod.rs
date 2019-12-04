@@ -1,10 +1,18 @@
+pub mod disassembly;
+
 use pyrite_gba::Gba;
 use crate::platform::opengl::GbaTexture;
+use disassembly::DisassemblyWindow;
 
 /// Main emulator GUI struct.
 pub struct EmulatorGUI {
     gba_display: GbaDisplayWindow,
     stats_window: EmulatorStatsWindow,
+    disassembly_window: DisassemblyWindow,
+
+    /// @TODO remove this later. For now I use it because I'm not very familiar with all of ImGui's
+    /// features.
+    show_demo_window: bool,
 }
 
 impl EmulatorGUI {
@@ -12,13 +20,17 @@ impl EmulatorGUI {
         EmulatorGUI {
             gba_display: GbaDisplayWindow::new(),
             stats_window: EmulatorStatsWindow::new(),
+            disassembly_window: DisassemblyWindow::new(),
+            show_demo_window: false,
         }
     }
 
-    pub fn render(&mut self, _gba: &mut Gba, gba_texture: &GbaTexture) {
+    pub fn draw(&mut self, gba: &mut Gba, gba_texture: &GbaTexture) {
         self.draw_menu_bar();
         if self.gba_display.open { self.gba_display.draw(&gba_texture); }
         if self.stats_window.open { self.stats_window.draw(); }
+        if self.disassembly_window.open { self.disassembly_window.draw(&gba.cpu, &gba.hardware); }
+        if self.show_demo_window { imgui::show_demo_window(&mut self.show_demo_window); }
     }
 
     fn draw_menu_bar(&mut self) {
@@ -32,6 +44,9 @@ impl EmulatorGUI {
             }
 
             if imgui::begin_menu(imgui::str!("View"), true) {
+                if imgui::menu_item_ex(imgui::str!("Disassembly"), None, self.disassembly_window.open, true) {
+                    self.disassembly_window.open = !self.disassembly_window.open;
+                }
 
                 if imgui::menu_item_ex(imgui::str!("GBA Display"), None, self.gba_display.open, true) {
                     self.gba_display.open = !self.gba_display.open;
@@ -56,6 +71,10 @@ impl EmulatorGUI {
 
                 if imgui::menu_item_ex(imgui::str!("Stats"), None, self.stats_window.open, true) {
                     self.stats_window.open = !self.stats_window.open;
+                }
+
+                if imgui::menu_item_ex(imgui::str!("Demo Window"), None, self.show_demo_window, true) {
+                    self.show_demo_window = !self.show_demo_window;
                 }
 
                 imgui::end_menu();

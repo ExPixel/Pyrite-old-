@@ -149,7 +149,7 @@ impl GbaImGui {
     }
 
     fn render_gui(&mut self) {
-        self.main_emulator_gui.render(&mut self.gba, &self.gba_texture);
+        self.main_emulator_gui.draw(&mut self.gba, &self.gba_texture);
     }
 }
 

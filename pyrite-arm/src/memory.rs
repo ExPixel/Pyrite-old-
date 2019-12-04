@@ -13,6 +13,10 @@ pub trait ArmMemory {
     fn write_data_halfword(&mut self, addr: u32, data: u16, seq: bool, cycles: &mut u32);
     fn     write_data_byte(&mut self, addr: u32, data:  u8, seq: bool, cycles: &mut u32);
 
+    fn     view_word(&self, addr: u32) -> u32;
+    fn view_halfword(&self, addr: u32) -> u16;
+    fn     view_byte(&self, addr: u32) ->  u8;
+
     /// Branches will use this to get the cycles for a prefetch instead of actually doing reads.
     /// Used for optimization.
     fn code_cycles_word(&mut self, addr: u32, seq: bool) -> u32 {
@@ -85,6 +89,28 @@ impl ArmMemory for Vec<u8> {
             *dst = data;
         } else {
             panic!("out of bounds write to 0x{:08X}", addr);
+        }
+    }
+
+    fn view_word(&self, addr: u32) -> u32 {
+        let addr = addr & 0xFFFFFFFC;
+        let lo = self.view_halfword(addr) as u32;
+        let hi = self.view_halfword(addr + 2) as u32;
+        return lo | (hi << 16)
+    }
+
+    fn view_halfword(&self, addr: u32) -> u16 {
+        let addr = addr & 0xFFFFFFFE;
+        let lo = self.view_byte(addr) as u16;
+        let hi = self.view_byte(addr + 1) as u16;
+        return lo | (hi << 8);
+    }
+
+    fn view_byte(&self, addr: u32) ->  u8 {
+        if let Some(data) = self.get(addr as usize) {
+            *data
+        } else {
+            panic!("out of bounds read from 0x{:08X}", addr);
         }
     }
 }
