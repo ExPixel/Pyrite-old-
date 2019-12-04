@@ -608,7 +608,7 @@ fn thumb_addpc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rd: u3
 fn thumb_addsp(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rd: u32) {
     cpu.thumb_prefetch(memory);
 
-    let offset = (opcode & 0xFF) << 2;
+    let offset = sign_extend_32!((opcode & 0xFF) << 2, 10);
     let sp = cpu.registers.read(13);
     cpu.registers.write(rd, sp.wrapping_add(offset));
 }

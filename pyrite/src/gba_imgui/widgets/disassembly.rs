@@ -173,15 +173,16 @@ impl DisassemblyWindow {
         };
 
         if cursor_moved { 
-            if self.cursor_address < self.first_address {
-                self.first_address = self.cursor_address;
+            if self.cursor_address <= self.first_address {
+                self.first_address = std::cmp::max(self.min_address, self.cursor_address.saturating_sub(instr_size));
             }
 
-            if self.cursor_address > last_address {
+            if self.cursor_address >= last_address {
                 self.first_address = if self.visible_rows == 0 {
-                    self.cursor_address
+                    std::cmp::max(self.min_address, self.cursor_address.saturating_sub(instr_size))
                 } else {
-                    self.cursor_address - ((self.visible_rows - 1) * instr_size)
+                    let target = self.cursor_address - ((self.visible_rows - 1) * instr_size);
+                    std::cmp::min(self.max_address, target.saturating_add(instr_size))
                 };
                 last_address = self.cursor_address;
             }

@@ -59,7 +59,7 @@ function createDisassemblyTable(tableName, opcodeBits, stringTable, enumName) {
         enumVariantsString += `\t${variant},\n`;
     });
 
-    const tableCode = `const ${tableName}: [(u32, u32, ARMInstrType); ${stringTable.length}] = [\n${tableString}\n];`;
+    const tableCode = `const ${tableName}: [(u32, u32, ${enumName}); ${stringTable.length}] = [\n${tableString}\n];`;
     const enumCode = `pub enum ${enumName} {\n${enumVariantsString}}`;
 
     return [tableCode, enumCode];
