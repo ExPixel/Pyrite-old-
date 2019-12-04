@@ -299,6 +299,19 @@ pub fn plot_histogram_ex(label: &ImStr, values: &[f32], offset: i32, overlay_tex
     }
 }
 
+pub fn plot_lines(label: &ImStr, values: &[f32], offset: i32) {
+    plot_histogram_ex(label, values, offset, None, std::f32::MAX, std::f32::MAX, vec2(0.0, 0.0), -1);
+}
+
+pub fn plot_lines_ex(label: &ImStr, values: &[f32], offset: i32, overlay_text: Option<&ImStr>, scale_min: f32, scale_max: f32, graph_size: ImVec2, stride: i32) {
+    unsafe {
+        sys::igPlotLines(
+            label.as_ptr(), values.as_ptr(), values.len() as i32, offset,
+            opt_str_ptr(overlay_text), scale_min, scale_max, graph_size,
+            if stride < 0 { std::mem::size_of::<f32>() as i32 } else { stride })
+    }
+}
+
 #[inline]
 pub fn text(s: &ImStr) {
     unsafe {

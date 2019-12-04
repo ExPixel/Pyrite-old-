@@ -182,7 +182,7 @@ impl EmulatorStatsWindow {
 
             let emu_scale_max = if emu_max_frame_delay > 32.0 { emu_max_frame_delay } else { 24.0 };
 
-            imgui::plot_histogram_ex(imgui::str!("Emulator Frame Delay"),
+            imgui::plot_lines_ex(imgui::str!("Emulator Frame Delay"),
                 &self.emu_delay_history.get_internal_buffer(), self.emu_delay_history.get_internal_head() as i32,
                 None, 0.0, emu_scale_max, imgui::vec2(0.0, 0.0), -1);
             imgui::text(imgui::str_gbuf!("    Average: {:.02} ({:.02} FPS)", emu_average_frame_delay, 1000.0 / emu_average_frame_delay));
@@ -205,7 +205,7 @@ impl EmulatorStatsWindow {
 
             let gba_scale_max = if emu_max_frame_delay > 32.0 { emu_max_frame_delay } else { 18.0 };
 
-            imgui::plot_histogram_ex(imgui::str!("GBA Frame Delay"),
+            imgui::plot_lines_ex(imgui::str!("GBA Frame Delay"),
                 &self.gba_delay_history.get_internal_buffer(), self.gba_delay_history.get_internal_head() as i32,
                 None, 0.0, gba_scale_max, imgui::vec2(0.0, 0.0), -1);
             imgui::text(imgui::str_gbuf!("    Average: {:.02} ({:.02} FPS)", gba_average_frame_delay, 1000.0 / gba_average_frame_delay));
@@ -238,7 +238,7 @@ impl EmulatorStatsWindow {
 
             let gui_scale_max = if emu_max_frame_delay > 32.0 { emu_max_frame_delay } else { 18.0 };
 
-            imgui::plot_histogram_ex(imgui::str!("ImGUI Frame Delay"),
+            imgui::plot_lines_ex(imgui::str!("ImGUI Frame Delay"),
                 &self.gui_delay_history.get_internal_buffer(), self.gui_delay_history.get_internal_head() as i32,
                 None, 0.0, gui_scale_max, imgui::vec2(0.0, 0.0), -1);
             imgui::text(imgui::str_gbuf!("    Average: {:.02}", gui_average_frame_delay));
