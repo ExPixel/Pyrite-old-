@@ -38,6 +38,7 @@ pub const WIN1V: u16        = 0x0046;
 pub const WININ: u16        = 0x0048;
 pub const WINOUT: u16       = 0x004A;
 pub const MOSAIC: u16       = 0x004C;
+pub const MOSAIC_HI: u16    = 0x004E;
 pub const BLDCNT: u16       = 0x0050;
 pub const BLDALPHA: u16     = 0x0052;
 pub const BLDY: u16         = 0x0054;

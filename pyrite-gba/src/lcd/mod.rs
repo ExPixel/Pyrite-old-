@@ -67,6 +67,9 @@ impl GbaLCD {
             228 => self.registers.line = 0,
             _ => { /* NOP */ },
         }
+
+        let vcounter_match = self.registers.dispstat.vcounter_setting() == self.registers.line;
+        self.registers.dispstat.set_vcounter(vcounter_match);
     }
 
     fn hblank(&mut self, vram: &VRAM, oam: &OAM, palette: &GbaPalette, video: &mut dyn GbaVideoOutput) {
@@ -240,6 +243,8 @@ bitfields! (DisplayStatus: u16 {
     vblank_irq_enable, set_vblank_irq_enable: bool = [3, 3],
     hblank_irq_enable, set_hblank_irq_enable: bool = [4, 4],
     vcounter_irq_enable, set_vcounter_irq_enable: bool = [5, 5],
+
+    vcounter_setting, set_vcounter_setting: u16 = [8, 15],
 });
 
 bitfields! (DisplayControl: u16 {

@@ -1,7 +1,7 @@
 use pyrite_arm::{ ArmCpu, ArmMemory };
 use pyrite_arm::disasm::{ disassemble_arm, disassemble_thumb };
 
-const MAX_OPCODE_SIZE: u32 = 48;
+const MAX_OPCODE_SIZE: u32 = 44;
 
 #[derive(PartialEq, Eq)]
 pub enum DisasmMode {
@@ -61,9 +61,9 @@ impl DisassemblyWindow {
         sizes.cursor_begin  = 1.0 * sizes.glyph_width;
         sizes.addr_digits   = 8.0;
         sizes.addr_begin    = sizes.cursor_begin + (sizes.glyph_width * 1.5);
-        sizes.opcode_begin  = sizes.addr_begin + (sizes.addr_digits + 2.0) * sizes.glyph_width;
-        sizes.opcode_end    = sizes.opcode_begin + (MAX_OPCODE_SIZE as f32 * sizes.glyph_width);
-        sizes.disasm_width  = sizes.opcode_end;
+        sizes.opcode_begin  = sizes.addr_begin + (sizes.addr_digits + 1.0) * sizes.glyph_width;
+        sizes.disasm_begin  = sizes.opcode_begin + (sizes.addr_digits + 1.0) * sizes.glyph_width;
+        sizes.disasm_end    = sizes.disasm_begin + (MAX_OPCODE_SIZE as f32 * sizes.glyph_width);
 
         sizes.scrollbar_size = style.ScrollbarSize;
         sizes.window_padding = style.WindowPadding.x;
@@ -74,8 +74,8 @@ impl DisassemblyWindow {
     pub fn draw(&mut self, cpu: &ArmCpu, memory: &dyn ArmMemory) {
         let sizes = self.calc_sizes();
         imgui::set_next_window_size_constraints(
-            imgui::vec2(sizes.reg_width + sizes.disasm_width + sizes.scrollbar_size + sizes.window_padding, 0.0),
-            imgui::vec2(sizes.reg_width + sizes.disasm_width + sizes.scrollbar_size + sizes.window_padding, std::f32::MAX),
+            imgui::vec2(sizes.reg_width + sizes.disasm_end + sizes.scrollbar_size + sizes.window_padding, 0.0),
+            imgui::vec2(sizes.reg_width + sizes.disasm_end + sizes.scrollbar_size + sizes.window_padding, std::f32::MAX),
             None
         );
 
@@ -119,7 +119,7 @@ impl DisassemblyWindow {
 
         imgui::same_line(0.0);
 
-        imgui::begin_child(imgui::str!("##scrolling_disasm"), imgui::vec2(sizes.disasm_width, 0.0), true, imgui::WindowFlags::NoMove);
+        imgui::begin_child(imgui::str!("##scrolling_disasm"), imgui::vec2(sizes.disasm_end, 0.0), true, imgui::WindowFlags::NoMove);
 
         let draw_list = imgui::get_window_draw_list().expect("failed to get window draw list");
 
@@ -248,6 +248,12 @@ impl DisassemblyWindow {
             imgui::set_cursor_pos_x(sizes.addr_begin);
             imgui::text(imgui::str_gbuf!("{:08X}", address));
             imgui::same_line(sizes.opcode_begin);
+            if thumb_mode {
+                imgui::text(imgui::str_gbuf!("{:04X}", memory.view_halfword(address)));
+            } else {
+                imgui::text(imgui::str_gbuf!("{:08X}", memory.view_word(address)));
+            }
+            imgui::same_line(sizes.disasm_begin);
             imgui::text(unsafe {
                 imgui::imstr::ImStr::from_bytes_with_nul_unchecked(self.disasm_buffer.as_str().as_bytes())
             });
@@ -304,8 +310,8 @@ struct Sizes {
     glyph_width:    f32,
     addr_begin:     f32,
     opcode_begin:   f32,
-    opcode_end:     f32,
-    disasm_width:   f32,
+    disasm_begin:   f32,
+    disasm_end:     f32,
     scrollbar_size: f32,
     window_padding: f32,
     cursor_begin:   f32,

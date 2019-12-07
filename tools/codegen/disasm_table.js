@@ -34,6 +34,8 @@ const THUMB_TABLE = [
     ["1100____________", "MultipleLoadStore",           "Multiple Load/Store"],
     ["1101____________", "ConditionalBranch",           "Conditional Branch"],
     ["11011111________", "SoftwareInterrupt",           "Software Interrupt"],
+    ["11100___________", "UnconditionalBranch",         "Unconditional Branch"],
+    ["1111____________", "LongBranchWithLink",          "Long Branch with Link"],
 ];
 
 
