@@ -46,9 +46,17 @@ pub fn draw_text_bg_4bpp_no_obj_window(line: u32, left: u32, right: u32, bg: &Te
     };
     let ty = scy % 8;
 
+    let mut mdx = left;
     let mut dx = left;
+
     while dx < right {
-        let scx = apply_mosaic(start_scx + dx, bg.mosaic_x);
+        let scx = start_scx + dx - mdx;
+
+        mdx += 1;
+        if mdx >= bg.mosaic_x {
+            mdx = 0;
+        }
+
         let tile_info_offset = bg.get_tile_info_offset(scx, scy);
         if tile_info_offset > 0x10000 { dx += 1; continue }
         let tile_info = unsafe {
@@ -67,7 +75,7 @@ pub fn draw_text_bg_4bpp_no_obj_window(line: u32, left: u32, right: u32, bg: &Te
         if pixel_offset > 0x10000 { dx += 1; continue }
 
         // try to do 8 pixels at a time if possible:
-        if bg.mosaic_x == 0 && (scx % 8) == 0 && dx <= (right - 8) {
+        if bg.mosaic_x <= 1 && (scx % 8) == 0 && dx <= (right - 8) {
             let pinc = if horizontal_flip { -1i32 as u32 } else { 1u32 };
             for _ in 0..4 {
                 let palette_entry = vram[pixel_offset as usize];
