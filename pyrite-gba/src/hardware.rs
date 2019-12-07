@@ -107,7 +107,7 @@ impl GbaHardware {
                 }
             }
 
-            0x04 => self.io_read32(addr),
+            0x04 => self.io_read32(addr, true),
             0x05 => self.pal.read32(addr as usize % (1 * 1024)),
             0x06 => read_u32(&self.vram, Self::vram_off(addr)),
             0x07 => read_u32(&self.oam, addr as usize % (  1 * 1024)),
@@ -146,7 +146,7 @@ impl GbaHardware {
                 }
             }
 
-            0x04 => self.io_read32(addr),
+            0x04 => self.io_read32(addr, false),
             0x05 => self.pal.read32(addr as usize % (1 * 1024)),
             0x06 => read_u32(&self.vram, Self::vram_off(addr)),
             0x07 => read_u32(&self.oam, addr as usize % (  1 * 1024)),
@@ -184,7 +184,7 @@ impl GbaHardware {
             0x05 => self.pal.read16(addr as usize % (1 * 1024)),
             0x06 => read_u16(&self.vram, Self::vram_off(addr)),
             0x07 => read_u16(&self.oam, addr as usize % (  1 * 1024)),
-            0x04 => self.io_read16(addr),
+            0x04 => self.io_read16(addr, true),
             0x08 | 0x09 => self.gamepak_read16(addr, CART0),
             0x0A | 0x0B => self.gamepak_read16(addr, CART1),
             0x0C | 0x0D => self.gamepak_read16(addr, CART2),
@@ -221,7 +221,7 @@ impl GbaHardware {
             0x05 => self.pal.read16(addr as usize % (1 * 1024)),
             0x06 => read_u16(&self.vram, Self::vram_off(addr)),
             0x07 => read_u16(&self.oam, addr as usize % (  1 * 1024)),
-            0x04 => self.io_read16(addr),
+            0x04 => self.io_read16(addr, false),
             0x08 | 0x09 => self.gamepak_read16(addr, CART0),
             0x0A | 0x0B => self.gamepak_read16(addr, CART1),
             0x0C | 0x0D => self.gamepak_read16(addr, CART2),
@@ -253,7 +253,7 @@ impl GbaHardware {
             },
             0x05 => self.pal.read8(addr as usize % (1 * 1024)),
             0x07 => self.oam[addr as usize % (1 * 1024)],
-            0x04 => self.io_read8(addr),
+            0x04 => self.io_read8(addr, true),
             0x08 | 0x09 => self.gamepak_read8(addr, CART0),
             0x0A | 0x0B => self.gamepak_read8(addr, CART1),
             0x0C | 0x0D => self.gamepak_read8(addr, CART2),
@@ -287,7 +287,7 @@ impl GbaHardware {
             },
             0x05 => self.pal.read8(addr as usize % (1 * 1024)),
             0x07 => self.oam[addr as usize % (1 * 1024)],
-            0x04 => self.io_read8(addr),
+            0x04 => self.io_read8(addr, false),
             0x08 | 0x09 => self.gamepak_read8(addr, CART0),
             0x0A | 0x0B => self.gamepak_read8(addr, CART1),
             0x0C | 0x0D => self.gamepak_read8(addr, CART2),
@@ -304,7 +304,7 @@ impl GbaHardware {
             0x02 if !self.ramctl.disabled &&  self.ramctl.external => write_u32(&mut self.ewram, addr as usize % (256 * 1024), data),
             0x02 if !self.ramctl.disabled => write_u32(&mut self.iwram, addr as usize % ( 32 * 1024), data),
             0x03 if !self.ramctl.disabled => write_u32(&mut self.iwram, addr as usize % ( 32 * 1024), data),
-            0x04 => return self.io_write32(addr, data),
+            0x04 => return self.io_write32(addr, data, true),
             0x05 => self.pal.write32(addr as usize % (1 * 1024), data),
             0x06 => write_u32(&mut self.vram, Self::vram_off(addr), data),
             0x07 => write_u32(&mut self.oam, addr as usize % (1 * 1024), data),
@@ -327,7 +327,7 @@ impl GbaHardware {
             0x02 if !self.ramctl.disabled &&  self.ramctl.external => write_u16(&mut self.ewram, addr as usize % (256 * 1024), data),
             0x02 if !self.ramctl.disabled => write_u16(&mut self.iwram, addr as usize % ( 32 * 1024), data),
             0x03 if !self.ramctl.disabled => write_u16(&mut self.iwram, addr as usize % ( 32 * 1024), data),
-            0x04 => return self.io_write16(addr, data),
+            0x04 => return self.io_write16(addr, data, true),
             0x05 => self.pal.write16(addr as usize % (1 * 1024), data),
             0x06 => write_u16(&mut self.vram, Self::vram_off(addr), data),
             0x07 => write_u16(&mut self.oam, addr as usize % (1 * 1024), data),
@@ -350,7 +350,7 @@ impl GbaHardware {
             0x02 if !self.ramctl.disabled &&  self.ramctl.external => self.ewram[addr as usize % (256 * 1024)] = data,
             0x02 if !self.ramctl.disabled => self.iwram[addr as usize % ( 32 * 1024)] = data,
             0x03 if !self.ramctl.disabled => self.iwram[addr as usize % ( 32 * 1024)] = data,
-            0x04 => return self.io_write8(addr, data),
+            0x04 => return self.io_write8(addr, data, true),
             0x05 => self.pal.write8(addr as usize % (1 * 1024), data),
             0x07 => self.oam[addr as usize % (1 * 1024)] = data,
             0x08 | 0x09 => return self.gamepak_write8(addr, data, CART0),
@@ -440,7 +440,7 @@ impl GbaHardware {
         false
     }
 
-    fn io_read32(&self, addr: u32) -> u32 {
+    fn io_read32(&self, addr: u32, display_error: bool) -> u32 {
         // the address is 32-bit aligned by this point so adding 2 like this is safe.
         let offset_lo = Self::io_off(addr);
         let offset_hi = offset_lo + 2;
@@ -459,16 +459,26 @@ impl GbaHardware {
             },
 
             (None, None) => {
+                if display_error {
+                    Self::bad_read(32, addr, "invalid IO register");
+                }
                 return self.last_code_read;
             },
         }
     }
 
-    fn io_read16(&self, addr: u32) -> u16 {
-        self.io_read_reg(Self::io_off(addr)).unwrap_or(halfword_of_word(self.last_code_read, addr))
+    fn io_read16(&self, addr: u32, display_error: bool) -> u16 {
+        if let Some(value) = self.io_read_reg(Self::io_off(addr)) {
+            value
+        } else {
+            if display_error {
+                Self::bad_read(16, addr, "invalid IO register");
+            }
+            halfword_of_word(self.last_code_read, addr)
+        }
     }
 
-    fn  io_read8(&self, addr: u32) -> u8 {
+    fn  io_read8(&self, addr: u32, display_error: bool) -> u8 {
         let offset = Self::io_off(addr);
         match offset {
             ioregs::POSTFLG => {
@@ -485,13 +495,16 @@ impl GbaHardware {
                     let shift = (offset & 1) << 3;
                     (halfword >> shift) as u8
                 } else {
+                    if display_error {
+                        Self::bad_read(8, addr, "invalid IO register");
+                    }
                     byte_of_word(self.last_code_read, addr)
                 }
             },
         }
     }
 
-    fn io_write32(&mut self, addr: u32, data: u32) -> bool {
+    fn io_write32(&mut self, addr: u32, data: u32, display_error: bool) -> bool {
         // the address is 32-bit aligned by this point so adding 2 like this is safe.
         let offset_lo = Self::io_off(addr);
 
@@ -520,17 +533,27 @@ impl GbaHardware {
                 let offset_hi = offset_lo + 2;
                 let lo_write = self.io_write_reg(offset_lo, data as u16);
                 let hi_write = self.io_write_reg(offset_hi, (data >> 16) as u16);
-                return lo_write | hi_write;
+                let success = lo_write | hi_write;
+
+                if display_error && !success {
+                    Self::bad_write(32, addr, "invalid IO register");
+                }
+
+                return success;
             }
         }
         return true;
     }
 
-    fn io_write16(&mut self, addr: u32, data: u16) -> bool {
-        self.io_write_reg(Self::io_off(addr), data)
+    fn io_write16(&mut self, addr: u32, data: u16, display_error: bool) -> bool {
+        let success = self.io_write_reg(Self::io_off(addr), data);
+        if display_error && !success {
+            Self::bad_write(16, addr, "invalid IO register");
+        }
+        return success;
     }
 
-    fn io_write8(&mut self, addr: u32, data:  u8) -> bool {
+    fn io_write8(&mut self, addr: u32, data:  u8, display_error: bool) -> bool {
         const IMC_END: u16 = ioregs::IMC + 3;
 
         let offset = Self::io_off(addr);
@@ -555,7 +578,12 @@ impl GbaHardware {
                 let mut halfword = read_u16(&self.ioreg_bytes, halfword_offset as usize);
                 let shift = (offset & 1) << 3;
                 halfword = (halfword & (0xFF00 >> shift)) | ((data as u16) << shift);
-                return self.io_write_reg(halfword_offset, halfword);
+                let success = self.io_write_reg(halfword_offset, halfword);
+
+                if display_error && !success {
+                    Self::bad_write(8, addr, "invalid IO register");
+                }
+                return success;
             },
 
             _ => {
@@ -654,7 +682,6 @@ impl GbaHardware {
             },
 
             _ => {
-                // eprintln!("write to bad IO register offset 0x{:04X}", offset);
                 return false;
             },
         }
@@ -694,7 +721,6 @@ impl GbaHardware {
             ioregs::IMC => getw!(self.ramctl.reg_control),
 
             _ => {
-                // eprintln!("read from bad IO register offset 0x{:04X}", offset);
                 None
             }
         }
@@ -727,6 +753,11 @@ impl GbaHardware {
     fn bad_read(bits: u8, addr: u32, message: &'static str) {
         println!("bad {}-bit read at 0x{:08X}: {}", bits, addr, message);
    }
+
+    #[cold]
+    fn bad_write(bits: u8, addr: u32, message: &'static str) {
+        println!("bad {}-bit write at 0x{:08X}: {}", bits, addr, message);
+    }
 }
 
 
