@@ -47,6 +47,11 @@ pub struct GbaHardware {
     /// If this is set to true, reading from the BIOS will be allowed.
     /// If this is false, all reads from the BIOS will return the last read opcode.
     allow_bios_access:  bool,
+
+    /// Using a cell here just allows me to mutate this bool without redoing the entire memory API.
+    /// This flag is set after any bad access. Reading this flag via `pop_bad_access` will clear
+    /// it.
+    bad_access: std::cell::Cell<bool>,
 }
 
 impl GbaHardware {
@@ -71,6 +76,8 @@ impl GbaHardware {
 
             // @TODO implement
             allow_bios_access: true,
+
+            bad_access: std::cell::Cell::new(false),
         }
     }
 
@@ -88,9 +95,10 @@ impl GbaHardware {
 
         match region_of(addr) {
             0x00 => self.bios_read32(addr),
-            0x01 => { Self::bad_read(32, addr, "unused region 0x01"); self.last_code_read },
+            0x01 => { self.bad_read(32, addr, "unused region 0x01"); self.last_code_read },
             0x02 => {
                 if self.ramctl.disabled {
+                    self.bad_read(32, addr, "disabled RAM");
                     self.last_code_read
                 } else if self.ramctl.external {
                     read_u32(&self.ewram, addr as usize % (256 * 1024))
@@ -101,6 +109,7 @@ impl GbaHardware {
 
             0x03 => {
                 if self.ramctl.disabled {
+                    self.bad_read(32, addr, "disabled RAM");
                     self.last_code_read
                 } else {
                     read_u32(&self.iwram, addr as usize % ( 32 * 1024))
@@ -115,7 +124,7 @@ impl GbaHardware {
             0x0A | 0x0B => self.gamepak_read32(addr, CART1),
             0x0C | 0x0D => self.gamepak_read32(addr, CART2),
             0x0E => self.sram.read32(addr).unwrap_or(self.last_code_read),
-            0x0F => { Self::bad_read(32, addr, "unused region 0x0F"); self.last_code_read },
+            0x0F => { self.bad_read(32, addr, "unused region 0x0F"); self.last_code_read },
             _ => unreachable!(),
         }
     }
@@ -164,9 +173,10 @@ impl GbaHardware {
 
         match region_of(addr) {
             0x00 => self.bios_read16(addr),
-            0x01 => { Self::bad_read(16, addr, "unused region 0x01"); halfword_of_word(self.last_code_read, addr) }
+            0x01 => { self.bad_read(16, addr, "unused region 0x01"); halfword_of_word(self.last_code_read, addr) }
             0x02 => {
                 if self.ramctl.disabled {
+                    self.bad_read(16, addr, "disabled RAM");
                     halfword_of_word(self.last_code_read, addr)
                 } else if self.ramctl.external {
                     read_u16(&self.ewram, addr as usize % (256 * 1024))
@@ -176,6 +186,7 @@ impl GbaHardware {
             },
             0x03 => {
                 if self.ramctl.disabled {
+                    self.bad_read(16, addr, "disabled RAM");
                     halfword_of_word(self.last_code_read, addr)
                 } else {
                     read_u16(&self.iwram, addr as usize % ( 32 * 1024))
@@ -189,7 +200,7 @@ impl GbaHardware {
             0x0A | 0x0B => self.gamepak_read16(addr, CART1),
             0x0C | 0x0D => self.gamepak_read16(addr, CART2),
             0x0E => self.sram.read16(addr).unwrap_or(halfword_of_word(self.last_code_read, addr)),
-            0x0F => { Self::bad_read(16, addr, "unused region 0x0F"); halfword_of_word(self.last_code_read, addr) }
+            0x0F => { self.bad_read(16, addr, "unused region 0x0F"); halfword_of_word(self.last_code_read, addr) }
             _ => unreachable!(),
         }
     }
@@ -234,9 +245,10 @@ impl GbaHardware {
     pub fn read8(&self, addr: u32) -> u8 {
         match region_of(addr) {
             0x00 => self.bios_read8(addr),
-            0x01 => { Self::bad_read(8, addr, "unused region 0x01"); byte_of_word(self.last_code_read, addr) }
+            0x01 => { self.bad_read(8, addr, "unused region 0x01"); byte_of_word(self.last_code_read, addr) }
             0x02 => {
                 if self.ramctl.disabled {
+                    self.bad_read(8, addr, "disabled RAM");
                     byte_of_word(self.last_code_read, addr)
                 } else if self.ramctl.external {
                     self.ewram[addr as usize % (256 * 1024)]
@@ -246,6 +258,7 @@ impl GbaHardware {
             },
             0x03 => {
                 if self.ramctl.disabled {
+                    self.bad_read(8, addr, "disabled RAM");
                     byte_of_word(self.last_code_read, addr)
                 } else {
                     self.iwram[addr as usize % ( 32 * 1024)]
@@ -258,7 +271,7 @@ impl GbaHardware {
             0x0A | 0x0B => self.gamepak_read8(addr, CART1),
             0x0C | 0x0D => self.gamepak_read8(addr, CART2),
             0x0E => self.sram.read8(addr).unwrap_or(byte_of_word(self.last_code_read, addr)),
-            0x0F => { Self::bad_read(8, addr, "unused region 0x0F"); byte_of_word(self.last_code_read, addr) }
+            0x0F => { self.bad_read(8, addr, "unused region 0x0F"); byte_of_word(self.last_code_read, addr) }
             _ => unreachable!(),
         }
     }
@@ -286,6 +299,7 @@ impl GbaHardware {
                 }
             },
             0x05 => self.pal.read8(addr as usize % (1 * 1024)),
+            0x06 => self.vram[Self::vram_off(addr)],
             0x07 => self.oam[addr as usize % (1 * 1024)],
             0x04 => self.io_read8(addr, false),
             0x08 | 0x09 => self.gamepak_read8(addr, CART0),
@@ -313,7 +327,7 @@ impl GbaHardware {
             0x0C | 0x0D => return self.gamepak_write32(addr, data, CART2),
             0x0E => return self.sram.write32(addr, data),
             _ => {
-                eprintln!("out of range 32-bit write to memory address 0x{:08X}", addr);
+                self.bad_write(32, addr, data, "out of range memory address");
                 return false;
             }
         }
@@ -336,7 +350,7 @@ impl GbaHardware {
             0x0C | 0x0D => return self.gamepak_write16(addr, data, CART2),
             0x0E => return self.sram.write16(addr, data),
             _ => {
-                eprintln!("out of range 16-bit write to memory address 0x{:08X}", addr);
+                self.bad_write(16, addr, data as u32, "out of range memory address");
                 return false;
             }
         }
@@ -358,7 +372,7 @@ impl GbaHardware {
             0x0C | 0x0D => return self.gamepak_write8(addr, data, CART2),
             0x0E => return self.sram.write8(addr, data),
             _ => {
-                // eprintln!("out of range 16-bit write to memory address 0x{:08X}", addr);
+                self.bad_write(8, addr, data as u32, "out of range memory address");
                 return false;
             }
         }
@@ -369,6 +383,7 @@ impl GbaHardware {
         if self.allow_bios_access && addr <= (16 * 1024 - 4) {
             read_u32(&self.bios, addr as usize)
         } else {
+            self.bad_read(32, addr, "out of BIOS range or no permission");
             self.last_code_read
         }
     }
@@ -377,6 +392,7 @@ impl GbaHardware {
         if self.allow_bios_access && addr <= (16 * 1024 - 4) {
             read_u16(&self.bios, addr as usize)
         } else {
+            self.bad_read(16, addr, "out of BIOS range or no permission");
             halfword_of_word(self.last_code_read, addr)
         }
     }
@@ -385,6 +401,7 @@ impl GbaHardware {
         if self.allow_bios_access && addr <= (16 * 1024 - 4) {
             self.bios[addr as usize]
         } else {
+            self.bad_read(8, addr, "out of BIOS range or no permission");
             byte_of_word(self.last_code_read, addr)
         }
     }
@@ -396,6 +413,7 @@ impl GbaHardware {
                 read_u32_unchecked(&self.gamepak, offset)
             }
         } else {
+            self.bad_read(32, addr, "out of cartridge range");
             let lo = (addr >> 1) & 0xFFFF;
             let hi = (lo + 1) & 0xFFFF;
             return lo | (hi << 16);
@@ -409,6 +427,7 @@ impl GbaHardware {
                 read_u16_unchecked(&self.gamepak, offset)
             }
         } else {
+            self.bad_read(16, addr, "out of cartridge range");
             return (addr >> 1) as u16;
         }
     }
@@ -418,25 +437,26 @@ impl GbaHardware {
         if offset <= (self.gamepak.len() - 2) {
             self.gamepak[offset]
         } else {
+            self.bad_read(8, addr, "out of cartridge range");
             byte_of_halfword((addr >> 1) as u16, addr)
         }
     }
 
     #[cold]
-    fn gamepak_write32(&mut self, addr: u32, _value: u32, _cart_offset: u32) -> bool {
-        eprintln!("unimplemented 32-bit write to GamePak address 0x{:08X}", addr);
+    fn gamepak_write32(&mut self, addr: u32, value: u32, _cart_offset: u32) -> bool {
+        self.bad_write(32, addr, value, "gamepak");
         false
     }
 
     #[cold]
-    fn gamepak_write16(&mut self, addr: u32, _value: u16, _cart_offset: u32) -> bool {
-        eprintln!("unimplemented 16-bit write to GamePak address 0x{:08X}", addr);
+    fn gamepak_write16(&mut self, addr: u32, value: u16, _cart_offset: u32) -> bool {
+        self.bad_write(16, addr, value as u32, "gamepak");
         false
     }
 
     #[cold]
-    fn gamepak_write8(&mut self, addr: u32, _value: u8, _cart_offset: u32) -> bool {
-        eprintln!("unimplemented 8-bit write to GamePak address 0x{:08X}", addr);
+    fn gamepak_write8(&mut self, addr: u32, value: u8, _cart_offset: u32) -> bool {
+        self.bad_write(8, addr, value as u32, "gamepak");
         false
     }
 
@@ -460,7 +480,7 @@ impl GbaHardware {
 
             (None, None) => {
                 if display_error {
-                    Self::bad_read(32, addr, "invalid IO register");
+                    self.bad_read(32, addr, "invalid IO register");
                 }
                 return self.last_code_read;
             },
@@ -472,7 +492,7 @@ impl GbaHardware {
             value
         } else {
             if display_error {
-                Self::bad_read(16, addr, "invalid IO register");
+                self.bad_read(16, addr, "invalid IO register");
             }
             halfword_of_word(self.last_code_read, addr)
         }
@@ -496,7 +516,7 @@ impl GbaHardware {
                     (halfword >> shift) as u8
                 } else {
                     if display_error {
-                        Self::bad_read(8, addr, "invalid IO register");
+                        self.bad_read(8, addr, "invalid IO register");
                     }
                     byte_of_word(self.last_code_read, addr)
                 }
@@ -536,7 +556,7 @@ impl GbaHardware {
                 let success = lo_write | hi_write;
 
                 if display_error && !success {
-                    Self::bad_write(32, addr, "invalid IO register");
+                    self.bad_write(32, addr, data, "invalid IO register");
                 }
 
                 return success;
@@ -548,7 +568,7 @@ impl GbaHardware {
     fn io_write16(&mut self, addr: u32, data: u16, display_error: bool) -> bool {
         let success = self.io_write_reg(Self::io_off(addr), data);
         if display_error && !success {
-            Self::bad_write(16, addr, "invalid IO register");
+            self.bad_write(16, addr, data as u32, "invalid IO register");
         }
         return success;
     }
@@ -581,7 +601,7 @@ impl GbaHardware {
                 let success = self.io_write_reg(halfword_offset, halfword);
 
                 if display_error && !success {
-                    Self::bad_write(8, addr, "invalid IO register");
+                    self.bad_write(8, addr, data as u32, "invalid IO register");
                 }
                 return success;
             },
@@ -749,14 +769,22 @@ impl GbaHardware {
         }
     }
 
+    #[inline(never)]
     #[cold]
-    fn bad_read(bits: u8, addr: u32, message: &'static str) {
-        println!("bad {}-bit read at 0x{:08X}: {}", bits, addr, message);
+    fn bad_read(&self, bits: u8, addr: u32, message: &'static str) {
+        self.bad_access.set(true);
+        println!("bad {}-bit read from 0x{:08X}: {}", bits, addr, message);
    }
 
+    #[inline(never)]
     #[cold]
-    fn bad_write(bits: u8, addr: u32, message: &'static str) {
-        println!("bad {}-bit write at 0x{:08X}: {}", bits, addr, message);
+    fn bad_write(&self, bits: u8, addr: u32, value: u32, message: &'static str) {
+        self.bad_access.set(true);
+        println!("bad {}-bit write of value 0x{:X} to 0x{:08X}: {}", bits, value, addr, message);
+    }
+
+    pub fn pop_bad_access(&mut self) -> bool {
+        self.bad_access.replace(false)
     }
 }
 
