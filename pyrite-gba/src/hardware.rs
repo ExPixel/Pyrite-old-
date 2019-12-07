@@ -634,9 +634,14 @@ impl GbaHardware {
             },
 
             ioregs::BG3PA => self.lcd.registers.bg3_affine_params.set_a(data),
-            ioregs::BG3PB => self.lcd.registers.bg3_affine_params.set_a(data),
-            ioregs::BG3PC => self.lcd.registers.bg3_affine_params.set_a(data),
-            ioregs::BG3PD => self.lcd.registers.bg3_affine_params.set_a(data),
+            ioregs::BG3PB => self.lcd.registers.bg3_affine_params.set_b(data),
+            ioregs::BG3PC => self.lcd.registers.bg3_affine_params.set_c(data),
+            ioregs::BG3PD => self.lcd.registers.bg3_affine_params.set_d(data),
+
+            ioregs::MOSAIC => {
+                self.lcd.registers.mosaic.set_value(data);
+            },
+            ioregs::MOSAIC_HI => { /* NOP */ },
 
             // Keypad Input
             ioregs::KEYCNT      => self.keypad.control = data,
