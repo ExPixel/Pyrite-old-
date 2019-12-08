@@ -149,20 +149,22 @@ impl DisassemblyWindow {
             (4, 0xFFFFFFFC)
         };
 
-        if imgui::is_key_pressed(imgui::get_key_index(imgui::Key::DownArrow), true) {
-            self.cursor_address = self.cursor_address.wrapping_add(instr_size);
+        if imgui::is_window_focused(imgui::none()) && !imgui::is_any_item_focused() {
+            if imgui::is_key_pressed(imgui::get_key_index(imgui::Key::DownArrow), true) {
+                self.cursor_address = self.cursor_address.wrapping_add(instr_size);
 
-            if self.cursor_address > self.max_address { self.cursor_address = self.min_address; }
-            if self.cursor_address < self.min_address { self.cursor_address = self.min_address; }
-            self.cursor_address &= instr_align;
-            cursor_moved = true;
-        } else if imgui::is_key_pressed(imgui::get_key_index(imgui::Key::UpArrow), true) {
-            self.cursor_address = self.cursor_address.wrapping_sub(instr_size);
+                if self.cursor_address > self.max_address { self.cursor_address = self.min_address; }
+                if self.cursor_address < self.min_address { self.cursor_address = self.min_address; }
+                self.cursor_address &= instr_align;
+                cursor_moved = true;
+            } else if imgui::is_key_pressed(imgui::get_key_index(imgui::Key::UpArrow), true) {
+                self.cursor_address = self.cursor_address.wrapping_sub(instr_size);
 
-            if self.cursor_address > self.max_address { self.cursor_address = self.min_address; }
-            if self.cursor_address < self.min_address { self.cursor_address = self.min_address; }
-            self.cursor_address &= instr_align;
-            cursor_moved = true;
+                if self.cursor_address > self.max_address { self.cursor_address = self.min_address; }
+                if self.cursor_address < self.min_address { self.cursor_address = self.min_address; }
+                self.cursor_address &= instr_align;
+                cursor_moved = true;
+            }
         }
 
         self.visible_rows = (clipper_item_end - clipper_item_start) as u32;

@@ -141,6 +141,12 @@ pub fn same_line_with_spacing(offset_from_start_x: f32, spacing: f32) {
     }
 }
 
+pub fn new_line() {
+    unsafe {
+        sys::igNewLine()
+    }
+}
+
 pub fn get_mouse_cursor() -> MouseCursor {
     unsafe {
         MouseCursor::from_bits(sys::igGetMouseCursor()).expect("invalid mouse cursor value")
@@ -208,6 +214,74 @@ unsafe extern "C" fn imgui_size_callback_trampoline(data: *mut sys::ImGuiSizeCal
     }
 }
 
+pub fn set_window_pos(pos: ImVec2, cond: Cond) {
+    unsafe {
+        sys::igSetWindowPosVec2(pos, cond.bits() as _)
+    }
+}
+
+pub fn set_window_size(size: ImVec2, cond: Cond) {
+    unsafe {
+        sys::igSetWindowSizeVec2(size, cond.bits() as _)
+    }
+}
+
+pub fn get_window_pos() -> ImVec2 {
+    unsafe {
+        sys::igGetWindowPos_nonUDT2().into()
+    }
+}
+
+pub fn get_window_size() -> ImVec2 {
+    unsafe {
+        sys::igGetWindowSize_nonUDT2().into()
+    }
+}
+
+pub fn get_frame_height() -> f32 {
+    unsafe {
+        sys::igGetFrameHeight()
+    }
+}
+
+pub fn get_frame_height_with_spacing() -> f32 {
+    unsafe {
+        sys::igGetFrameHeightWithSpacing()
+    }
+}
+
+pub fn align_text_to_frame_padding() {
+    unsafe {
+        sys::igAlignTextToFramePadding()
+    }
+}
+
+pub fn begin_combo(label: &ImStr, preview_value: &ImStr, flags: ComboFlags) -> bool {
+    unsafe {
+        sys::igBeginCombo(label.as_ptr(), preview_value.as_ptr(), flags.bits() as _)
+    }
+}
+
+pub fn end_combo() {
+    unsafe {
+        sys::igEndCombo()
+    }
+}
+
+// @TODO create combo() API using const generics and ImStrArray
+
+pub fn selectable(label: &ImStr, selected: bool, flags: SelectableFlags, size: Option<ImVec2>) -> bool {
+    unsafe {
+        sys::igSelectable(label.as_ptr(), selected, flags.bits() as _, size.unwrap_or(vec2(0.0, 0.0)))
+    }
+}
+
+pub fn selectable_ptr(label: &ImStr, selected: &mut bool, flags: SelectableFlags, size: Option<ImVec2>) -> bool {
+    unsafe {
+        sys::igSelectableBoolPtr(label.as_ptr(), selected, flags.bits() as _, size.unwrap_or(vec2(0.0, 0.0)))
+    }
+}
+
 pub fn push_style_var_float(idx: StyleVar, val: f32) {
     unsafe {
         sys::igPushStyleVarFloat(idx.bits() as _, val);
@@ -226,15 +300,21 @@ pub fn pop_style_var(count: i32) {
     }
 }
 
-pub fn set_next_window_content_size(size: ImVec2) {
+pub fn get_color_u32_u32(idx: Col) -> u32 {
     unsafe {
-        sys::igSetNextWindowContentSize(size)
+        sys::igGetColorU32U32(idx.bits() as _)
     }
 }
 
-pub fn is_window_focused(flags: FocusedFlags) -> bool {
+pub fn get_color_u32(idx: Col, alpha_mul: f32) -> u32 {
     unsafe {
-        sys::igIsWindowFocused(flags.bits() as _)
+        sys::igGetColorU32(idx.bits() as _, alpha_mul)
+    }
+}
+
+pub fn set_next_window_content_size(size: ImVec2) {
+    unsafe {
+        sys::igSetNextWindowContentSize(size)
     }
 }
 
@@ -316,6 +396,37 @@ pub fn plot_lines_ex(label: &ImStr, values: &[f32], offset: i32, overlay_text: O
 pub fn text(s: &ImStr) {
     unsafe {
         sys::igText(s.as_ptr())
+    }
+}
+
+#[inline]
+pub fn text_disabled(s: &ImStr) {
+    unsafe {
+        sys::igTextDisabled(s.as_ptr())
+    }
+}
+
+pub fn text_unformatted(s: &ImStr) {
+    unsafe {
+        sys::igTextUnformatted(s.begin(), s.end())
+    }
+}
+
+pub fn separator() {
+    unsafe {
+        sys::igSeparator()
+    }
+}
+
+pub fn is_window_focused(flags: FocusedFlags) -> bool {
+    unsafe {
+        sys::igIsWindowFocused(flags.bits() as _)
+    }
+}
+
+pub fn is_any_item_focused() -> bool {
+    unsafe {
+        sys::igIsAnyItemFocused()
     }
 }
 
@@ -405,12 +516,6 @@ pub fn get_cursor_screen_pos() -> ImVec2 {
     }
 }
 
-pub fn get_window_pos() -> ImVec2 {
-    unsafe {
-        sys::igGetWindowPos_nonUDT2().into()
-    }
-}
-
 pub fn show_demo_window(open: &mut bool) {
     unsafe {
         sys::igShowDemoWindow(open)
@@ -445,9 +550,124 @@ pub fn button_with_size(label: &ImStr, size: ImVec2) -> bool {
     }
 }
 
+pub fn checkbox(label: &ImStr, v: &mut bool) -> bool {
+    unsafe {
+        sys::igCheckbox(label.as_ptr(), v)
+    }
+}
+
+pub fn radio_button(label: &ImStr, active: bool) -> bool {
+    unsafe {
+        sys::igRadioButtonBool(label.as_ptr(), active)
+    }
+}
+
+pub fn bullet() {
+    unsafe {
+        sys::igBullet()
+    }
+}
+
+pub fn drag_int(label: &ImStr, v: &mut i32, v_speed: Option<f32>, v_min: Option<i32>, v_max: Option<i32>, format: Option<&ImStr>) -> bool {
+    unsafe {
+        sys::igDragInt(label.as_ptr(),
+            v,
+            v_speed.unwrap_or(1.0),
+            v_min.unwrap_or(0),
+            v_max.unwrap_or(0),
+            format.unwrap_or(str!("%d")).as_ptr())
+    }
+}
+
+
+pub fn drag_float(label: &ImStr, v: &mut f32, v_speed: Option<f32>, v_min: Option<f32>, v_max: Option<f32>, format: Option<&ImStr>, power: Option<f32>) -> bool {
+    unsafe {
+        sys::igDragFloat(
+            label.as_ptr(),
+            v,
+            v_speed.unwrap_or(1.0),
+            v_min.unwrap_or(0.0),
+            v_max.unwrap_or(0.0),
+            format.unwrap_or(str!("%.3f")).as_ptr(),
+            power.unwrap_or(1.0))
+    }
+}
+
+pub fn open_popup(str_id: &ImStr) {
+    unsafe {
+        sys::igOpenPopup(str_id.as_ptr())
+    }
+}
+
+pub fn begin_popup(str_id: &ImStr, flags: WindowFlags) -> bool {
+    unsafe {
+        sys::igBeginPopup(str_id.as_ptr(), flags.bits() as _)
+    }
+}
+
+pub fn begin_popup_context_item(str_id: Option<&ImStr>, mouse_button: Option<i32>) -> bool {
+    unsafe {
+        sys::igBeginPopupContextItem(opt_str_ptr(str_id), mouse_button.unwrap_or(1))
+    }
+}
+
+pub fn begin_popup_context_window(str_id: Option<&ImStr>, mouse_button: Option<i32>, also_over_items: Option<bool>) -> bool {
+    unsafe {
+        sys::igBeginPopupContextWindow(opt_str_ptr(str_id), mouse_button.unwrap_or(1), also_over_items.unwrap_or(true))
+    }
+}
+
+pub fn begin_popup_context_void(str_id: Option<&ImStr>, mouse_button: Option<i32>) -> bool {
+    unsafe {
+        sys::igBeginPopupContextVoid(opt_str_ptr(str_id), mouse_button.unwrap_or(1))
+    }
+}
+
+pub fn begin_popup_modal(name: &ImStr, open: &mut bool, mouse_button: Option<i32>) -> bool {
+    unsafe {
+        sys::igBeginPopupModal(name.as_ptr(), open, mouse_button.unwrap_or(1))
+    }
+}
+
+pub fn end_popup() {
+    unsafe {
+        sys::igEndPopup()
+    }
+}
+
+pub fn open_popup_on_item_click(str_id: Option<&ImStr>, mouse_button: Option<i32>) -> bool {
+    unsafe {
+        sys::igOpenPopupOnItemClick(opt_str_ptr(str_id), mouse_button.unwrap_or(1))
+    }
+}
+
+pub fn is_popup_open(name: &ImStr) -> bool {
+    unsafe {
+        sys::igIsPopupOpen(name.as_ptr())
+    }
+}
+
+pub fn close_current_popup() {
+    unsafe {
+        sys::igCloseCurrentPopup()
+    }
+}
+
 pub fn set_next_item_width(item_width: f32) {
     unsafe {
         sys::igSetNextItemWidth(item_width)
+    }
+}
+
+pub fn push_item_width(item_width: f32) {
+    unsafe {
+        sys::igPushItemWidth(item_width)
+    }
+}
+
+pub fn pop_item_width() {
+    unsafe {
+        sys::igPopItemWidth()
     }
 }
 
@@ -668,6 +888,12 @@ impl sys::ImDrawList {
     pub fn add_circle_filled(&mut self, center: ImVec2, radius: f32, col: u32, segments: Option<i32>) {
         unsafe {
             sys::ImDrawList_AddCircleFilled(self, center, radius, col, segments.unwrap_or(12))
+        }
+    }
+
+    pub fn add_text(&mut self, pos: ImVec2, color: u32, text: &ImStr) {
+        unsafe {
+            sys::ImDrawList_AddText(self, pos, color, text.begin(), text.end())
         }
     }
 }

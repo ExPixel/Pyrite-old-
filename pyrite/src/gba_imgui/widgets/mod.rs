@@ -1,14 +1,17 @@
 pub mod disassembly;
+pub mod memory_editor;
 
 use pyrite_gba::Gba;
 use crate::platform::opengl::GbaTexture;
 use disassembly::DisassemblyWindow;
+use memory_editor::MemoryEditorWindow;
 
 /// Main emulator GUI struct.
 pub struct EmulatorGUI {
     gba_display: GbaDisplayWindow,
     stats_window: EmulatorStatsWindow,
     disassembly_window: DisassemblyWindow,
+    memory_editor_window: MemoryEditorWindow,
 
     /// @TODO remove this later. For now I use it because I'm not very familiar with all of ImGui's
     /// features.
@@ -21,6 +24,7 @@ impl EmulatorGUI {
             gba_display: GbaDisplayWindow::new(),
             stats_window: EmulatorStatsWindow::new(),
             disassembly_window: DisassemblyWindow::new(),
+            memory_editor_window: MemoryEditorWindow::new(),
             show_demo_window: false,
         }
     }
@@ -30,6 +34,7 @@ impl EmulatorGUI {
         if self.gba_display.open { self.gba_display.draw(&gba_texture); }
         if self.stats_window.open { self.stats_window.draw(); }
         if self.disassembly_window.open { self.disassembly_window.draw(&gba.cpu, &gba.hardware); }
+        if self.memory_editor_window.open { self.memory_editor_window.draw(&gba.hardware, 0x0FFFFFFF, 0x0); }
         if self.show_demo_window { imgui::show_demo_window(&mut self.show_demo_window); }
     }
 
@@ -44,6 +49,10 @@ impl EmulatorGUI {
             }
 
             if imgui::begin_menu(imgui::str!("View"), true) {
+                if imgui::menu_item_ex(imgui::str!("Memory Editor"), None, self.memory_editor_window.open, true) {
+                    self.memory_editor_window.open = !self.memory_editor_window.open;
+                }
+
                 if imgui::menu_item_ex(imgui::str!("Disassembly"), None, self.disassembly_window.open, true) {
                     self.disassembly_window.open = !self.disassembly_window.open;
                 }

@@ -1,11 +1,11 @@
 #[macro_export]
 macro_rules! str {
-    ($RustStr:expr) => {
+    ($RustStr:expr) => {{
         #[allow(unused_unsafe)]
         unsafe {
             $crate::imstr::ImStr::from_bytes_with_nul_unchecked(concat!($RustStr, '\0').as_bytes())
         }
-    };
+    }};
 }
 
 #[macro_export]
@@ -16,24 +16,26 @@ macro_rules! str_buf {
 
             let mut cursor = std::io::Cursor::new($Buffer);
             write!(&mut cursor, concat!($RustStr, '\0')).expect("error while formatting imgui string into buffer");
+            let len = cursor.position() as usize;
 
             #[allow(unused_unsafe)]
             unsafe {
-                $crate::imstr::ImStr::from_bytes_with_nul_unchecked(&cursor.into_inner())
+                $crate::imstr::ImStr::from_bytes_with_nul_unchecked(&cursor.into_inner()[0..len])
             }
         }
     };
 
-    ($Buffer:expr, $RustStr:expr, $($Arg:expr),* $(,)?) => {
+    ($Buffer:expr, $RustStr:expr, $($Arg:tt)*) => {
         {
             use std::io::Write;
 
             let mut cursor = std::io::Cursor::new($Buffer);
-            write!(cursor, concat!($RustStr, '\0'), $($Arg,)*).expect("error while formatting imgui string into buffer");
+            write!(cursor, concat!($RustStr, '\0'), $($Arg)*).expect("error while formatting imgui string into buffer");
+            let len = cursor.position() as usize;
 
             #[allow(unused_unsafe)]
             unsafe {
-                $crate::imstr::ImStr::from_bytes_with_nul_unchecked(&cursor.into_inner())
+                $crate::imstr::ImStr::from_bytes_with_nul_unchecked(&cursor.into_inner()[0..len])
             }
         }
     };
@@ -45,8 +47,8 @@ macro_rules! str_gbuf {
         $crate::str_buf!($crate::api::global_fmt_buffer(), $RustStr)
     };
 
-    ($RustStr:expr, $($Arg:expr),* $(,)?) => {
-        $crate::str_buf!($crate::api::global_fmt_buffer(), $RustStr, $($Arg,)*)
+    ($RustStr:expr, $($Arg:tt)*) => {
+        $crate::str_buf!($crate::api::global_fmt_buffer(), $RustStr, $($Arg)*)
     };
 }
 

@@ -78,7 +78,7 @@ impl ImStrBuf {
     /// if no NUL byte is found.
     #[inline]
     pub fn find_first_nul(&self) -> usize {
-        self.inner.iter().position(|&b| b == b'0').unwrap_or(self.inner.len())
+        self.inner.iter().position(|&b| b == 0).unwrap_or(self.inner.len())
     }
 
     /// Returns a reference to the first C-String contained in this buffer.
@@ -159,14 +159,14 @@ impl ImString {
     #[inline]
     pub unsafe fn begin(&self) -> *const c_char { self.inner.as_ptr() as *const _ } 
     #[inline]
-    pub unsafe fn end(&self) -> *const c_char { self.inner.as_ptr().offset(self.inner.len() as isize) as *const _ }
+    pub unsafe fn end(&self) -> *const c_char { self.inner.as_ptr().add(self.inner.len() - 1) as *const _ }
     #[inline]
     pub fn as_ptr(&self) -> *const c_char { self.inner.as_ptr() as *const _ }
 
     #[inline]
     pub unsafe fn begin_mut(&mut self) -> *mut c_char { self.inner.as_mut_ptr() as *mut _ } 
     #[inline]
-    pub unsafe fn end_mut(&mut self) -> *mut c_char { self.inner.as_mut_ptr().offset(self.inner.len() as isize) as *mut _ }
+    pub unsafe fn end_mut(&mut self) -> *mut c_char { self.inner.as_mut_ptr().add(self.inner.len() - 1) as *mut _ }
     #[inline]
     pub fn as_mut_ptr(&mut self) -> *mut c_char { self.inner.as_mut_ptr() as *mut _ }
 }
