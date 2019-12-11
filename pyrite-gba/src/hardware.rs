@@ -265,6 +265,7 @@ impl GbaHardware {
                 }
             },
             0x05 => self.pal.read8(addr as usize % (1 * 1024)),
+            0x06 => self.vram[Self::vram_off(addr)],
             0x07 => self.oam[addr as usize % (1 * 1024)],
             0x04 => self.io_read8(addr, true),
             0x08 | 0x09 => self.gamepak_read8(addr, CART0),
@@ -366,6 +367,7 @@ impl GbaHardware {
             0x03 if !self.ramctl.disabled => self.iwram[addr as usize % ( 32 * 1024)] = data,
             0x04 => return self.io_write8(addr, data, true),
             0x05 => self.pal.write8(addr as usize % (1 * 1024), data),
+            0x06 => self.vram[Self::vram_off(addr)] = data,
             0x07 => self.oam[addr as usize % (1 * 1024)] = data,
             0x08 | 0x09 => return self.gamepak_write8(addr, data, CART0),
             0x0A | 0x0B => return self.gamepak_write8(addr, data, CART1),
