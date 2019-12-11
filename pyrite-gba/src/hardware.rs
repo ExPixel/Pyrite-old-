@@ -250,10 +250,10 @@ impl GbaHardware {
                 if self.ramctl.disabled {
                     self.bad_read(8, addr, "disabled RAM");
                     byte_of_word(self.last_code_read, addr)
-                } else if self.ramctl.external {
-                    self.ewram[addr as usize % (256 * 1024)]
-                } else {
+                } else if !self.ramctl.external {
                     self.iwram[addr as usize % ( 32 * 1024)]
+                } else {
+                    self.ewram[addr as usize % (256 * 1024)]
                 }
             },
             0x03 => {
