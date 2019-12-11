@@ -29,7 +29,6 @@ pub struct GbaHardware {
     pub(crate) oam:             [u8;   1 * 1024],
     pub(crate) pal:             GbaPalette,
     pub(crate) gamepak:         Vec<u8>,
-    pub(crate) sram:            SRAM,
 
     // :o
     pub(crate) sysctl:  GbaSystemControl,
@@ -64,7 +63,6 @@ impl GbaHardware {
             oam:            [0u8;  1 * 1024],
             pal:            GbaPalette::new(),
             gamepak:        Vec::new(),
-            sram:           SRAM::new(),
 
             sysctl:         GbaSystemControl::new(),
             ramctl:         GbaRAMControl::new(),
@@ -120,10 +118,10 @@ impl GbaHardware {
             0x05 => self.pal.read32(addr as usize % (1 * 1024)),
             0x06 => read_u32(&self.vram, Self::vram_off(addr)),
             0x07 => read_u32(&self.oam, addr as usize % (  1 * 1024)),
-            0x08 | 0x09 => self.gamepak_read32(addr, CART0),
-            0x0A | 0x0B => self.gamepak_read32(addr, CART1),
-            0x0C | 0x0D => self.gamepak_read32(addr, CART2),
-            0x0E => self.sram.read32(addr).unwrap_or(self.last_code_read),
+            0x08 | 0x09 => self.gamepak_read32(addr, CART0, true),
+            0x0A | 0x0B => self.gamepak_read32(addr, CART1, true),
+            0x0C | 0x0D => self.gamepak_read32(addr, CART2, true),
+            0x0E => self.sram_read32(addr),
             0x0F => { self.bad_read(32, addr, "unused region 0x0F"); self.last_code_read },
             _ => unreachable!(),
         }
@@ -159,9 +157,9 @@ impl GbaHardware {
             0x05 => self.pal.read32(addr as usize % (1 * 1024)),
             0x06 => read_u32(&self.vram, Self::vram_off(addr)),
             0x07 => read_u32(&self.oam, addr as usize % (  1 * 1024)),
-            0x08 | 0x09 => self.gamepak_read32(addr, CART0),
-            0x0A | 0x0B => self.gamepak_read32(addr, CART1),
-            0x0C | 0x0D => self.gamepak_read32(addr, CART2),
+            0x08 | 0x09 => self.gamepak_read32(addr, CART0, false),
+            0x0A | 0x0B => self.gamepak_read32(addr, CART1, false),
+            0x0C | 0x0D => self.gamepak_read32(addr, CART2, false),
             0x0E => BAD_VALUE,
             0x0F => BAD_VALUE,
             _ => unreachable!(),
@@ -196,10 +194,10 @@ impl GbaHardware {
             0x06 => read_u16(&self.vram, Self::vram_off(addr)),
             0x07 => read_u16(&self.oam, addr as usize % (  1 * 1024)),
             0x04 => self.io_read16(addr, true),
-            0x08 | 0x09 => self.gamepak_read16(addr, CART0),
-            0x0A | 0x0B => self.gamepak_read16(addr, CART1),
-            0x0C | 0x0D => self.gamepak_read16(addr, CART2),
-            0x0E => self.sram.read16(addr).unwrap_or(halfword_of_word(self.last_code_read, addr)),
+            0x08 | 0x09 => self.gamepak_read16(addr, CART0, true),
+            0x0A | 0x0B => self.gamepak_read16(addr, CART1, true),
+            0x0C | 0x0D => self.gamepak_read16(addr, CART2, true),
+            0x0E => self.sram_read16(addr),
             0x0F => { self.bad_read(16, addr, "unused region 0x0F"); halfword_of_word(self.last_code_read, addr) }
             _ => unreachable!(),
         }
@@ -233,9 +231,9 @@ impl GbaHardware {
             0x06 => read_u16(&self.vram, Self::vram_off(addr)),
             0x07 => read_u16(&self.oam, addr as usize % (  1 * 1024)),
             0x04 => self.io_read16(addr, false),
-            0x08 | 0x09 => self.gamepak_read16(addr, CART0),
-            0x0A | 0x0B => self.gamepak_read16(addr, CART1),
-            0x0C | 0x0D => self.gamepak_read16(addr, CART2),
+            0x08 | 0x09 => self.gamepak_read16(addr, CART0, false),
+            0x0A | 0x0B => self.gamepak_read16(addr, CART1, false),
+            0x0C | 0x0D => self.gamepak_read16(addr, CART2, false),
             0x0E => BAD_VALUE,
             0x0F => BAD_VALUE,
             _ => unreachable!(),
@@ -268,10 +266,10 @@ impl GbaHardware {
             0x06 => self.vram[Self::vram_off(addr)],
             0x07 => self.oam[addr as usize % (1 * 1024)],
             0x04 => self.io_read8(addr, true),
-            0x08 | 0x09 => self.gamepak_read8(addr, CART0),
-            0x0A | 0x0B => self.gamepak_read8(addr, CART1),
-            0x0C | 0x0D => self.gamepak_read8(addr, CART2),
-            0x0E => self.sram.read8(addr).unwrap_or(byte_of_word(self.last_code_read, addr)),
+            0x08 | 0x09 => self.gamepak_read8(addr, CART0, true),
+            0x0A | 0x0B => self.gamepak_read8(addr, CART1, true),
+            0x0C | 0x0D => self.gamepak_read8(addr, CART2, true),
+            0x0E => self.sram_read8(addr),
             0x0F => { self.bad_read(8, addr, "unused region 0x0F"); byte_of_word(self.last_code_read, addr) }
             _ => unreachable!(),
         }
@@ -303,9 +301,9 @@ impl GbaHardware {
             0x06 => self.vram[Self::vram_off(addr)],
             0x07 => self.oam[addr as usize % (1 * 1024)],
             0x04 => self.io_read8(addr, false),
-            0x08 | 0x09 => self.gamepak_read8(addr, CART0),
-            0x0A | 0x0B => self.gamepak_read8(addr, CART1),
-            0x0C | 0x0D => self.gamepak_read8(addr, CART2),
+            0x08 | 0x09 => self.gamepak_read8(addr, CART0, false),
+            0x0A | 0x0B => self.gamepak_read8(addr, CART1, false),
+            0x0C | 0x0D => self.gamepak_read8(addr, CART2, false),
             0x0E => BAD_VALUE,
             0x0F => BAD_VALUE,
             _ => unreachable!(),
@@ -323,10 +321,10 @@ impl GbaHardware {
             0x05 => self.pal.write32(addr as usize % (1 * 1024), data),
             0x06 => write_u32(&mut self.vram, Self::vram_off(addr), data),
             0x07 => write_u32(&mut self.oam, addr as usize % (1 * 1024), data),
-            0x08 | 0x09 => return self.gamepak_write32(addr, data, CART0),
-            0x0A | 0x0B => return self.gamepak_write32(addr, data, CART1),
-            0x0C | 0x0D => return self.gamepak_write32(addr, data, CART2),
-            0x0E => return self.sram.write32(addr, data),
+            0x08 | 0x09 => return self.gamepak_write32(addr, data, CART0, true),
+            0x0A | 0x0B => return self.gamepak_write32(addr, data, CART1, true),
+            0x0C | 0x0D => return self.gamepak_write32(addr, data, CART2, true),
+            0x0E => return self.sram_write32(addr, data),
             _ => {
                 self.bad_write(32, addr, data, "out of range memory address");
                 return false;
@@ -346,10 +344,10 @@ impl GbaHardware {
             0x05 => self.pal.write16(addr as usize % (1 * 1024), data),
             0x06 => write_u16(&mut self.vram, Self::vram_off(addr), data),
             0x07 => write_u16(&mut self.oam, addr as usize % (1 * 1024), data),
-            0x08 | 0x09 => return self.gamepak_write16(addr, data, CART0),
-            0x0A | 0x0B => return self.gamepak_write16(addr, data, CART1),
-            0x0C | 0x0D => return self.gamepak_write16(addr, data, CART2),
-            0x0E => return self.sram.write16(addr, data),
+            0x08 | 0x09 => return self.gamepak_write16(addr, data, CART0, true),
+            0x0A | 0x0B => return self.gamepak_write16(addr, data, CART1, true),
+            0x0C | 0x0D => return self.gamepak_write16(addr, data, CART2, true),
+            0x0E => return self.sram_write16(addr, data),
             _ => {
                 self.bad_write(16, addr, data as u32, "out of range memory address");
                 return false;
@@ -367,10 +365,10 @@ impl GbaHardware {
             0x05 => self.pal.write8(addr as usize % (1 * 1024), data),
             0x06 => self.vram[Self::vram_off(addr)] = data,
             0x07 => self.oam[addr as usize % (1 * 1024)] = data,
-            0x08 | 0x09 => return self.gamepak_write8(addr, data, CART0),
-            0x0A | 0x0B => return self.gamepak_write8(addr, data, CART1),
-            0x0C | 0x0D => return self.gamepak_write8(addr, data, CART2),
-            0x0E => return self.sram.write8(addr, data),
+            0x08 | 0x09 => return self.gamepak_write8(addr, data, CART0, true),
+            0x0A | 0x0B => return self.gamepak_write8(addr, data, CART1, true),
+            0x0C | 0x0D => return self.gamepak_write8(addr, data, CART2, true),
+            0x0E => return self.sram_write8(addr, data),
             _ => {
                 self.bad_write(8, addr, data as u32, "out of range memory address");
                 return false;
@@ -406,57 +404,93 @@ impl GbaHardware {
         }
     }
 
-    fn gamepak_read32(&self, addr: u32, cart_offset: u32) -> u32 {
+    fn gamepak_read32(&self, addr: u32, cart_offset: u32, display_error: bool) -> u32 {
         let offset = (addr - cart_offset) as usize;
         if offset <= (self.gamepak.len() - 4) {
             unsafe {
                 read_u32_unchecked(&self.gamepak, offset)
             }
         } else {
-            self.bad_read(32, addr, "out of cartridge range");
+            if display_error {
+                self.bad_read(32, addr, "out of cartridge range");
+            }
             let lo = (addr >> 1) & 0xFFFF;
             let hi = (lo + 1) & 0xFFFF;
             return lo | (hi << 16);
         }
     }
 
-    fn gamepak_read16(&self, addr: u32, cart_offset: u32) -> u16 {
+    fn gamepak_read16(&self, addr: u32, cart_offset: u32, display_error: bool) -> u16 {
         let offset = (addr - cart_offset) as usize;
         if offset <= (self.gamepak.len() - 2) {
             unsafe {
                 read_u16_unchecked(&self.gamepak, offset)
             }
         } else {
-            self.bad_read(16, addr, "out of cartridge range");
+            if display_error {
+                self.bad_read(16, addr, "out of cartridge range");
+            }
             return (addr >> 1) as u16;
         }
     }
 
-    fn gamepak_read8(&self, addr: u32, cart_offset: u32) -> u8 {
+    fn gamepak_read8(&self, addr: u32, cart_offset: u32, display_error: bool) -> u8 {
         let offset = (addr - cart_offset) as usize;
         if offset <= (self.gamepak.len() - 2) {
             self.gamepak[offset]
         } else {
-            self.bad_read(8, addr, "out of cartridge range");
+            if display_error {
+                self.bad_read(8, addr, "out of cartridge range");
+            }
             byte_of_halfword((addr >> 1) as u16, addr)
         }
     }
 
     #[cold]
-    fn gamepak_write32(&mut self, addr: u32, value: u32, _cart_offset: u32) -> bool {
-        self.bad_write(32, addr, value, "gamepak");
+    fn gamepak_write32(&mut self, addr: u32, value: u32, _cart_offset: u32, display_error: bool) -> bool {
+        if display_error { self.bad_write(32, addr, value, "gamepak"); }
         false
     }
 
     #[cold]
-    fn gamepak_write16(&mut self, addr: u32, value: u16, _cart_offset: u32) -> bool {
-        self.bad_write(16, addr, value as u32, "gamepak");
+    fn gamepak_write16(&mut self, addr: u32, value: u16, _cart_offset: u32, display_error: bool) -> bool {
+        if display_error { self.bad_write(16, addr, value as u32, "gamepak"); } 
         false
     }
 
     #[cold]
-    fn gamepak_write8(&mut self, addr: u32, value: u8, _cart_offset: u32) -> bool {
-        self.bad_write(8, addr, value as u32, "gamepak");
+    fn gamepak_write8(&mut self, addr: u32, value: u8, _cart_offset: u32, display_error: bool) -> bool {
+        if display_error { self.bad_write(8, addr, value as u32, "gamepak"); }
+        false
+    }
+
+    fn sram_read32(&self, addr: u32) -> u32 {
+        self.bad_read(32, addr, "sram");
+        0xC2C2C2C2
+    }
+
+    fn sram_read16(&self, addr: u32) -> u16 {
+        self.bad_read(16, addr, "sram");
+        0xC2C2
+    }
+
+    fn sram_read8(&self, addr: u32) -> u8 {
+        self.bad_read(8, addr, "sram");
+        0xC2
+    }
+
+    fn sram_write32(&mut self, addr: u32, value: u32) -> bool {
+        self.bad_write(32, addr, value, "sram");
+        false
+    }
+
+    fn sram_write16(&mut self, addr: u32, value: u16) -> bool {
+        self.bad_write(16, addr, value as u32, "sram");
+        false
+    }
+
+    fn sram_write8(&mut self, addr: u32, value: u8) -> bool {
+        self.bad_write(8, addr, value as u32, "sram");
         false
     }
 
@@ -903,44 +937,6 @@ impl GbaRAMControl {
         self.reg_control = value;
         self.disabled = bits_b!(self.reg_control, 0, 0);
         self.external = bits_b!(self.reg_control, 5, 5);
-    }
-}
-
-pub struct SRAM( u32 );
-
-impl SRAM {
-    pub fn new() -> SRAM {
-        SRAM ( 0 )
-    }
-
-    pub fn read32(&self, addr: u32) -> Option<u32> {
-        eprintln!("unimplemented 32-bit read from SRAM address 0x{:08X}", addr);
-        Some(0xC2C2C2C2)
-    }
-
-    pub fn read16(&self, addr: u32) -> Option<u16> {
-        eprintln!("unimplemented 16-bit read from SRAM address 0x{:08X}", addr);
-        Some(0xC2C2)
-    }
-
-    pub fn read8(&self, addr: u32) -> Option<u8> {
-        eprintln!("unimplemented 8-bit read from SRAM address 0x{:08X}", addr);
-        Some(0xC2)
-    }
-
-    pub fn write32(&mut self, addr: u32, data: u32) -> bool {
-        eprintln!("unimplemented 32-bit write to SRAM address 0x{:08X} [data = 0x{:08X}]", addr, data);
-        false
-    }
-
-    pub fn write16(&mut self, addr: u32, data: u16) -> bool {
-        eprintln!("unimplemented 16-bit write to SRAM address 0x{:08X} [data = 0x{:04X}]", addr, data);
-        false
-    }
-
-    pub fn write8(&mut self, addr: u32, data: u8) -> bool {
-        eprintln!("unimplemented 8-bit write to SRAM address 0x{:08X} [data = 0x{:02X}]", addr, data);
-        false
     }
 }
 
