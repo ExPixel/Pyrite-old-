@@ -359,8 +359,6 @@ impl GbaHardware {
     }
 
     pub fn write8(&mut self, addr: u32, data: u8) -> bool {
-        let addr = addr & 0xFFFFFFFE; // halfword align the address
-
         match region_of(addr) {
             0x02 if !self.ramctl.disabled &&  self.ramctl.external => self.ewram[addr as usize % (256 * 1024)] = data,
             0x02 if !self.ramctl.disabled => self.iwram[addr as usize % ( 32 * 1024)] = data,
