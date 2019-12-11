@@ -96,6 +96,12 @@ pub struct ArmRegisters {
 
     /// Saved Program Status Register
     spsr: u32,
+
+    // ## DEBUGGING
+    // These keep track of the value of the program counter (minus 2 instructions) when a register
+    // was changed.
+    #[cfg(feature = "track_register_writes")] gp_registers_record: [u32; 16],
+    #[cfg(feature = "track_register_writes")] bk_registers_record: [u32; 15],
 }
 
 impl ArmRegisters {
@@ -106,6 +112,9 @@ impl ArmRegisters {
             bk_spsr:        [0;  5],
             cpsr:           mode.bits(),
             spsr:           0,
+
+            gp_registers_record:    [0; 16],
+            bk_registers_record:    [0; 15],
         }
     }
 
@@ -119,6 +128,24 @@ impl ArmRegisters {
     #[inline(always)]
     pub fn write(&mut self, register: u32, value: u32) {
         self.gp_registers[register as usize] = value;
+
+        #[cfg(feature = "track_register_writes")]
+        {
+            let exec_addr = self.gp_registers[15] - (if self.getf_t() { 4 } else { 8 });
+            self.gp_registers_record[register as usize] = exec_addr;
+        }
+    }
+
+    #[cfg(feature = "track_register_writes")]
+    #[inline(always)]
+    pub fn register_change_location(&self, register: u32) -> u32 {
+        self.gp_registers_record[register as usize]
+    }
+
+    #[cfg(not(feature = "track_register_writes"))]
+    #[inline(always)]
+    pub fn register_change_location(&self, _register: u32) -> u32 {
+        0
     }
 
     pub fn write_with_mode(&mut self, tmp_mode: CpuMode, register: u32, value: u32) {
@@ -271,47 +298,62 @@ impl ArmRegisters {
     fn on_mode_switch(&mut self, old_mode: CpuMode, new_mode: CpuMode) {
         use std::mem::swap;
 
+        #[cfg(not(feature = "track_register_writes"))]
+        macro_rules! swap_reg {
+            (gp=$gp_reg:expr, bk=$bk_reg:expr) => {
+                swap(&mut self.gp_registers[ 8], &mut self.bk_registers[0]);
+            }
+        }
+
+        #[cfg(feature = "track_register_writes")]
+        macro_rules! swap_reg {
+            (gp=$gp_reg:expr, bk=$bk_reg:expr) => {
+                swap(&mut self.gp_registers[ 8], &mut self.bk_registers[0]);
+                swap(&mut self.gp_registers_record[ 8], &mut self.bk_registers_record[0]);
+            }
+        }
+
         if old_mode == new_mode {
             /* NOP */
             return
         }
 
         if old_mode != CpuMode::User && old_mode != CpuMode::System {
-            // if the old mode isn't user or system (which are our resting modes)
-            // change the register configuration in such a way that it is.
+            // if the old mode isn't user or system (which are our default modes)
+            // change to system mode:
             match old_mode {
                 CpuMode::FIQ => {
-                    swap(&mut self.gp_registers[ 8], &mut self.bk_registers[0]);
-                    swap(&mut self.gp_registers[ 9], &mut self.bk_registers[1]);
-                    swap(&mut self.gp_registers[10], &mut self.bk_registers[2]);
-                    swap(&mut self.gp_registers[11], &mut self.bk_registers[3]);
-                    swap(&mut self.gp_registers[12], &mut self.bk_registers[4]);
-                    swap(&mut self.gp_registers[13], &mut self.bk_registers[5]);
-                    swap(&mut self.gp_registers[14], &mut self.bk_registers[6]);
+                    swap_reg!(gp= 8, bk=0);
+                    swap_reg!(gp= 9, bk=1);
+                    swap_reg!(gp=10, bk=2);
+                    swap_reg!(gp=11, bk=3);
+                    swap_reg!(gp=12, bk=4);
+                    swap_reg!(gp=13, bk=5);
+                    swap_reg!(gp=14, bk=6);
                     self.bk_spsr[0] = self.spsr;
                 },
 
                 CpuMode::Supervisor    => {
-                    swap(&mut self.gp_registers[13], &mut self.bk_registers[7]);
-                    swap(&mut self.gp_registers[14], &mut self.bk_registers[8]);
+                    swap_reg!(gp=13, bk=7);
+                    swap_reg!(gp=14, bk=8);
                     self.bk_spsr[1] = self.spsr;
                 },
 
                 CpuMode::Abort         => {
-                    swap(&mut self.gp_registers[13], &mut self.bk_registers[ 9]);
-                    swap(&mut self.gp_registers[14], &mut self.bk_registers[10]);
+                    swap_reg!(gp=13, bk= 9);
+                    swap_reg!(gp=14, bk=10);
                     self.bk_spsr[2] = self.spsr;
                 },
 
                 CpuMode::IRQ           => {
-                    swap(&mut self.gp_registers[13], &mut self.bk_registers[11]);
-                    swap(&mut self.gp_registers[14], &mut self.bk_registers[12]);
+                    swap_reg!(gp=13, bk=11);
+                    swap_reg!(gp=14, bk=12);
                     self.bk_spsr[3] = self.spsr;
                 },
 
                 CpuMode::Undefined     => {
-                    swap(&mut self.gp_registers[13], &mut self.bk_registers[13]);
-                    swap(&mut self.gp_registers[14], &mut self.bk_registers[14]);
+                    swap_reg!(gp=13, bk=13);
+                    swap_reg!(gp=14, bk=14);
                     self.bk_spsr[4] = self.spsr;
                 },
 
@@ -325,37 +367,37 @@ impl ArmRegisters {
 
         match new_mode {
             CpuMode::FIQ => {
-                swap(&mut self.gp_registers[ 8], &mut self.bk_registers[0]);
-                swap(&mut self.gp_registers[ 9], &mut self.bk_registers[1]);
-                swap(&mut self.gp_registers[10], &mut self.bk_registers[2]);
-                swap(&mut self.gp_registers[11], &mut self.bk_registers[3]);
-                swap(&mut self.gp_registers[12], &mut self.bk_registers[4]);
-                swap(&mut self.gp_registers[13], &mut self.bk_registers[5]);
-                swap(&mut self.gp_registers[14], &mut self.bk_registers[6]);
+                swap_reg!(gp= 8, bk=0);
+                swap_reg!(gp= 9, bk=1);
+                swap_reg!(gp=10, bk=2);
+                swap_reg!(gp=11, bk=3);
+                swap_reg!(gp=12, bk=4);
+                swap_reg!(gp=13, bk=5);
+                swap_reg!(gp=14, bk=6);
                 self.spsr = self.bk_spsr[0];
             },
 
             CpuMode::Supervisor    => {
-                swap(&mut self.gp_registers[13], &mut self.bk_registers[7]);
-                swap(&mut self.gp_registers[14], &mut self.bk_registers[8]);
+                swap_reg!(gp=13, bk=7);
+                swap_reg!(gp=14, bk=8);
                 self.spsr = self.bk_spsr[1];
             },
 
             CpuMode::Abort         => {
-                swap(&mut self.gp_registers[13], &mut self.bk_registers[ 9]);
-                swap(&mut self.gp_registers[14], &mut self.bk_registers[10]);
+                swap_reg!(gp=13, bk= 9);
+                swap_reg!(gp=14, bk=10);
                 self.spsr = self.bk_spsr[2];
             },
 
             CpuMode::IRQ     => {
-                swap(&mut self.gp_registers[13], &mut self.bk_registers[11]);
-                swap(&mut self.gp_registers[14], &mut self.bk_registers[12]);
+                swap_reg!(gp=13, bk=11);
+                swap_reg!(gp=14, bk=12);
                 self.spsr = self.bk_spsr[3];
             },
 
             CpuMode::Undefined     => {
-                swap(&mut self.gp_registers[13], &mut self.bk_registers[13]);
-                swap(&mut self.gp_registers[14], &mut self.bk_registers[14]);
+                swap_reg!(gp=13, bk=13);
+                swap_reg!(gp=14, bk=14);
                 self.spsr = self.bk_spsr[4];
             },
 

@@ -4,7 +4,10 @@ version = "0.1.0"
 authors = ["Adolph C. <adolphc@outlook.com>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+# When this is feature is enabled the `register_change_location` method of `ArmRegisters` will
+# return the last location at which a given register was written to.
+track_register_writes = []
 
 [dependencies]
 pyrite-common = { path = "../pyrite-common" }
