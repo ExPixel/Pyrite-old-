@@ -113,8 +113,8 @@ impl ArmRegisters {
             cpsr:           mode.bits(),
             spsr:           0,
 
-            gp_registers_record:    [0; 16],
-            bk_registers_record:    [0; 15],
+            #[cfg(feature = "track_register_writes")] gp_registers_record:    [0; 16],
+            #[cfg(feature = "track_register_writes")] bk_registers_record:    [0; 15],
         }
     }
 
