@@ -305,9 +305,10 @@ impl crate::util::bitfields::FieldConvert<ObjMode> for u16 {
 pub struct ObjectPriority {
     pub priority_pos:   [(/* offset */ usize, /* length */ usize); 6],
 
-    /// Object psiority is stored at the upper 8 bits, and obj_index is stored in the lower 8 bits.
+    /// Object priority is stored at the upper 8 bits, and obj_index is stored in the lower 8 bits.
     /// So we can compare objects by just comparing the two u16s. Disabled objects are given
-    /// priority 5 and placed at the end of the sorted_objects array **UNSORTED**.
+    /// priority 5 and placed at the end of the sorted_objects array **UNSORTED**. Objects that are
+    /// part of the OBJ Window are given priority 4.
     pub sorted_objects: [u16;  128],
 }
 
@@ -329,14 +330,14 @@ impl ObjectPriority {
             let attr_index = obj_index * 8;
             let attr0_hi = unsafe { *oam.get_unchecked(attr_index + 1) };
 
-            if attr0_hi & 0x1 != 1 && (attr0_hi >> 1) & 0x1 == 1 {
+            if attr0_hi & 0x1 != 1 && (attr0_hi >> 1) & 0x1 == 1 { // Check Affine and Disabled flag
                 priority_pos[5].1 += 1;
                 disabled_index -= 1;
                 objects[disabled_index] = mkobj!(obj_index, 5);
                 continue;
             }
 
-            if (attr0_hi >> 3) & 0x3 == 2 {
+            if (attr0_hi >> 2) & 0x3 == 2 { // Check OBJ Mode
                 priority_pos[4].1 += 1;
                 objects[enabled_index] |= mkobj!(obj_index, 4);
                 enabled_index += 1;
@@ -350,8 +351,10 @@ impl ObjectPriority {
             enabled_index += 1;
         }
 
-        // this we only bother sorting enabled objects:
-        (&mut objects[0..(disabled_index)]).sort_unstable();
+        if enabled_index > 0 {
+            // this we only bother sorting enabled objects:
+            (&mut objects[0..(enabled_index)]).sort_unstable();
+        }
 
         priority_pos[1].0 = priority_pos[0].1;
         priority_pos[2].0 = priority_pos[1].0 + priority_pos[1].1;
