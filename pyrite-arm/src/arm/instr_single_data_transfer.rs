@@ -114,7 +114,7 @@ fn sdt_strb(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) {
     // If the Program Counter is used as the source register in a byte store, it will be 12 bytes
     // ahead instead of 8 when read.
     if rd == 15 { value = value.wrapping_add(4); }
-    memory.write_data_byte(addr, (value & 0xFF) as u8, false, &mut cpu.cycles);
+    memory.write_data_byte(addr, value as u8, false, &mut cpu.cycles);
 }
 
 #[inline(always)]
