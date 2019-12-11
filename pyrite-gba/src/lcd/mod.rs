@@ -442,7 +442,7 @@ impl WindowControl {
 
 #[inline]
 pub fn apply_mosaic(value: u32, mosaic: u32) -> u32 {
-    if mosaic > 0 {
+    if mosaic > 1 {
         return value - (value % mosaic)
     } else {
         return value;
