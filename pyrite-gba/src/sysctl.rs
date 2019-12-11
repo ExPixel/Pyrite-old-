@@ -1,6 +1,16 @@
 use pyrite_common::bits;
 use crate::hardware::region_of;
 
+macro_rules! set_timings {
+    ($Array:expr, $Region:expr, 1, $FirstAccess:expr, $SecondAccess:expr) => {
+        $Array[$Region as usize] = (1 + $FirstAccess, 1 + $SecondAccess);
+    };
+
+    ($Array:expr, $Region:expr, 2, $FirstAccess:expr, $SecondAccess:expr) => {
+        $Array[$Region as usize] = (2 + $FirstAccess + $SecondAccess, 2 + $SecondAccess + $SecondAccess);
+    };
+}
+
 pub struct GbaSystemControl {
     /// nonsequential and sequential (respectively) cycles for 8bit accesses.
     cycles_byte:        [(/* nonsequential */ u8, /* sequential */ u8); 16],
@@ -35,10 +45,10 @@ impl GbaSystemControl {
     pub fn update_ram_cycles(&mut self, internal_memory_control: u32) {
         let ram_cycles = 15 - bits!(internal_memory_control, 24, 27) as u8;
 
-        self.cycles_byte[REGION_EWRAM as usize] = (1 + ram_cycles, 1 + ram_cycles);
-        self.cycles_halfword[REGION_EWRAM as usize] = (1 + ram_cycles, 1 + ram_cycles);
+        set_timings!(self.cycles_byte, REGION_EWRAM, 1, ram_cycles, ram_cycles);
+        set_timings!(self.cycles_halfword, REGION_EWRAM, 1, ram_cycles, ram_cycles);
         // 16bit bus so a 32bit access is 2 16bit accesses
-        self.cycles_word[REGION_EWRAM as usize] = (2 + ram_cycles + ram_cycles, 2 + ram_cycles + ram_cycles);
+        set_timings!(self.cycles_word, REGION_EWRAM, 2, ram_cycles, ram_cycles);
     }
 
     pub fn set_reg_waitcnt(&mut self, waitcnt: u16) {
@@ -57,62 +67,41 @@ impl GbaSystemControl {
         let waitstate2_first_access_halfword = CART_FIRST_ACCESS[bits!(self.reg_waitcnt, 8, 9) as usize] as u8;
         let waitstate2_second_access_halfword = CART2_SECOND_ACCESS[bits!(self.reg_waitcnt, 10, 10) as usize] as u8;
 
+
         // WAITSTATE 0
-        self.cycles_byte[REGION_CART0_L as usize] = (
-            1 + waitstate0_first_access_halfword,
-            1 + waitstate0_second_access_halfword,
-        );
-        self.cycles_byte[REGION_CART0_H as usize] = self.cycles_byte[REGION_CART0_L as usize];
-        self.cycles_halfword[REGION_CART0_L as usize] = (
-            1 + waitstate0_first_access_halfword,
-            1 + waitstate0_second_access_halfword,
-        );
-        self.cycles_halfword[REGION_CART0_H as usize] = self.cycles_halfword[REGION_CART0_L as usize];
-        self.cycles_word[REGION_CART0_L as usize] = (
-            2 + waitstate0_first_access_halfword + waitstate0_second_access_halfword,
-            2 + waitstate0_second_access_halfword + waitstate0_second_access_halfword,
-        );
-        self.cycles_word[REGION_CART0_H as usize] = self.cycles_word[REGION_CART0_L as usize];
+        set_timings!(self.cycles_byte, REGION_CART0_L, 1, waitstate0_first_access_halfword, waitstate0_second_access_halfword);
+        set_timings!(self.cycles_byte, REGION_CART0_H, 1, waitstate0_first_access_halfword, waitstate0_second_access_halfword);
+
+        set_timings!(self.cycles_halfword, REGION_CART0_L, 1, waitstate0_first_access_halfword, waitstate0_second_access_halfword);
+        set_timings!(self.cycles_halfword, REGION_CART0_H, 1, waitstate0_first_access_halfword, waitstate0_second_access_halfword);
+
+        set_timings!(self.cycles_word, REGION_CART0_L, 2, waitstate0_first_access_halfword, waitstate0_second_access_halfword);
+        set_timings!(self.cycles_word, REGION_CART0_H, 2, waitstate0_first_access_halfword, waitstate0_second_access_halfword);
 
         // WAITSTATE 1
-        self.cycles_byte[REGION_CART1_L as usize] = (
-            1 + waitstate1_first_access_halfword,
-            1 + waitstate1_second_access_halfword,
-        );
-        self.cycles_byte[REGION_CART1_H as usize] = self.cycles_byte[REGION_CART1_L as usize];
-        self.cycles_halfword[REGION_CART1_L as usize] = (
-            1 + waitstate1_first_access_halfword,
-            1 + waitstate1_second_access_halfword,
-        );
-        self.cycles_halfword[REGION_CART1_H as usize] = self.cycles_halfword[REGION_CART1_L as usize];
-        self.cycles_word[REGION_CART1_L as usize] = (
-            2 + waitstate1_first_access_halfword + waitstate1_second_access_halfword,
-            2 + waitstate1_second_access_halfword + waitstate1_second_access_halfword,
-        );
-        self.cycles_word[REGION_CART1_H as usize] = self.cycles_word[REGION_CART1_L as usize];
+        set_timings!(self.cycles_byte, REGION_CART1_L, 1, waitstate1_first_access_halfword, waitstate1_second_access_halfword);
+        set_timings!(self.cycles_byte, REGION_CART1_H, 1, waitstate1_first_access_halfword, waitstate1_second_access_halfword);
+
+        set_timings!(self.cycles_halfword, REGION_CART1_L, 1, waitstate1_first_access_halfword, waitstate1_second_access_halfword);
+        set_timings!(self.cycles_halfword, REGION_CART1_H, 1, waitstate1_first_access_halfword, waitstate1_second_access_halfword);
+
+        set_timings!(self.cycles_word, REGION_CART1_L, 2, waitstate1_first_access_halfword, waitstate1_second_access_halfword);
+        set_timings!(self.cycles_word, REGION_CART1_H, 2, waitstate1_first_access_halfword, waitstate1_second_access_halfword);
 
         // WAITSTATE 2
-        self.cycles_byte[REGION_CART2_L as usize] = (
-            1 + waitstate2_first_access_halfword,
-            1 + waitstate2_second_access_halfword,
-        );
-        self.cycles_byte[REGION_CART2_H as usize] = self.cycles_byte[REGION_CART2_L as usize];
-        self.cycles_halfword[REGION_CART2_L as usize] = (
-            1 + waitstate2_first_access_halfword,
-            1 + waitstate2_second_access_halfword,
-        );
-        self.cycles_halfword[REGION_CART2_H as usize] = self.cycles_halfword[REGION_CART2_L as usize];
-        self.cycles_word[REGION_CART2_L as usize] = (
-            2 + waitstate2_first_access_halfword + waitstate2_second_access_halfword,
-            2 + waitstate2_second_access_halfword + waitstate2_second_access_halfword,
-        );
-        self.cycles_word[REGION_CART2_H as usize] = self.cycles_word[REGION_CART2_L as usize];
+        set_timings!(self.cycles_byte, REGION_CART2_L, 1, waitstate2_first_access_halfword, waitstate2_second_access_halfword);
+        set_timings!(self.cycles_byte, REGION_CART2_H, 1, waitstate2_first_access_halfword, waitstate2_second_access_halfword);
+
+        set_timings!(self.cycles_halfword, REGION_CART2_L, 1, waitstate2_first_access_halfword, waitstate2_second_access_halfword);
+        set_timings!(self.cycles_halfword, REGION_CART2_H, 1, waitstate2_first_access_halfword, waitstate2_second_access_halfword);
+
+        set_timings!(self.cycles_word, REGION_CART2_L, 2, waitstate2_first_access_halfword, waitstate2_second_access_halfword);
+        set_timings!(self.cycles_word, REGION_CART2_H, 2, waitstate2_first_access_halfword, waitstate2_second_access_halfword);
 
         // SRAM
-        self.cycles_byte[REGION_SRAM as usize] = (1 + sram_first_access_byte, 1 + sram_first_access_byte);
-        self.cycles_halfword[REGION_SRAM as usize] = (1 + sram_first_access_byte, 1 + sram_first_access_byte);
-        self.cycles_word[REGION_SRAM as usize] = (1 + sram_first_access_byte, 1 + sram_first_access_byte);
-
+        set_timings!(self.cycles_byte, REGION_SRAM, 1, sram_first_access_byte, sram_first_access_byte);
+        set_timings!(self.cycles_halfword, REGION_SRAM, 1, sram_first_access_byte, sram_first_access_byte);
+        set_timings!(self.cycles_word, REGION_SRAM, 1, sram_first_access_byte, sram_first_access_byte);
     }
 
     pub fn get_word_cycles(&self, addr: u32, seq: bool) -> u32 {
