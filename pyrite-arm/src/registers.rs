@@ -301,15 +301,15 @@ impl ArmRegisters {
         #[cfg(not(feature = "track_register_writes"))]
         macro_rules! swap_reg {
             (gp=$gp_reg:expr, bk=$bk_reg:expr) => {
-                swap(&mut self.gp_registers[ 8], &mut self.bk_registers[0]);
+                swap(&mut self.gp_registers[$gp_reg], &mut self.bk_registers[$bk_reg]);
             }
         }
 
         #[cfg(feature = "track_register_writes")]
         macro_rules! swap_reg {
             (gp=$gp_reg:expr, bk=$bk_reg:expr) => {
-                swap(&mut self.gp_registers[ 8], &mut self.bk_registers[0]);
-                swap(&mut self.gp_registers_record[ 8], &mut self.bk_registers_record[0]);
+                swap(&mut self.gp_registers[$gp_reg], &mut self.bk_registers[$bk_reg]);
+                swap(&mut self.gp_registers_record[$gp_reg], &mut self.bk_registers_record[$bk_reg]);
             }
         }
 
