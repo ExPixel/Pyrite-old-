@@ -1,12 +1,12 @@
-use pyrite_arm::{ ArmCpu, ArmMemory };
+use pyrite_arm::{ ArmMemory };
 
 pub type AddrType = u32;
 pub const ADDR_MAX: u32 = 0xFFFFFFFF;
-pub const ADDR_MIN: u32 = 0x0;
+// pub const ADDR_MIN: u32 = 0x0;
 
 pub struct MemoryEditorWindow {
     pub open: bool,
-    readonly: bool,
+    // readonly: bool,
     columns: u32,
     highlight_color: u32,
     opts: MemoryEditorOptions,
@@ -15,9 +15,9 @@ pub struct MemoryEditorWindow {
     contents_width_changed: bool,
     cursor_addr: AddrType,
     first_addr: AddrType,
-    data_editing_take_focus: bool,
+    // data_editing_take_focus: bool,
 
-    data_input_buf: [u8; 16],
+    // data_input_buf: [u8; 16],
     addr_input_buf: [u8; 16],
     
     goto_addr: AddrType,
@@ -31,7 +31,7 @@ impl MemoryEditorWindow {
     pub fn new() -> MemoryEditorWindow {
         MemoryEditorWindow {
             open: false,
-            readonly: true,
+            // readonly: true,
             columns: 16,
             opts: MemoryEditorOptions::default(),
             highlight_color: imgui::rgba8(255, 255, 255, 50),
@@ -39,8 +39,8 @@ impl MemoryEditorWindow {
             cursor_addr: 0,
             first_addr: 0,
             contents_width_changed: false,
-            data_editing_take_focus: false,
-            data_input_buf: [0; 16],
+            // data_editing_take_focus: false,
+            // data_input_buf: [0; 16],
             addr_input_buf: [0; 16],
             goto_addr: 0,
             highlight_min: ADDR_MAX,
@@ -52,11 +52,11 @@ impl MemoryEditorWindow {
 }
 
 impl MemoryEditorWindow {
-    pub fn goto_addr_ang_highlight(&mut self, addr_min: AddrType, addr_max: AddrType) {
-        self.goto_addr = addr_min;
-        self.highlight_min = addr_min;
-        self.highlight_max = addr_max;
-    }
+    // pub fn goto_addr_and_highlight(&mut self, addr_min: AddrType, addr_max: AddrType) {
+    //     self.goto_addr = addr_min;
+    //     self.highlight_min = addr_min;
+    //     self.highlight_max = addr_max;
+    // }
 
     fn calc_sizes(&mut self, sizes: &mut Sizes, mem_size: AddrType, base_display_addr: AddrType) {
         let style = imgui::get_style().expect("failed to get style");
@@ -157,17 +157,17 @@ impl MemoryEditorWindow {
             self.first_addr = visible_start_addr;
         }
         
-        let mut data_next = false;
+        // let mut data_next = false;
 
         if self.cursor_addr >= mem_size {
             self.cursor_addr = base_display_addr;
         }
 
-        let preview_data_type_size = if self.opts.show_data_preview {
-            self.preview_data_type.size()
-        } else {
-            0
-        };
+        // let preview_data_type_size = if self.opts.show_data_preview {
+        //     self.preview_data_type.size()
+        // } else {
+        //     0
+        // };
 
         let window_size = imgui::get_window_size();
         let window_pos = imgui::get_window_pos();
@@ -193,7 +193,7 @@ impl MemoryEditorWindow {
         };
 
         let mut row_start_addr = visible_start_addr;
-        for row in 0..=visible_rows {
+        for _row in 0..=visible_rows {
             if self.opts.uppercase_hex {
                 imgui::text(imgui::str_gbuf!("{:0digits$X}", row_start_addr, digits=sizes.addr_digits_count as usize));
             } else {
@@ -320,7 +320,7 @@ impl MemoryEditorWindow {
             imgui::same_line(0.0);
             imgui::push_item_width((sizes.addr_digits_count + 1) as f32 * sizes.glyph_width + style.FramePadding.x * 2.0);
             {
-                let mut addr_input_buf = imgui::imstr::ImStrBuf::from_bytes(&mut self.addr_input_buf); 
+                let addr_input_buf = imgui::imstr::ImStrBuf::from_bytes(&mut self.addr_input_buf); 
                 if imgui::input_text(imgui::str!("##addr"),
                     addr_input_buf,
                     imgui::InputTextFlags::CharsHexadecimal | imgui::InputTextFlags::EnterReturnsTrue, None) {
@@ -593,20 +593,20 @@ impl DataType {
         DataType::Float, DataType::Double,
     ];
 
-    pub fn size(self) -> usize {
-        match self {
-            DataType::S8 => 1,
-            DataType::U8 => 1,
-            DataType::S16 => 2,
-            DataType::U16 => 2,
-            DataType::S32 => 4,
-            DataType::U32 => 4,
-            DataType::S64 => 8,
-            DataType::U64 => 8,
-            DataType::Float => 4,
-            DataType::Double => 8,
-        }
-    }
+    // pub fn size(self) -> usize {
+    //     match self {
+    //         DataType::S8 => 1,
+    //         DataType::U8 => 1,
+    //         DataType::S16 => 2,
+    //         DataType::U16 => 2,
+    //         DataType::S32 => 4,
+    //         DataType::U32 => 4,
+    //         DataType::S64 => 8,
+    //         DataType::U64 => 8,
+    //         DataType::Float => 4,
+    //         DataType::Double => 8,
+    //     }
+    // }
 
     pub fn name(self) -> &'static imgui::imstr::ImStr {
         match self {
@@ -622,11 +622,4 @@ impl DataType {
             DataType::Double => imgui::str!("Double"),
         }
     }
-}
-
-#[derive(Clone, Copy)]
-pub enum DataFormat {
-    Bin,
-    Dec,
-    Hex,
 }
