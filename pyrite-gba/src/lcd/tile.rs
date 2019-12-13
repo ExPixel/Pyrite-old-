@@ -1,6 +1,6 @@
 use crate::hardware::{ VRAM, OAM };
 use crate::util::memory::read_u16_unchecked;
-use super::obj::{ ObjectPriority, render_objects_no_obj_window };
+use super::obj::{ ObjectPriority, render_objects };
 use super::{ LCDRegisters, LCDLineBuffer, BGControl, BGOffset, apply_mosaic };
 use super::palette::GbaPalette;
 
@@ -11,18 +11,22 @@ pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
         for bg_index in (0usize..=3).rev() {
             if !registers.dispcnt.display_layer(bg_index as u16) { continue }
             if registers.bg_cnt[bg_index].priority() == priority as u16 {
-                let textbg = TextBG::new(registers.bg_cnt[bg_index], registers.bg_ofs[bg_index], registers.mosaic);
+                let first_target = registers.effects.is_first_target(bg_index as u16);
+                let second_target = registers.effects.is_second_target(bg_index as u16);
+                let textbg = TextBG::new(
+                    registers.bg_cnt[bg_index], registers.bg_ofs[bg_index],
+                    registers.mosaic, first_target, second_target);
 
                 if registers.bg_cnt[bg_index].palette256() {
-                    draw_text_bg_8bpp_no_obj_window(registers.line as u32, 0, 240, &textbg, vram, pal, pixels);
+                    draw_text_bg_8bpp(registers.line as u32, &textbg, vram, pal, pixels);
                 } else {
-                    draw_text_bg_4bpp_no_obj_window(registers.line as u32, 0, 240, &textbg, vram, pal, pixels);
+                    draw_text_bg_4bpp(registers.line as u32, &textbg, vram, pal, pixels);
                 }
             }
         }
 
         if registers.dispcnt.display_layer(4) {
-            render_objects_no_obj_window(registers, object_priorities.objects_with_priority(priority), vram, oam, pal, pixels);
+            render_objects(registers, object_priorities.objects_with_priority(priority), vram, oam, pal, pixels);
         }
     }
 }
@@ -33,7 +37,7 @@ pub fn render_mode1(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
 pub fn render_mode2(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut LCDLineBuffer) {
 }
 
-pub fn draw_text_bg_4bpp_no_obj_window(line: u32, left: u32, right: u32, bg: &TextBG, vram: &VRAM, palette: &GbaPalette, dest: &mut LCDLineBuffer) {
+pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, palette: &GbaPalette, dest: &mut LCDLineBuffer) {
     pub const BYTES_PER_TILE: u32 = 32;
     pub const BYTES_PER_LINE: u32 = 4;
 
@@ -46,10 +50,10 @@ pub fn draw_text_bg_4bpp_no_obj_window(line: u32, left: u32, right: u32, bg: &Te
     };
     let ty = scy % 8;
 
-    let mut mdx = left;
-    let mut dx = left;
+    let mut mdx = 0;
+    let mut dx = 0;
 
-    while dx < right {
+    while dx < 240 {
         let scx = start_scx + dx - mdx;
 
         mdx += 1;
@@ -75,17 +79,21 @@ pub fn draw_text_bg_4bpp_no_obj_window(line: u32, left: u32, right: u32, bg: &Te
         if pixel_offset > 0x10000 { dx += 1; continue }
 
         // try to do 8 pixels at a time if possible:
-        if bg.mosaic_x <= 1 && (scx % 8) == 0 && dx <= (right - 8) {
+        if bg.mosaic_x <= 1 && (scx % 8) == 0 && dx <= 232 {
             let pinc = if horizontal_flip { -1i32 as u32 } else { 1u32 };
             for _ in 0..4 {
                 let palette_entry = vram[pixel_offset as usize];
                 let lo_palette_entry = palette_entry & 0xF;
                 let hi_palette_entry = palette_entry >> 4;
                 if lo_palette_entry != 0 {
-                    dest.push_pixel(dx as usize, palette.bg16(tile_palette as usize, lo_palette_entry as usize), bg.first_target, bg.second_target);
+                    dest.push_pixel(dx as usize,
+                        palette.bg16(tile_palette as usize, lo_palette_entry as usize),
+                        bg.first_target, bg.second_target, false);
                 }
                 if hi_palette_entry != 0 {
-                    dest.push_pixel(dx as usize + 1, palette.bg16(tile_palette as usize, hi_palette_entry as usize), bg.first_target, bg.second_target);
+                    dest.push_pixel(dx as usize + 1,
+                        palette.bg16(tile_palette as usize, hi_palette_entry as usize),
+                        bg.first_target, bg.second_target, false);
                 }
                 dx += 2;
                 pixel_offset = pixel_offset.wrapping_add(pinc);
@@ -93,14 +101,16 @@ pub fn draw_text_bg_4bpp_no_obj_window(line: u32, left: u32, right: u32, bg: &Te
         } else {
             let palette_entry = (vram[pixel_offset as usize] >> ((tx % 2) << 2)) & 0xF;
             if palette_entry != 0 {
-                dest.push_pixel(dx as usize, palette.bg16(tile_palette as usize, palette_entry as usize), bg.first_target, bg.second_target);
+                dest.push_pixel(dx as usize,
+                    palette.bg16(tile_palette as usize, palette_entry as usize),
+                    bg.first_target, bg.second_target, false);
             }
             dx += 1;
         }
     }
 }
 
-pub fn draw_text_bg_8bpp_no_obj_window(line: u32, left: u32, right: u32, bg: &TextBG, vram: &VRAM, palette: &GbaPalette, dest: &mut LCDLineBuffer) {
+pub fn draw_text_bg_8bpp(line: u32, bg: &TextBG, vram: &VRAM, palette: &GbaPalette, dest: &mut LCDLineBuffer) {
     unimplemented!("8bpp tiles");
 }
 
@@ -130,7 +140,7 @@ impl TextBG {
         (512, 512),
     ];
 
-    pub fn new(control: BGControl, offset: BGOffset, reg_mosaic: super::Mosaic) -> TextBG {
+    pub fn new(control: BGControl, offset: BGOffset, reg_mosaic: super::Mosaic, first_target: bool, second_target: bool) -> TextBG {
         let (width, height) = TextBG::SIZES[control.screen_size() as usize];
         let mosaic = if control.mosaic() {
             reg_mosaic.bg
@@ -147,8 +157,8 @@ impl TextBG {
             height:         height,
             mosaic_x:       mosaic.0 as u32,
             mosaic_y:       mosaic.1 as u32,
-            first_target:   false,
-            second_target:  false,
+            first_target:   first_target,
+            second_target:  second_target,
         }
     }
 

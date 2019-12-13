@@ -78,7 +78,8 @@ impl GbaLCD {
         if self.registers.line < 160 {
             if self.registers.line == 0 {  video.pre_frame(); }
             self.draw_line(vram, oam, palette);
-            video.display_line(self.registers.line as u32, &self.pixels.pixels);
+            self.pixels.mix(self.registers.effects.effect(), &self.registers);
+            video.display_line(self.registers.line as u32, &self.pixels.mixed);
             if self.registers.line == 159 { video.post_frame(); self.frame_ready = true; }
         }
     }
@@ -91,6 +92,7 @@ impl GbaLCD {
             1210
         };
 
+        self.pixels.clear_flags();
         // setting up the backdrop:
         let backdrop = palette.backdrop();
         for x in 0..240 {
@@ -112,9 +114,14 @@ impl GbaLCD {
 }
 
 pub struct LCDLineBuffer {
-    pub(crate) pixels:         [u16; 240],
-    pub(crate) second_targets: LCDPixelBits,
-    pub(crate) obj_window:     LCDPixelBits,
+    mixed:          [u16; 240],
+    unmixed:        [u32; 240],
+    obj_window:     LCDPixelBits,
+    obj_semitrans:  LCDPixelBits,
+
+    top_layer_first_target:  LCDPixelBits,
+    top_layer_second_target: LCDPixelBits,
+    bot_layer_second_target: LCDPixelBits,
 
     /// Cycles remaining for drawing objects.
     pub(crate) obj_cycles:      u16,
@@ -123,22 +130,175 @@ pub struct LCDLineBuffer {
 impl LCDLineBuffer {
     pub const fn new() -> LCDLineBuffer {
         LCDLineBuffer {
-            pixels:         [0xFFFF; 240],
-            second_targets: LCDPixelBits::new(),
+            mixed:          [0xFFFF; 240],
+            unmixed:        [0x0000; 240],
             obj_window:     LCDPixelBits::new(),
+            obj_semitrans:  LCDPixelBits::new(),
             obj_cycles:     1210,
+
+            top_layer_first_target:  LCDPixelBits::new(),
+            top_layer_second_target: LCDPixelBits::new(),
+            bot_layer_second_target: LCDPixelBits::new(),
         }
     }
 
+    #[inline]
+    pub fn clear_flags(&mut self) {
+        self.obj_window.clear_all();
+        self.top_layer_first_target.clear_all();
+        self.bot_layer_second_target.clear_all();
+        self.bot_layer_second_target.clear_all();
+    }
+
+    // @TODO remove this
+    #[deprecated]
+    #[inline]
     pub fn push_pixel_fast(&mut self, index: usize, color: u16) {
-        self.pixels[index] = color;
+        self.unmixed[index] = (self.unmixed[index] << 16) | (color as u32);
+        // self.pixels[index] = color;
     }
 
-    pub fn push_pixel(&mut self, index: usize, color: u16, first_target: bool, second_target: bool) {
-        if second_target {
-            self.second_targets.set(index as u8);
+    #[inline]
+    pub fn push_pixel(&mut self, index: usize, color: u16, first_target: bool, second_target: bool, semi_trans: bool) {
+        if self.top_layer_second_target.get(index) {
+            self.unmixed[index] = (self.unmixed[index] << 16) | (color as u32);
+            self.bot_layer_second_target.set(index);
+        } else {
+            // Since this for sure overwrites the bottom pixel anyway with no mixing, there's no
+            // point in doing the above.
+            self.unmixed[index] = color as u32;
+            self.bot_layer_second_target.clear(index);
         }
-        self.pixels[index] = color;
+
+        self.top_layer_first_target.put(index, first_target | semi_trans);
+        self.top_layer_second_target.put(index, second_target);
+        self.obj_semitrans.put(index, semi_trans);
+    }
+
+    pub fn mix(&mut self, effect: SpecialEffect, registers: &LCDRegisters) {
+        let no_blending = effect == SpecialEffect::None ||
+            (effect == SpecialEffect::AlphaBlending && self.bot_layer_second_target.is_all_zeroes()) ||
+            self.top_layer_first_target.is_all_zeroes();
+
+        if no_blending {
+            // if we're not blending be can just copy the top most pixel into the mixed line
+            // buffer.
+            self.unmixed.iter().zip(self.mixed.iter_mut()).for_each(|(&s, d)| {
+                *d = s as u16;
+            });
+            return;
+        }
+
+        let eva = bits!(registers.alpha, 0,  4); // EVA * 16
+        let evb = bits!(registers.alpha, 8, 12); // EVB * 16
+
+        match effect {
+            SpecialEffect::AlphaBlending => {
+                for index in 0..240 {
+                    // for alpha blending, we only blend if there is both a first and second
+                    // target:
+                    if !self.top_layer_first_target.get(index) || !self.bot_layer_second_target.get(index) {
+                        self.mixed[index] = self.unmixed[index] as u16;
+                        continue;
+                    }
+
+                    self.mixed[index] = Self::alpha_blend(
+                        self.unmixed[index] as u16,
+                        (self.unmixed[index] >> 16) as u16,
+                        eva, evb
+                    );
+                }
+            },
+
+            SpecialEffect::BrightnessIncrease => {
+                let evy = bits!(registers.brightness, 0, 4); // EVY * 16
+
+                for index in 0..240 {
+                    // for brightness blending, we only blend if there is a first target pixel in
+                    // the top layer:
+                    if !self.top_layer_first_target.get(index) {
+                        self.mixed[index] = self.unmixed[index] as u16;
+                        continue;
+                    }
+
+                    if self.obj_semitrans.get(index) { // implies first target
+                        if self.bot_layer_second_target.get(index) {
+                            self.mixed[index] = Self::alpha_blend(
+                                self.unmixed[index] as u16,
+                                (self.unmixed[index] >> 16) as u16,
+                                eva, evb
+                            );
+                        } else {
+                            self.mixed[index] = self.unmixed[index] as u16;
+                        }
+                        continue;
+                    }
+
+                    self.mixed[index] = Self::brightness_increase(self.unmixed[index] as u16, evy);
+                }
+            },
+
+            SpecialEffect::BrightnessDecrease => {
+                let evy = bits!(registers.brightness, 0, 4); // EVY * 16
+
+                for index in 0..240 {
+                    // for brightness blending, we only blend if there is a first target pixel in
+                    // the top layer:
+                    if !self.top_layer_first_target.get(index) {
+                        self.mixed[index] = self.unmixed[index] as u16;
+                        continue;
+                    }
+
+                    if self.obj_semitrans.get(index) { // implies first target
+                        if self.bot_layer_second_target.get(index) {
+                            self.mixed[index] = Self::alpha_blend(
+                                self.unmixed[index] as u16,
+                                (self.unmixed[index] >> 16) as u16,
+                                eva, evb
+                            );
+                        } else {
+                            self.mixed[index] = self.unmixed[index] as u16;
+                        }
+                        continue;
+                    }
+
+                    self.mixed[index] = Self::brightness_decrease(self.unmixed[index] as u16, evy);
+                }
+            },
+
+            _ => unreachable!(),
+        }
+    }
+
+    fn alpha_blend(first: u16, second: u16, eva: u16, evb: u16) -> u16 {
+        // I = MIN ( 31, I1st*EVA + I2nd*EVB )
+        // where I is the separate R, G, and B components
+        let (r1, g1, b1) = pixel_components(first);
+        let (r2, g2, b2) = pixel_components(second);
+        let r = std::cmp::min(31, (r1*eva)/16 + (r2*evb)/16);
+        let g = std::cmp::min(31, (g1*eva)/16 + (g2*evb)/16);
+        let b = std::cmp::min(31, (b1*eva)/16 + (b2*evb)/16);
+        rgb16(r, g, b)
+    }
+
+    fn brightness_increase(color: u16, evy: u16) -> u16 {
+        // I = I1st + (31-I1st)*EVY
+        // where I is the separate R, G, and B components
+        let (r1, g1, b1) = pixel_components(color);
+        let r = std::cmp::min(31, r1 + ((31 - r1)*evy)/16);
+        let g = std::cmp::min(31, g1 + ((31 - g1)*evy)/16);
+        let b = std::cmp::min(31, b1 + ((31 - b1)*evy)/16);
+        rgb16(r, g, b)
+    }
+
+    fn brightness_decrease(color: u16, evy: u16) -> u16 {
+        // I = I1st - (I1st)*EVY
+        // where I is the separate R, G, and B components
+        let (r1, g1, b1) = pixel_components(color);
+        let r = std::cmp::min(31, r1 - (r1*evy)/16);
+        let g = std::cmp::min(31, g1 - (g1*evy)/16);
+        let b = std::cmp::min(31, b1 - (b1*evy)/16);
+        rgb16(r, g, b)
     }
 }
 
@@ -155,21 +315,21 @@ impl LCDPixelBits {
     }
 
     #[inline(always)]
-    pub fn set(&mut self, bit: u8) {
-        let index   = bit as usize / 64;
+    pub fn set(&mut self, bit: usize) {
+        let index   = bit / 64;
         let shift   = bit as u64 % 64;
         self.bits[index] |= 1 << shift;
     }
 
     #[inline(always)]
-    pub fn clear(&mut self, bit: u8) {
-        let index   = bit as usize / 64;
+    pub fn clear(&mut self, bit: usize) {
+        let index   = bit / 64;
         let shift   = bit as u64 % 64;
         self.bits[index] &= !(1 << shift);
     }
 
     #[inline(always)]
-    pub fn put(&mut self, bit: u8, value: bool) {
+    pub fn put(&mut self, bit: usize, value: bool) {
         if value {
             self.set(bit);
         } else {
@@ -178,16 +338,21 @@ impl LCDPixelBits {
     }
 
     #[inline(always)]
-    pub fn get(&self, bit: u8) -> bool {
-        let index   = bit as usize / 64;
+    pub fn get(&self, bit: usize) -> bool {
+        let index   = bit / 64;
         let shift   = bit as u64 % 64;
 
         ((self.bits[index] >> shift) & 1) != 0
     }
 
-    #[inline(always)]
-    pub fn set_block(&mut self, block: usize, value: u64) {
-        self.bits[block] = value;
+    #[inline]
+    pub fn clear_all(&mut self) {
+        for b in self.bits.iter_mut() { *b = 0 }
+    }
+
+    #[inline]
+    pub fn is_all_zeroes(&self) -> bool {
+        self.bits.iter().fold(0, |acc, &v| acc | v) == 0
     }
 }
 
@@ -309,14 +474,13 @@ impl EffectsSelection {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub enum SpecialEffect {
     None,
     AlphaBlending,
     BrightnessIncrease,
     BrightnessDecrease,
 }
-
 
 #[derive(Default, Clone, Copy)]
 pub struct Mosaic {
@@ -456,4 +620,18 @@ pub fn apply_mosaic_cond(mosaic_cond: bool, value: u16, mosaic: u16) -> u16 {
     } else {
         return value;
     }
+}
+
+#[inline(always)]
+pub fn pixel_components(pixel: u16) -> (u16, u16, u16) {
+    (
+        pixel & 0x1F,
+        (pixel >> 5) & 0x1F,
+        (pixel >> 10) & 0x1F,
+    )
+}
+
+#[inline(always)]
+pub fn rgb16(r: u16, g: u16, b: u16) -> u16 {
+    (r & 0x1F) | ((g & 0x1F) << 5) | ((b & 0x1F) << 10) | 0x8000
 }

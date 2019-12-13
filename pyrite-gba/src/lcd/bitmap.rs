@@ -18,7 +18,7 @@ pub fn render_mode3(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
     }
 
     if registers.dispcnt.display_layer(2) {
-        render_mode3_bitmap_no_obj_window(registers.line as usize, 0, 240, vram, pixels);
+        render_mode3_bitmap(registers.line as usize, 0, 240, vram, pixels);
     }
 
     if registers.dispcnt.display_layer(4) {
@@ -29,7 +29,7 @@ pub fn render_mode3(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
     }
 }
 
-fn render_mode3_bitmap_no_obj_window(line: usize, left: usize, right: usize, vram: &VRAM, pixels: &mut LCDLineBuffer) {
+fn render_mode3_bitmap(line: usize, left: usize, right: usize, vram: &VRAM, pixels: &mut LCDLineBuffer) {
     assert!(line < 160);
     assert!(left < 240 && right <= 240);
 
@@ -62,7 +62,7 @@ pub fn render_mode4(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
         let framebuffer_end = framebuffer_start + FRAMEBUFFER_SIZE;
         assert!(vram.len() >= framebuffer_start && framebuffer_end <= vram.len());
 
-        render_mode4_bitmap_no_obj_window(registers.line as usize, 0, 240, unsafe {
+        render_mode4_bitmap(registers.line as usize, 0, 240, unsafe {
             std::mem::transmute((&vram[framebuffer_start..framebuffer_end]).as_ptr())
         }, pal, pixels);
     }
@@ -75,7 +75,7 @@ pub fn render_mode4(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
     }
 }
 
-fn render_mode4_bitmap_no_obj_window(line: usize, left: usize, right: usize, framebuffer: &Mode4FrameBuffer, pal: &GbaPalette, pixels: &mut LCDLineBuffer) {
+fn render_mode4_bitmap(line: usize, left: usize, right: usize, framebuffer: &Mode4FrameBuffer, pal: &GbaPalette, pixels: &mut LCDLineBuffer) {
     assert!(line < 160);
     assert!(left < 240 && right <= 240);
 
@@ -112,7 +112,7 @@ pub fn render_mode5(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
         assert!(vram.len() >= framebuffer_start && framebuffer_end <= vram.len());
 
         if registers.line < 128 {
-            render_mode5_bitmap_no_obj_window(registers.line as usize, 0, 240, unsafe {
+            render_mode5_bitmap(registers.line as usize, 0, 240, unsafe {
                 std::mem::transmute((&vram[framebuffer_start..framebuffer_end]).as_ptr())
             }, pixels);
         }
@@ -126,7 +126,7 @@ pub fn render_mode5(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pal: &GbaP
     }
 }
 
-fn render_mode5_bitmap_no_obj_window(line: usize, left: usize, right: usize, framebuffer: &Mode5FrameBuffer, pixels: &mut LCDLineBuffer) {
+fn render_mode5_bitmap(line: usize, left: usize, right: usize, framebuffer: &Mode5FrameBuffer, pixels: &mut LCDLineBuffer) {
     assert!(line < 160);
     assert!(left < 240 && right <= 240);
 

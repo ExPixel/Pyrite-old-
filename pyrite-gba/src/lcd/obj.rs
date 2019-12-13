@@ -4,11 +4,14 @@ use crate::util::fixedpoint::{ FixedPoint32, FixedPoint16 };
 use super::palette::GbaPalette;
 use super::{ LCDRegisters, LCDLineBuffer, apply_mosaic_cond };
 
-pub fn render_objects_no_obj_window(registers: &LCDRegisters, objects: &[u16], vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut LCDLineBuffer) {
+pub fn render_objects(registers: &LCDRegisters, objects: &[u16], vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut LCDLineBuffer) {
     let bitmap_mode = match registers.dispcnt.mode() {
         3 | 4 | 5 => true,
         _ => false,
     };
+
+    let first_target    = registers.effects.is_first_target(4);
+    let second_target   = registers.effects.is_second_target(4);
 
     for obj_index in objects.iter().map(|x| (*x & 0xFF) as usize) {
         let attr_index = obj_index * 8;
@@ -85,6 +88,8 @@ pub fn render_objects_no_obj_window(registers: &LCDRegisters, objects: &[u16], v
             }
         }
 
+        let semi_transparent = attrs.0.mode() == ObjMode::SemiTransparent;
+
         let obj_origin_x = FixedPoint32::from( obj_display_width / 2);
         let obj_origin_y = FixedPoint32::from(obj_display_height / 2);
 
@@ -159,7 +164,7 @@ pub fn render_objects_no_obj_window(registers: &LCDRegisters, objects: &[u16], v
 
                         if palette_entry != 0 {
                             let color = pal.obj256(palette_entry);
-                            pixels.push_pixel(obj_screen_draw, color, false, false);
+                            pixels.push_pixel(obj_screen_draw, color, first_target, second_target, semi_transparent);
                         }
                     }
                 }
@@ -183,7 +188,7 @@ pub fn render_objects_no_obj_window(registers: &LCDRegisters, objects: &[u16], v
 
                     if palette_entry != 0 {
                         let color = pal.obj16(attrs.2.palette_number() as usize, palette_entry as usize);
-                        pixels.push_pixel(obj_screen_draw, color, false, false);
+                        pixels.push_pixel(obj_screen_draw, color, first_target, second_target, semi_transparent);
                     }
                 }
 
@@ -272,7 +277,7 @@ impl crate::util::bitfields::FieldConvert<ObjShape> for u16 {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ObjMode {
     Normal,
     SemiTransparent,

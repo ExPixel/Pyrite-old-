@@ -22,11 +22,11 @@ pub type OAM    = [u8;   1 * 1024];
 
 pub struct GbaHardware {
     // garden variety memory:
-    pub(crate) bios:            [u8;  16 * 1024],
-    pub(crate) ewram:           [u8; 256 * 1024],
-    pub(crate) iwram:           [u8;  32 * 1024],
-    pub(crate) vram:            [u8;  96 * 1024],
-    pub(crate) oam:             [u8;   1 * 1024],
+    pub(crate) bios:            BIOS,
+    pub(crate) ewram:           EWRAM,
+    pub(crate) iwram:           IWRAM,
+    pub(crate) vram:            VRAM,
+    pub(crate) oam:             OAM,
     pub(crate) pal:             GbaPalette,
     pub(crate) gamepak:         Vec<u8>,
 
@@ -98,10 +98,10 @@ impl GbaHardware {
                 if self.ramctl.disabled {
                     self.bad_read(32, addr, "disabled RAM");
                     self.last_code_read
-                } else if self.ramctl.external {
-                    read_u32(&self.ewram, addr as usize % (256 * 1024))
-                } else {
+                } else if !self.ramctl.external {
                     read_u32(&self.iwram, addr as usize % ( 32 * 1024))
+                } else {
+                    read_u32(&self.ewram, addr as usize % (256 * 1024))
                 }
             }
 
@@ -720,10 +720,13 @@ impl GbaHardware {
             ioregs::BG3PC => self.lcd.registers.bg3_affine_params.set_c(data),
             ioregs::BG3PD => self.lcd.registers.bg3_affine_params.set_d(data),
 
-            ioregs::MOSAIC => {
-                self.lcd.registers.mosaic.set_value(data);
-            },
-            ioregs::MOSAIC_HI => { /* NOP */ },
+
+            // Special Effects
+            ioregs::MOSAIC      => { self.lcd.registers.mosaic.set_value(data); },
+            ioregs::MOSAIC_HI   => { /* NOP */ },
+            ioregs::BLDCNT      => self.lcd.registers.effects.set_value(data),
+            ioregs::BLDALPHA    => self.lcd.registers.alpha = data,
+            ioregs::BLDY        => self.lcd.registers.brightness = data,
 
             // Keypad Input
             ioregs::KEYCNT      => self.keypad.control = data,
@@ -830,16 +833,14 @@ impl ArmMemory for GbaHardware {
 
     fn read_code_word(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u32 {
         *cycles += self.sysctl.get_word_cycles(addr, seq);
-        let code = self.read32(addr);
-        self.last_code_read = code;
-        return code;
+        self.last_code_read = self.read32(addr);
+        return self.last_code_read;
     }
 
     fn read_code_halfword(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u16 {
         *cycles += self.sysctl.get_halfword_cycles(addr, seq);
-        let code = self.read32(addr);
-        self.last_code_read = code;
-        return halfword_of_word(code, addr);
+        self.last_code_read = self.read32(addr);
+        return halfword_of_word(self.last_code_read, addr);
     }
 
     fn read_data_word(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u32 {
