@@ -1,3 +1,6 @@
+#![allow(clippy::needless_return)]
+#![allow(clippy::missing_safety_doc)]
+
 #[macro_export]
 macro_rules! str {
     ($RustStr:expr) => {{
@@ -62,6 +65,7 @@ pub mod imstr;
 #[allow(non_snake_case)]
 #[allow(non_camel_case_types)]
 #[allow(non_upper_case_globals)]
+#[allow(clippy::all)]
 mod sys;
 
 pub use api::*;

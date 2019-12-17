@@ -247,7 +247,7 @@ impl DisassemblyWindow {
             self.last_scroll_y = imgui::get_scroll_y();
         } else {
             let current_scroll_y = imgui::get_scroll_y();
-            if current_scroll_y != self.last_scroll_y {
+            if (current_scroll_y - self.last_scroll_y).abs() > std::f32::EPSILON {
                 let max_scroll_y = imgui::get_scroll_max_y() as f64;
                 let address_values = self.max_address - self.min_address;
                 let address_values_f = address_values as f64;

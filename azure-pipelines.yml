@@ -77,7 +77,7 @@ steps:
     displayName: Cargo Test
   - script: cargo fmt --all -- --check
     displayName: Check Format
-  - script: cargo clippy --all-features -- -D warnings
+  - script: cargo clippy --all-features -- -A warnings
     displayName: Clippy Lint
   - script: cargo test -- --ignored
     displayName: Cargo Test (Expensive)

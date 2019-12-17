@@ -3,17 +3,17 @@
 #[cfg(not(feature = "nightly"))]
 #[macro_export]
 macro_rules! likely {
-    ($b:expr) => {{
+    ($b:expr) => {
         $b
-    }};
+    };
 }
 
 #[cfg(not(feature = "nightly"))]
 #[macro_export]
 macro_rules! unlikely {
-    ($b:expr) => {{
+    ($b:expr) => {
         $b
-    }};
+    };
 }
 
 #[cfg(feature = "nightly")]

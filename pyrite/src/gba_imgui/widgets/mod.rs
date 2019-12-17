@@ -93,7 +93,12 @@ impl EmulatorGUI {
                     ];
 
                     for &(scale, label) in display_sizes.iter() {
-                        if imgui::menu_item_ex(label, None, self.gba_display.scale == scale, true) {
+                        if imgui::menu_item_ex(
+                            label,
+                            None,
+                            (self.gba_display.scale - scale).abs() < std::f32::EPSILON,
+                            true,
+                        ) {
                             self.gba_display.scale = scale;
                         }
                     }

@@ -1,3 +1,5 @@
+#![allow(clippy::unreadable_literal)]
+#![allow(clippy::needless_return)]
 #[macro_use]
 extern crate pyrite_common;
 

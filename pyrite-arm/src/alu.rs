@@ -539,23 +539,18 @@ pub fn arm_alu_rrx_s(cpu: &mut ArmCpu, lhs: u32) -> u32 {
 /// Clearer versions of shifts
 pub trait ArmShifts {
     /// Logical Shift Left
-    #[inline(always)]
     fn arm_lsl(self, shift: Self) -> Self;
 
     /// Logical Shift Right
-    #[inline(always)]
     fn arm_lsr(self, shift: Self) -> Self;
 
     /// Arithmetic Shift Right
-    #[inline(always)]
     fn arm_asr(self, shift: Self) -> Self;
 
     /// Rotate Right
-    #[inline(always)]
     fn arm_ror(self, shift: Self) -> Self;
 
     /// Rotate Right Extended
-    #[inline(always)]
     fn arm_rrx(self, carry: Self) -> Self;
 }
 

@@ -10,8 +10,7 @@ macro_rules! offset_of {
         let u = std::mem::MaybeUninit::<$Struct>::uninit();
         let uptr = u.as_ptr();
         let field = &((*uptr).$field);
-        let o = (field as *const _ as usize).wrapping_sub(uptr as usize);
-        o
+        (field as *const _ as usize).wrapping_sub(uptr as usize)
     }};
 }
 

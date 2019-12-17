@@ -23,7 +23,7 @@ impl<T: Sized> Shared<T> {
     pub fn unwrap(this: Shared<T>) -> T {
         match Shared::try_unwrap(this) {
             Ok(unwraped) => unwraped,
-            Err(_) => panic!("unable to unwrap shared value (more than one strong reference)"),
+            Err(_err) => panic!("unable to unwrap shared value (more than one strong reference)"),
         }
     }
 }
