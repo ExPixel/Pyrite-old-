@@ -51,15 +51,33 @@ steps:
     displayName: Install Rust (Windows)
     condition: eq( variables['Agent.OS'], 'Windows_NT' )
   - script: |
+      rustup component add clippy
+      rustup component add rustfmt
+    displayName: Install Rust Components
+  - script: |
       %CLANG_DIR%\bin\clang --version
       rustc --version
       cargo --version
       clang --version
+      cargo fmt --version
+      cargo clippy --version
     displayName: Check Tools (Windows)
     condition: eq( variables['Agent.OS'], 'Windows_NT' )
+  - script: |
+      rustc --version
+      cargo --version
+      clang --version
+      cargo fmt --version
+      cargo clippy --version
+    displayName: Check Tools
+    condition: ne( variables['Agent.OS'], 'Windows_NT' )
   - script: cargo build --all
     displayName: Cargo Build
   - script: cargo test --all
     displayName: Cargo Test
+  - script: cargo fmt --all -- --check
+    displayName: Check Format
+  - script: cargo clippy --all-features -- -D warnings
+    displayName: Clippy Lint
   - script: cargo test -- --ignored
     displayName: Cargo Test (Expensive)
