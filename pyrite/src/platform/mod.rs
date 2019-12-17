@@ -1,2 +1,2 @@
-pub mod opengl;
 pub mod glutin;
+pub mod opengl;

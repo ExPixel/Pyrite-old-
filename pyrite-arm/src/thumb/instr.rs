@@ -1,5 +1,5 @@
-use super::super::{ ArmCpu, ArmMemory };
 use super::super::alu;
+use super::super::{ArmCpu, ArmMemory};
 
 #[inline(always)]
 fn sdt_ldr(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) {
@@ -10,7 +10,9 @@ fn sdt_ldr(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) {
     // From GBATek:
     //      Reads from forcibly aligned address "addr AND (NOT 3)", and then rotate
     //      the data as "ROR (addr AND 3)*8"
-    let value = memory.read_data_word(addr & 0xFFFFFFFC, false, &mut cpu.cycles).rotate_right(8 * (addr % 4));
+    let value = memory
+        .read_data_word(addr & 0xFFFFFFFC, false, &mut cpu.cycles)
+        .rotate_right(8 * (addr % 4));
     cpu.registers.write(rd, value);
 }
 
@@ -40,7 +42,7 @@ macro_rules! impl_move_shifted_register {
             alu::set_nz_flags(cpu, res); // emulates a move, so we set NZ
             cpu.registers.write(rd, res);
         }
-    }
+    };
 }
 
 // Shift Rs left by a 5-bit immediate value and store the result in Rd.
@@ -179,10 +181,24 @@ pub fn thumb_dp_g1(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
     let rhs = cpu.registers.read(rs);
 
     match bits!(opcode, 6, 7) {
-        0 => { let res = alu::arm_alu_ands(cpu, lhs, rhs); cpu.registers.write(rd, res) },
-        1 => { let res = alu::arm_alu_eors(cpu, lhs, rhs); cpu.registers.write(rd, res) },
-        2 => { let res = alu::arm_alu_llr_s(cpu, lhs, rhs & 0xFF); alu::set_nz_flags(cpu, res); cpu.registers.write(rd, res) },
-        3 => { let res = alu::arm_alu_lrr_s(cpu, lhs, rhs & 0xFF); alu::set_nz_flags(cpu, res); cpu.registers.write(rd, res) },
+        0 => {
+            let res = alu::arm_alu_ands(cpu, lhs, rhs);
+            cpu.registers.write(rd, res)
+        }
+        1 => {
+            let res = alu::arm_alu_eors(cpu, lhs, rhs);
+            cpu.registers.write(rd, res)
+        }
+        2 => {
+            let res = alu::arm_alu_llr_s(cpu, lhs, rhs & 0xFF);
+            alu::set_nz_flags(cpu, res);
+            cpu.registers.write(rd, res)
+        }
+        3 => {
+            let res = alu::arm_alu_lrr_s(cpu, lhs, rhs & 0xFF);
+            alu::set_nz_flags(cpu, res);
+            cpu.registers.write(rd, res)
+        }
         _ => unreachable!(),
     }
 }
@@ -197,10 +213,24 @@ pub fn thumb_dp_g2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
     let rhs = cpu.registers.read(rs);
 
     match bits!(opcode, 6, 7) {
-        0 => { let res = alu::arm_alu_arr_s(cpu, lhs, rhs & 0xFF); alu::set_nz_flags(cpu, res); cpu.registers.write(rd, res) },
-        1 => { let res = alu::arm_alu_adcs(cpu, lhs, rhs); cpu.registers.write(rd, res) },
-        2 => { let res = alu::arm_alu_sbcs(cpu, lhs, rhs); cpu.registers.write(rd, res) },
-        3 => { let res = alu::arm_alu_rrr_s(cpu, lhs, rhs & 0xFF); alu::set_nz_flags(cpu, res); cpu.registers.write(rd, res) },
+        0 => {
+            let res = alu::arm_alu_arr_s(cpu, lhs, rhs & 0xFF);
+            alu::set_nz_flags(cpu, res);
+            cpu.registers.write(rd, res)
+        }
+        1 => {
+            let res = alu::arm_alu_adcs(cpu, lhs, rhs);
+            cpu.registers.write(rd, res)
+        }
+        2 => {
+            let res = alu::arm_alu_sbcs(cpu, lhs, rhs);
+            cpu.registers.write(rd, res)
+        }
+        3 => {
+            let res = alu::arm_alu_rrr_s(cpu, lhs, rhs & 0xFF);
+            alu::set_nz_flags(cpu, res);
+            cpu.registers.write(rd, res)
+        }
         _ => unreachable!(),
     }
 }
@@ -215,10 +245,19 @@ pub fn thumb_dp_g3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
     let rhs = cpu.registers.read(rs);
 
     match bits!(opcode, 6, 7) {
-        0 => { alu::arm_alu_tsts(cpu, lhs, rhs); },
-        1 => { let res = alu::arm_alu_rsbs(cpu, rhs, 0); cpu.registers.write(rd, res) },
-        2 => { alu::arm_alu_cmps(cpu, lhs, rhs); },
-        3 => { alu::arm_alu_cmns(cpu, lhs, rhs); },
+        0 => {
+            alu::arm_alu_tsts(cpu, lhs, rhs);
+        }
+        1 => {
+            let res = alu::arm_alu_rsbs(cpu, rhs, 0);
+            cpu.registers.write(rd, res)
+        }
+        2 => {
+            alu::arm_alu_cmps(cpu, lhs, rhs);
+        }
+        3 => {
+            alu::arm_alu_cmns(cpu, lhs, rhs);
+        }
         _ => unreachable!(),
     }
 }
@@ -233,7 +272,10 @@ pub fn thumb_dp_g4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
     let rhs = cpu.registers.read(rs);
 
     match bits!(opcode, 6, 7) {
-        0 => { let res = alu::arm_alu_orrs(cpu, lhs, rhs); cpu.registers.write(rd, res) },
+        0 => {
+            let res = alu::arm_alu_orrs(cpu, lhs, rhs);
+            cpu.registers.write(rd, res)
+        }
         1 => {
             let res = lhs.wrapping_mul(rhs);
             cpu.registers.write(rd, res);
@@ -242,9 +284,15 @@ pub fn thumb_dp_g4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
             let icycles = alu::internal_multiply_cycles(rhs, false);
             cpu.cycles += icycles;
             memory.on_internal_cycles(icycles);
-        },
-        2 => { let res = alu::arm_alu_bics(cpu, lhs, rhs); cpu.registers.write(rd, res) },
-        3 => { let res = alu::arm_alu_mvns(cpu, lhs, rhs); cpu.registers.write(rd, res) },
+        }
+        2 => {
+            let res = alu::arm_alu_bics(cpu, lhs, rhs);
+            cpu.registers.write(rd, res)
+        }
+        3 => {
+            let res = alu::arm_alu_mvns(cpu, lhs, rhs);
+            cpu.registers.write(rd, res)
+        }
         _ => unreachable!(),
     }
 }
@@ -344,14 +392,30 @@ fn thumb_ldr_pc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rd: u
     cpu.registers.write(rd, data);
 }
 
-pub fn thumb_ldr_pc_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldr_pc(cpu, memory, opcode, 0) }
-pub fn thumb_ldr_pc_r1(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldr_pc(cpu, memory, opcode, 1) }
-pub fn thumb_ldr_pc_r2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldr_pc(cpu, memory, opcode, 2) }
-pub fn thumb_ldr_pc_r3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldr_pc(cpu, memory, opcode, 3) }
-pub fn thumb_ldr_pc_r4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldr_pc(cpu, memory, opcode, 4) }
-pub fn thumb_ldr_pc_r5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldr_pc(cpu, memory, opcode, 5) }
-pub fn thumb_ldr_pc_r6(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldr_pc(cpu, memory, opcode, 6) }
-pub fn thumb_ldr_pc_r7(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldr_pc(cpu, memory, opcode, 7) }
+pub fn thumb_ldr_pc_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldr_pc(cpu, memory, opcode, 0)
+}
+pub fn thumb_ldr_pc_r1(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldr_pc(cpu, memory, opcode, 1)
+}
+pub fn thumb_ldr_pc_r2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldr_pc(cpu, memory, opcode, 2)
+}
+pub fn thumb_ldr_pc_r3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldr_pc(cpu, memory, opcode, 3)
+}
+pub fn thumb_ldr_pc_r4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldr_pc(cpu, memory, opcode, 4)
+}
+pub fn thumb_ldr_pc_r5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldr_pc(cpu, memory, opcode, 5)
+}
+pub fn thumb_ldr_pc_r6(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldr_pc(cpu, memory, opcode, 6)
+}
+pub fn thumb_ldr_pc_r7(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldr_pc(cpu, memory, opcode, 7)
+}
 
 pub fn thumb_str_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
     cpu.thumb_prefetch(memory);
@@ -563,14 +627,30 @@ fn thumb_strsp(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rd: u3
     sdt_str(cpu, memory, rd, addr);
 }
 
-pub fn thumb_strsp_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_strsp(cpu, memory, opcode, 0) }
-pub fn thumb_strsp_r1(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_strsp(cpu, memory, opcode, 1) }
-pub fn thumb_strsp_r2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_strsp(cpu, memory, opcode, 2) }
-pub fn thumb_strsp_r3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_strsp(cpu, memory, opcode, 3) }
-pub fn thumb_strsp_r4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_strsp(cpu, memory, opcode, 4) }
-pub fn thumb_strsp_r5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_strsp(cpu, memory, opcode, 5) }
-pub fn thumb_strsp_r6(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_strsp(cpu, memory, opcode, 6) }
-pub fn thumb_strsp_r7(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_strsp(cpu, memory, opcode, 7) }
+pub fn thumb_strsp_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_strsp(cpu, memory, opcode, 0)
+}
+pub fn thumb_strsp_r1(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_strsp(cpu, memory, opcode, 1)
+}
+pub fn thumb_strsp_r2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_strsp(cpu, memory, opcode, 2)
+}
+pub fn thumb_strsp_r3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_strsp(cpu, memory, opcode, 3)
+}
+pub fn thumb_strsp_r4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_strsp(cpu, memory, opcode, 4)
+}
+pub fn thumb_strsp_r5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_strsp(cpu, memory, opcode, 5)
+}
+pub fn thumb_strsp_r6(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_strsp(cpu, memory, opcode, 6)
+}
+pub fn thumb_strsp_r7(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_strsp(cpu, memory, opcode, 7)
+}
 
 #[inline(always)]
 fn thumb_ldrsp(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rd: u32) {
@@ -582,14 +662,30 @@ fn thumb_ldrsp(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rd: u3
     sdt_ldr(cpu, memory, rd, addr);
 }
 
-pub fn thumb_ldrsp_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldrsp(cpu, memory ,opcode, 0) }
-pub fn thumb_ldrsp_r1(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldrsp(cpu, memory ,opcode, 1) }
-pub fn thumb_ldrsp_r2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldrsp(cpu, memory ,opcode, 2) }
-pub fn thumb_ldrsp_r3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldrsp(cpu, memory ,opcode, 3) }
-pub fn thumb_ldrsp_r4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldrsp(cpu, memory ,opcode, 4) }
-pub fn thumb_ldrsp_r5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldrsp(cpu, memory ,opcode, 5) }
-pub fn thumb_ldrsp_r6(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldrsp(cpu, memory ,opcode, 6) }
-pub fn thumb_ldrsp_r7(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldrsp(cpu, memory ,opcode, 7) }
+pub fn thumb_ldrsp_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldrsp(cpu, memory, opcode, 0)
+}
+pub fn thumb_ldrsp_r1(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldrsp(cpu, memory, opcode, 1)
+}
+pub fn thumb_ldrsp_r2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldrsp(cpu, memory, opcode, 2)
+}
+pub fn thumb_ldrsp_r3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldrsp(cpu, memory, opcode, 3)
+}
+pub fn thumb_ldrsp_r4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldrsp(cpu, memory, opcode, 4)
+}
+pub fn thumb_ldrsp_r5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldrsp(cpu, memory, opcode, 5)
+}
+pub fn thumb_ldrsp_r6(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldrsp(cpu, memory, opcode, 6)
+}
+pub fn thumb_ldrsp_r7(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldrsp(cpu, memory, opcode, 7)
+}
 
 #[inline(always)]
 fn thumb_addpc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rd: u32) {
@@ -613,23 +709,55 @@ fn thumb_addsp(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rd: u3
     cpu.registers.write(rd, sp.wrapping_add(offset));
 }
 
-pub fn thumb_addpc_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_addpc(cpu, memory, opcode, 0) }
-pub fn thumb_addpc_r1(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_addpc(cpu, memory, opcode, 1) }
-pub fn thumb_addpc_r2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_addpc(cpu, memory, opcode, 2) }
-pub fn thumb_addpc_r3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_addpc(cpu, memory, opcode, 3) }
-pub fn thumb_addpc_r4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_addpc(cpu, memory, opcode, 4) }
-pub fn thumb_addpc_r5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_addpc(cpu, memory, opcode, 5) }
-pub fn thumb_addpc_r6(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_addpc(cpu, memory, opcode, 6) }
-pub fn thumb_addpc_r7(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_addpc(cpu, memory, opcode, 7) }
+pub fn thumb_addpc_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_addpc(cpu, memory, opcode, 0)
+}
+pub fn thumb_addpc_r1(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_addpc(cpu, memory, opcode, 1)
+}
+pub fn thumb_addpc_r2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_addpc(cpu, memory, opcode, 2)
+}
+pub fn thumb_addpc_r3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_addpc(cpu, memory, opcode, 3)
+}
+pub fn thumb_addpc_r4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_addpc(cpu, memory, opcode, 4)
+}
+pub fn thumb_addpc_r5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_addpc(cpu, memory, opcode, 5)
+}
+pub fn thumb_addpc_r6(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_addpc(cpu, memory, opcode, 6)
+}
+pub fn thumb_addpc_r7(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_addpc(cpu, memory, opcode, 7)
+}
 
-pub fn thumb_addsp_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_addsp(cpu, memory, opcode, 0) }
-pub fn thumb_addsp_r1(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_addsp(cpu, memory, opcode, 1) }
-pub fn thumb_addsp_r2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_addsp(cpu, memory, opcode, 2) }
-pub fn thumb_addsp_r3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_addsp(cpu, memory, opcode, 3) }
-pub fn thumb_addsp_r4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_addsp(cpu, memory, opcode, 4) }
-pub fn thumb_addsp_r5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_addsp(cpu, memory, opcode, 5) }
-pub fn thumb_addsp_r6(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_addsp(cpu, memory, opcode, 6) }
-pub fn thumb_addsp_r7(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_addsp(cpu, memory, opcode, 7) }
+pub fn thumb_addsp_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_addsp(cpu, memory, opcode, 0)
+}
+pub fn thumb_addsp_r1(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_addsp(cpu, memory, opcode, 1)
+}
+pub fn thumb_addsp_r2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_addsp(cpu, memory, opcode, 2)
+}
+pub fn thumb_addsp_r3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_addsp(cpu, memory, opcode, 3)
+}
+pub fn thumb_addsp_r4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_addsp(cpu, memory, opcode, 4)
+}
+pub fn thumb_addsp_r5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_addsp(cpu, memory, opcode, 5)
+}
+pub fn thumb_addsp_r6(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_addsp(cpu, memory, opcode, 6)
+}
+pub fn thumb_addsp_r7(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_addsp(cpu, memory, opcode, 7)
+}
 
 pub fn thumb_addsp_imm7(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
     cpu.thumb_prefetch(memory);
@@ -665,7 +793,9 @@ pub fn thumb_push(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
             let value = cpu.registers.read(reg);
             memory.write_data_word(addr, value, seq, &mut cpu.cycles);
 
-            if !seq { seq = true; }
+            if !seq {
+                seq = true;
+            }
         }
     }
 }
@@ -693,7 +823,9 @@ pub fn thumb_push_lr(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) 
             let value = cpu.registers.read(reg);
             memory.write_data_word(addr, value, seq, &mut cpu.cycles);
 
-            if !seq { seq = true; }
+            if !seq {
+                seq = true;
+            }
         }
     }
 
@@ -726,7 +858,9 @@ pub fn thumb_pop(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
             let value = memory.read_data_word(addr, seq, &mut cpu.cycles);
             cpu.registers.write(reg, value);
 
-            if !seq { seq = true }
+            if !seq {
+                seq = true
+            }
         }
     }
 
@@ -763,7 +897,9 @@ pub fn thumb_pop_pc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
             let value = memory.read_data_word(addr, seq, &mut cpu.cycles);
             cpu.registers.write(reg, value);
 
-            if !seq { seq = true; }
+            if !seq {
+                seq = true;
+            }
         }
     }
 
@@ -854,23 +990,55 @@ fn thumb_ldmia(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, rb: u3
     memory.on_internal_cycles(1);
 }
 
-pub fn thumb_stmia_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_stmia(cpu, memory, opcode, 0) }
-pub fn thumb_stmia_r1(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_stmia(cpu, memory, opcode, 1) }
-pub fn thumb_stmia_r2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_stmia(cpu, memory, opcode, 2) }
-pub fn thumb_stmia_r3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_stmia(cpu, memory, opcode, 3) }
-pub fn thumb_stmia_r4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_stmia(cpu, memory, opcode, 4) }
-pub fn thumb_stmia_r5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_stmia(cpu, memory, opcode, 5) }
-pub fn thumb_stmia_r6(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_stmia(cpu, memory, opcode, 6) }
-pub fn thumb_stmia_r7(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_stmia(cpu, memory, opcode, 7) }
+pub fn thumb_stmia_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_stmia(cpu, memory, opcode, 0)
+}
+pub fn thumb_stmia_r1(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_stmia(cpu, memory, opcode, 1)
+}
+pub fn thumb_stmia_r2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_stmia(cpu, memory, opcode, 2)
+}
+pub fn thumb_stmia_r3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_stmia(cpu, memory, opcode, 3)
+}
+pub fn thumb_stmia_r4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_stmia(cpu, memory, opcode, 4)
+}
+pub fn thumb_stmia_r5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_stmia(cpu, memory, opcode, 5)
+}
+pub fn thumb_stmia_r6(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_stmia(cpu, memory, opcode, 6)
+}
+pub fn thumb_stmia_r7(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_stmia(cpu, memory, opcode, 7)
+}
 
-pub fn thumb_ldmia_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldmia(cpu, memory, opcode, 0) }
-pub fn thumb_ldmia_r1(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldmia(cpu, memory, opcode, 1) }
-pub fn thumb_ldmia_r2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldmia(cpu, memory, opcode, 2) }
-pub fn thumb_ldmia_r3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldmia(cpu, memory, opcode, 3) }
-pub fn thumb_ldmia_r4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldmia(cpu, memory, opcode, 4) }
-pub fn thumb_ldmia_r5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldmia(cpu, memory, opcode, 5) }
-pub fn thumb_ldmia_r6(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldmia(cpu, memory, opcode, 6) }
-pub fn thumb_ldmia_r7(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_ldmia(cpu, memory, opcode, 7) }
+pub fn thumb_ldmia_r0(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldmia(cpu, memory, opcode, 0)
+}
+pub fn thumb_ldmia_r1(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldmia(cpu, memory, opcode, 1)
+}
+pub fn thumb_ldmia_r2(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldmia(cpu, memory, opcode, 2)
+}
+pub fn thumb_ldmia_r3(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldmia(cpu, memory, opcode, 3)
+}
+pub fn thumb_ldmia_r4(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldmia(cpu, memory, opcode, 4)
+}
+pub fn thumb_ldmia_r5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldmia(cpu, memory, opcode, 5)
+}
+pub fn thumb_ldmia_r6(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldmia(cpu, memory, opcode, 6)
+}
+pub fn thumb_ldmia_r7(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_ldmia(cpu, memory, opcode, 7)
+}
 
 /// Conditional Branch
 #[inline(always)]
@@ -888,20 +1056,48 @@ fn thumb_b_cond(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32, cond:
     }
 }
 
-pub fn thumb_beq(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_b_cond(cpu, memory, opcode, 0b0000) }
-pub fn thumb_bne(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_b_cond(cpu, memory, opcode, 0b0001) }
-pub fn thumb_bcs(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_b_cond(cpu, memory, opcode, 0b0010) }
-pub fn thumb_bcc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_b_cond(cpu, memory, opcode, 0b0011) }
-pub fn thumb_bmi(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_b_cond(cpu, memory, opcode, 0b0100) }
-pub fn thumb_bpl(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_b_cond(cpu, memory, opcode, 0b0101) }
-pub fn thumb_bvs(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_b_cond(cpu, memory, opcode, 0b0110) }
-pub fn thumb_bvc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_b_cond(cpu, memory, opcode, 0b0111) }
-pub fn thumb_bhi(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_b_cond(cpu, memory, opcode, 0b1000) }
-pub fn thumb_bls(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_b_cond(cpu, memory, opcode, 0b1001) }
-pub fn thumb_bge(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_b_cond(cpu, memory, opcode, 0b1010) }
-pub fn thumb_blt(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_b_cond(cpu, memory, opcode, 0b1011) }
-pub fn thumb_bgt(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_b_cond(cpu, memory, opcode, 0b1100) }
-pub fn thumb_ble(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) { thumb_b_cond(cpu, memory, opcode, 0b1101) }
+pub fn thumb_beq(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_b_cond(cpu, memory, opcode, 0b0000)
+}
+pub fn thumb_bne(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_b_cond(cpu, memory, opcode, 0b0001)
+}
+pub fn thumb_bcs(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_b_cond(cpu, memory, opcode, 0b0010)
+}
+pub fn thumb_bcc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_b_cond(cpu, memory, opcode, 0b0011)
+}
+pub fn thumb_bmi(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_b_cond(cpu, memory, opcode, 0b0100)
+}
+pub fn thumb_bpl(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_b_cond(cpu, memory, opcode, 0b0101)
+}
+pub fn thumb_bvs(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_b_cond(cpu, memory, opcode, 0b0110)
+}
+pub fn thumb_bvc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_b_cond(cpu, memory, opcode, 0b0111)
+}
+pub fn thumb_bhi(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_b_cond(cpu, memory, opcode, 0b1000)
+}
+pub fn thumb_bls(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_b_cond(cpu, memory, opcode, 0b1001)
+}
+pub fn thumb_bge(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_b_cond(cpu, memory, opcode, 0b1010)
+}
+pub fn thumb_blt(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_b_cond(cpu, memory, opcode, 0b1011)
+}
+pub fn thumb_bgt(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_b_cond(cpu, memory, opcode, 0b1100)
+}
+pub fn thumb_ble(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    thumb_b_cond(cpu, memory, opcode, 0b1101)
+}
 
 pub fn thumb_bl_setup(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
     cpu.thumb_prefetch(memory);
@@ -925,10 +1121,18 @@ pub fn thumb_bl_off(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
 
 pub fn thumb_swi(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _opcode: u32) {
     cpu.thumb_prefetch(memory);
-    cpu.handle_exception(super::super::cpu::CpuException::SWI, memory, cpu.registers.read(15).wrapping_sub(2));
+    cpu.handle_exception(
+        super::super::cpu::CpuException::SWI,
+        memory,
+        cpu.registers.read(15).wrapping_sub(2),
+    );
 }
 
-pub fn thumb_undefined(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory ,_opcode: u32) {
+pub fn thumb_undefined(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _opcode: u32) {
     cpu.thumb_prefetch(memory);
-    cpu.handle_exception(super::super::cpu::CpuException::Undefined, memory, cpu.registers.read(15).wrapping_sub(2));
+    cpu.handle_exception(
+        super::super::cpu::CpuException::Undefined,
+        memory,
+        cpu.registers.read(15).wrapping_sub(2),
+    );
 }

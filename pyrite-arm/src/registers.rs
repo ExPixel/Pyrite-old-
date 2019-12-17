@@ -1,12 +1,21 @@
-
-macro_rules! set_bit   { ($v:expr, $b:expr) => ( $v |= 1  << $b ) }
-macro_rules! clear_bit { ($v:expr, $b:expr) => ( $v &= !(1 << $b) ) }
-macro_rules! put_bit   {
-    ($v:expr, $b:expr, $bv:expr) => ( if $bv {
-        set_bit!($v, $b)
-    }  else {
-        clear_bit!($v, $b)
-    })
+macro_rules! set_bit {
+    ($v:expr, $b:expr) => {
+        $v |= 1 << $b
+    };
+}
+macro_rules! clear_bit {
+    ($v:expr, $b:expr) => {
+        $v &= !(1 << $b)
+    };
+}
+macro_rules! put_bit {
+    ($v:expr, $b:expr, $bv:expr) => {
+        if $bv {
+            set_bit!($v, $b)
+        } else {
+            clear_bit!($v, $b)
+        }
+    };
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -64,7 +73,6 @@ impl CpuMode {
     }
 }
 
-
 #[inline]
 fn check_cpu_mode(mode_bits: u32) -> CpuMode {
     let mode = CpuMode::from_bits(mode_bits);
@@ -73,7 +81,6 @@ fn check_cpu_mode(mode_bits: u32) -> CpuMode {
     }
     return mode;
 }
-
 
 pub struct ArmRegisters {
     /// The currently in use general purpose registers (r0-r15).
@@ -100,21 +107,25 @@ pub struct ArmRegisters {
     // ## DEBUGGING
     // These keep track of the value of the program counter (minus 2 instructions) when a register
     // was changed.
-    #[cfg(feature = "track_register_writes")] gp_registers_record: [u32; 16],
-    #[cfg(feature = "track_register_writes")] bk_registers_record: [u32; 15],
+    #[cfg(feature = "track_register_writes")]
+    gp_registers_record: [u32; 16],
+    #[cfg(feature = "track_register_writes")]
+    bk_registers_record: [u32; 15],
 }
 
 impl ArmRegisters {
     pub fn new(mode: CpuMode) -> ArmRegisters {
         ArmRegisters {
-            gp_registers:   [0; 16],
-            bk_registers:   [0; 15],
-            bk_spsr:        [0;  5],
-            cpsr:           mode.bits(),
-            spsr:           0,
+            gp_registers: [0; 16],
+            bk_registers: [0; 15],
+            bk_spsr: [0; 5],
+            cpsr: mode.bits(),
+            spsr: 0,
 
-            #[cfg(feature = "track_register_writes")] gp_registers_record:    [0; 16],
-            #[cfg(feature = "track_register_writes")] bk_registers_record:    [0; 15],
+            #[cfg(feature = "track_register_writes")]
+            gp_registers_record: [0; 16],
+            #[cfg(feature = "track_register_writes")]
+            bk_registers_record: [0; 15],
         }
     }
 
@@ -156,79 +167,184 @@ impl ArmRegisters {
     }
 
     /// Returns the current value of the N (Negative or Less Than) flag in the CPSR.
-    #[inline(always)] pub fn getf_n(&self) -> bool { (self.cpsr & (1 << 31)) != 0 }
+    #[inline(always)]
+    pub fn getf_n(&self) -> bool {
+        (self.cpsr & (1 << 31)) != 0
+    }
     /// Returns the current value of the Z (Zero) flag in the CPSR.
-    #[inline(always)] pub fn getf_z(&self) -> bool { (self.cpsr & (1 << 30)) != 0 }
+    #[inline(always)]
+    pub fn getf_z(&self) -> bool {
+        (self.cpsr & (1 << 30)) != 0
+    }
     /// Returns the current value of the C (Carry) flag in the CPSR.
-    #[inline(always)] pub fn getf_c(&self) -> bool { (self.cpsr & (1 << 29)) != 0 }
+    #[inline(always)]
+    pub fn getf_c(&self) -> bool {
+        (self.cpsr & (1 << 29)) != 0
+    }
     /// Returns the current value of the V (Overflow) flag in the CPSR.
-    #[inline(always)] pub fn getf_v(&self) -> bool { (self.cpsr & (1 << 28)) != 0 }
+    #[inline(always)]
+    pub fn getf_v(&self) -> bool {
+        (self.cpsr & (1 << 28)) != 0
+    }
     /// Returns the current value of the I (IRQ Disable) flag in the CPSR.
-    #[inline(always)] pub fn getf_i(&self) -> bool { (self.cpsr & (1 <<  7)) != 0 }
+    #[inline(always)]
+    pub fn getf_i(&self) -> bool {
+        (self.cpsr & (1 << 7)) != 0
+    }
     /// Returns the current value of the F (FIQ Disable) flag in the CPSR.
-    #[inline(always)] pub fn getf_f(&self) -> bool { (self.cpsr & (1 <<  6)) != 0 }
+    #[inline(always)]
+    pub fn getf_f(&self) -> bool {
+        (self.cpsr & (1 << 6)) != 0
+    }
     /// Returns the current value of the T (State/Thumb) flag in the CPSR.
-    #[inline(always)] pub fn getf_t(&self) -> bool { (self.cpsr & (1 <<  5)) != 0 }
+    #[inline(always)]
+    pub fn getf_t(&self) -> bool {
+        (self.cpsr & (1 << 5)) != 0
+    }
 
     /// Sets the N (Negative or Less Than) flag in the CPSR.
-    #[inline(always)] pub fn setf_n(&mut self) { set_bit!(self.cpsr, 31); }
+    #[inline(always)]
+    pub fn setf_n(&mut self) {
+        set_bit!(self.cpsr, 31);
+    }
     /// Sets the Z (Zero) flag in the CPSR.
-    #[inline(always)] pub fn setf_z(&mut self) { set_bit!(self.cpsr, 30); }
+    #[inline(always)]
+    pub fn setf_z(&mut self) {
+        set_bit!(self.cpsr, 30);
+    }
     /// Sets the C (Carry) flag in the CPSR.
-    #[inline(always)] pub fn setf_c(&mut self) { set_bit!(self.cpsr, 29); }
+    #[inline(always)]
+    pub fn setf_c(&mut self) {
+        set_bit!(self.cpsr, 29);
+    }
     /// Sets the V (Overflow) flag in the CPSR.
-    #[inline(always)] pub fn setf_v(&mut self) { set_bit!(self.cpsr, 28); }
+    #[inline(always)]
+    pub fn setf_v(&mut self) {
+        set_bit!(self.cpsr, 28);
+    }
     /// Sets the I (IRQ Disable) flag in the CPSR.
-    #[inline(always)] pub fn setf_i(&mut self) { set_bit!(self.cpsr,  7); }
+    #[inline(always)]
+    pub fn setf_i(&mut self) {
+        set_bit!(self.cpsr, 7);
+    }
     /// Sets the F (FIQ Disable) flag in the CPSR.
-    #[inline(always)] pub fn setf_f(&mut self) { set_bit!(self.cpsr,  6); }
+    #[inline(always)]
+    pub fn setf_f(&mut self) {
+        set_bit!(self.cpsr, 6);
+    }
     /// Sets the T (State/Thumb) flag in the CPSR.
-    #[inline(always)] pub fn setf_t(&mut self) { set_bit!(self.cpsr,  5); }
+    #[inline(always)]
+    pub fn setf_t(&mut self) {
+        set_bit!(self.cpsr, 5);
+    }
 
     /// Clears the N (Negative or Less Than) flag in the CPSR.
-    #[inline(always)] pub fn clearf_n(&mut self) { clear_bit!(self.cpsr, 31); }
+    #[inline(always)]
+    pub fn clearf_n(&mut self) {
+        clear_bit!(self.cpsr, 31);
+    }
     /// Clears the Z (Zero) flag in the CPSR.
-    #[inline(always)] pub fn clearf_z(&mut self) { clear_bit!(self.cpsr, 30); }
+    #[inline(always)]
+    pub fn clearf_z(&mut self) {
+        clear_bit!(self.cpsr, 30);
+    }
     /// Clears the C (Carry) flag in the CPSR.
-    #[inline(always)] pub fn clearf_c(&mut self) { clear_bit!(self.cpsr, 29); }
+    #[inline(always)]
+    pub fn clearf_c(&mut self) {
+        clear_bit!(self.cpsr, 29);
+    }
     /// Clears the V (Overflow) flag in the CPSR.
-    #[inline(always)] pub fn clearf_v(&mut self) { clear_bit!(self.cpsr, 28); }
+    #[inline(always)]
+    pub fn clearf_v(&mut self) {
+        clear_bit!(self.cpsr, 28);
+    }
     /// Clears the I (IRQ Disable) flag in the CPSR.
-    #[inline(always)] pub fn clearf_i(&mut self) { clear_bit!(self.cpsr,  7); }
+    #[inline(always)]
+    pub fn clearf_i(&mut self) {
+        clear_bit!(self.cpsr, 7);
+    }
     /// Clears the F (FIQ Disable) flag in the CPSR.
-    #[inline(always)] pub fn clearf_f(&mut self) { clear_bit!(self.cpsr,  6); }
+    #[inline(always)]
+    pub fn clearf_f(&mut self) {
+        clear_bit!(self.cpsr, 6);
+    }
     /// Clears the T (State/Thumb) flag in the CPSR.
-    #[inline(always)] pub fn clearf_t(&mut self) { clear_bit!(self.cpsr,  5); }
+    #[inline(always)]
+    pub fn clearf_t(&mut self) {
+        clear_bit!(self.cpsr, 5);
+    }
 
     /// Changes the N (Negative or Less Than) flag in the CPSR to a given value.
-    #[inline(always)] pub fn putf_n(&mut self, val: bool) { put_bit!(self.cpsr, 31, val); }
+    #[inline(always)]
+    pub fn putf_n(&mut self, val: bool) {
+        put_bit!(self.cpsr, 31, val);
+    }
     /// Changes the Z (Zero) flag in the CPSR to a given value.
-    #[inline(always)] pub fn putf_z(&mut self, val: bool) { put_bit!(self.cpsr, 30, val); }
+    #[inline(always)]
+    pub fn putf_z(&mut self, val: bool) {
+        put_bit!(self.cpsr, 30, val);
+    }
     /// Changes the C (Carry) flag in the CPSR to a given value.
-    #[inline(always)] pub fn putf_c(&mut self, val: bool) { put_bit!(self.cpsr, 29, val); }
+    #[inline(always)]
+    pub fn putf_c(&mut self, val: bool) {
+        put_bit!(self.cpsr, 29, val);
+    }
     /// Changes the V (Overflow) flag in the CPSR to a given value.
-    #[inline(always)] pub fn putf_v(&mut self, val: bool) { put_bit!(self.cpsr, 28, val); }
+    #[inline(always)]
+    pub fn putf_v(&mut self, val: bool) {
+        put_bit!(self.cpsr, 28, val);
+    }
     /// Changes the I (IRQ Disable) flag in the CPSR to a given value.
-    #[inline(always)] pub fn putf_i(&mut self, val: bool) { put_bit!(self.cpsr,  7, val); }
+    #[inline(always)]
+    pub fn putf_i(&mut self, val: bool) {
+        put_bit!(self.cpsr, 7, val);
+    }
     /// Changes the F (FIQ Disable) flag in the CPSR to a given value.
-    #[inline(always)] pub fn putf_f(&mut self, val: bool) { put_bit!(self.cpsr,  6, val); }
+    #[inline(always)]
+    pub fn putf_f(&mut self, val: bool) {
+        put_bit!(self.cpsr, 6, val);
+    }
     /// Changes the T (State/Thumb) flag in the CPSR to a given value.
-    #[inline(always)] pub fn putf_t(&mut self, val: bool) { put_bit!(self.cpsr,  5, val); }
+    #[inline(always)]
+    pub fn putf_t(&mut self, val: bool) {
+        put_bit!(self.cpsr, 5, val);
+    }
 
     /// Changes the N (Negative or Less Than) flag in the CPSR to a given value.
-    #[inline(always)] pub fn putfi_n<I: Into<u32>>(&mut self, val: I) { self.putf_n(val.into() != 0) }
+    #[inline(always)]
+    pub fn putfi_n<I: Into<u32>>(&mut self, val: I) {
+        self.putf_n(val.into() != 0)
+    }
     /// Changes the Z (Zero) flag in the CPSR to a given value.
-    #[inline(always)] pub fn putfi_z<I: Into<u32>>(&mut self, val: I) { self.putf_z(val.into() != 0) }
+    #[inline(always)]
+    pub fn putfi_z<I: Into<u32>>(&mut self, val: I) {
+        self.putf_z(val.into() != 0)
+    }
     /// Changes the C (Carry) flag in the CPSR to a given value.
-    #[inline(always)] pub fn putfi_c<I: Into<u32>>(&mut self, val: I) { self.putf_c(val.into() != 0) }
+    #[inline(always)]
+    pub fn putfi_c<I: Into<u32>>(&mut self, val: I) {
+        self.putf_c(val.into() != 0)
+    }
     /// Changes the V (Overflow) flag in the CPSR to a given value.
-    #[inline(always)] pub fn putfi_v<I: Into<u32>>(&mut self, val: I) { self.putf_v(val.into() != 0) }
+    #[inline(always)]
+    pub fn putfi_v<I: Into<u32>>(&mut self, val: I) {
+        self.putf_v(val.into() != 0)
+    }
     /// Changes the I (IRQ Disable) flag in the CPSR to a given value.
-    #[inline(always)] pub fn putfi_i<I: Into<u32>>(&mut self, val: I) { self.putf_i(val.into() != 0) }
+    #[inline(always)]
+    pub fn putfi_i<I: Into<u32>>(&mut self, val: I) {
+        self.putf_i(val.into() != 0)
+    }
     /// Changes the F (FIQ Disable) flag in the CPSR to a given value.
-    #[inline(always)] pub fn putfi_f<I: Into<u32>>(&mut self, val: I) { self.putf_f(val.into() != 0) }
+    #[inline(always)]
+    pub fn putfi_f<I: Into<u32>>(&mut self, val: I) {
+        self.putf_f(val.into() != 0)
+    }
     /// Changes the T (State/Thumb) flag in the CPSR to a given value.
-    #[inline(always)] pub fn putfi_t<I: Into<u32>>(&mut self, val: I) { self.putf_t(val.into() != 0) }
+    #[inline(always)]
+    pub fn putfi_t<I: Into<u32>>(&mut self, val: I) {
+        self.putf_t(val.into() != 0)
+    }
 
     /// Sets the mode of the CPU. This will also change the mode bits in the CPSR register
     /// and properly swap register values to their corresponding banked values for the new mode.
@@ -255,11 +371,15 @@ impl ArmRegisters {
 
     /// Returns the current mode bits of the CPSR register (lowest 5bits) will all other bits set to 0.
     #[inline(always)]
-    pub fn read_mode_bits(&mut self) -> u32 { self.cpsr & 0x1F }
+    pub fn read_mode_bits(&mut self) -> u32 {
+        self.cpsr & 0x1F
+    }
 
     /// Returns the value of the CPSR register.
     #[inline(always)]
-    pub fn read_cpsr(&self) -> u32 { self.cpsr }
+    pub fn read_cpsr(&self) -> u32 {
+        self.cpsr
+    }
 
     /// Sets the value of the CPSR. If the mode bits are changed
     /// The mode of the CPU will be changed accordingly and banked registers will be loaded.
@@ -281,7 +401,9 @@ impl ArmRegisters {
     /// for the current mode. This will return a garbage value for the User and
     /// System modes.
     #[inline(always)]
-    pub fn read_spsr(&self) -> u32 { self.spsr }
+    pub fn read_spsr(&self) -> u32 {
+        self.spsr
+    }
 
     // #TODO(LOW): might want to make this panic or show a warning in debug mode
     //             when it is called and the CPU is in User or System mode.
@@ -301,21 +423,30 @@ impl ArmRegisters {
         #[cfg(not(feature = "track_register_writes"))]
         macro_rules! swap_reg {
             (gp=$gp_reg:expr, bk=$bk_reg:expr) => {
-                swap(&mut self.gp_registers[$gp_reg], &mut self.bk_registers[$bk_reg]);
-            }
+                swap(
+                    &mut self.gp_registers[$gp_reg],
+                    &mut self.bk_registers[$bk_reg],
+                );
+            };
         }
 
         #[cfg(feature = "track_register_writes")]
         macro_rules! swap_reg {
             (gp=$gp_reg:expr, bk=$bk_reg:expr) => {
-                swap(&mut self.gp_registers[$gp_reg], &mut self.bk_registers[$bk_reg]);
-                swap(&mut self.gp_registers_record[$gp_reg], &mut self.bk_registers_record[$bk_reg]);
-            }
+                swap(
+                    &mut self.gp_registers[$gp_reg],
+                    &mut self.bk_registers[$bk_reg],
+                );
+                swap(
+                    &mut self.gp_registers_record[$gp_reg],
+                    &mut self.bk_registers_record[$bk_reg],
+                );
+            };
         }
 
         if old_mode == new_mode {
             /* NOP */
-            return
+            return;
         }
 
         if old_mode != CpuMode::User && old_mode != CpuMode::System {
@@ -323,41 +454,41 @@ impl ArmRegisters {
             // change to system mode:
             match old_mode {
                 CpuMode::FIQ => {
-                    swap_reg!(gp= 8, bk=0);
-                    swap_reg!(gp= 9, bk=1);
-                    swap_reg!(gp=10, bk=2);
-                    swap_reg!(gp=11, bk=3);
-                    swap_reg!(gp=12, bk=4);
-                    swap_reg!(gp=13, bk=5);
-                    swap_reg!(gp=14, bk=6);
+                    swap_reg!(gp = 8, bk = 0);
+                    swap_reg!(gp = 9, bk = 1);
+                    swap_reg!(gp = 10, bk = 2);
+                    swap_reg!(gp = 11, bk = 3);
+                    swap_reg!(gp = 12, bk = 4);
+                    swap_reg!(gp = 13, bk = 5);
+                    swap_reg!(gp = 14, bk = 6);
                     self.bk_spsr[0] = self.spsr;
-                },
+                }
 
-                CpuMode::Supervisor    => {
-                    swap_reg!(gp=13, bk=7);
-                    swap_reg!(gp=14, bk=8);
+                CpuMode::Supervisor => {
+                    swap_reg!(gp = 13, bk = 7);
+                    swap_reg!(gp = 14, bk = 8);
                     self.bk_spsr[1] = self.spsr;
-                },
+                }
 
-                CpuMode::Abort         => {
-                    swap_reg!(gp=13, bk= 9);
-                    swap_reg!(gp=14, bk=10);
+                CpuMode::Abort => {
+                    swap_reg!(gp = 13, bk = 9);
+                    swap_reg!(gp = 14, bk = 10);
                     self.bk_spsr[2] = self.spsr;
-                },
+                }
 
-                CpuMode::IRQ           => {
-                    swap_reg!(gp=13, bk=11);
-                    swap_reg!(gp=14, bk=12);
+                CpuMode::IRQ => {
+                    swap_reg!(gp = 13, bk = 11);
+                    swap_reg!(gp = 14, bk = 12);
                     self.bk_spsr[3] = self.spsr;
-                },
+                }
 
-                CpuMode::Undefined     => {
-                    swap_reg!(gp=13, bk=13);
-                    swap_reg!(gp=14, bk=14);
+                CpuMode::Undefined => {
+                    swap_reg!(gp = 13, bk = 13);
+                    swap_reg!(gp = 14, bk = 14);
                     self.bk_spsr[4] = self.spsr;
-                },
+                }
 
-                CpuMode::User | CpuMode::System => { /* NOP */ },
+                CpuMode::User | CpuMode::System => { /* NOP */ }
 
                 _ => unreachable!("bad old cpu mode in on_mode_switch: {old_mode}"),
             }
@@ -367,48 +498,46 @@ impl ArmRegisters {
 
         match new_mode {
             CpuMode::FIQ => {
-                swap_reg!(gp= 8, bk=0);
-                swap_reg!(gp= 9, bk=1);
-                swap_reg!(gp=10, bk=2);
-                swap_reg!(gp=11, bk=3);
-                swap_reg!(gp=12, bk=4);
-                swap_reg!(gp=13, bk=5);
-                swap_reg!(gp=14, bk=6);
+                swap_reg!(gp = 8, bk = 0);
+                swap_reg!(gp = 9, bk = 1);
+                swap_reg!(gp = 10, bk = 2);
+                swap_reg!(gp = 11, bk = 3);
+                swap_reg!(gp = 12, bk = 4);
+                swap_reg!(gp = 13, bk = 5);
+                swap_reg!(gp = 14, bk = 6);
                 self.spsr = self.bk_spsr[0];
-            },
+            }
 
-            CpuMode::Supervisor    => {
-                swap_reg!(gp=13, bk=7);
-                swap_reg!(gp=14, bk=8);
+            CpuMode::Supervisor => {
+                swap_reg!(gp = 13, bk = 7);
+                swap_reg!(gp = 14, bk = 8);
                 self.spsr = self.bk_spsr[1];
-            },
+            }
 
-            CpuMode::Abort         => {
-                swap_reg!(gp=13, bk= 9);
-                swap_reg!(gp=14, bk=10);
+            CpuMode::Abort => {
+                swap_reg!(gp = 13, bk = 9);
+                swap_reg!(gp = 14, bk = 10);
                 self.spsr = self.bk_spsr[2];
-            },
+            }
 
-            CpuMode::IRQ     => {
-                swap_reg!(gp=13, bk=11);
-                swap_reg!(gp=14, bk=12);
+            CpuMode::IRQ => {
+                swap_reg!(gp = 13, bk = 11);
+                swap_reg!(gp = 14, bk = 12);
                 self.spsr = self.bk_spsr[3];
-            },
+            }
 
-            CpuMode::Undefined     => {
-                swap_reg!(gp=13, bk=13);
-                swap_reg!(gp=14, bk=14);
+            CpuMode::Undefined => {
+                swap_reg!(gp = 13, bk = 13);
+                swap_reg!(gp = 14, bk = 14);
                 self.spsr = self.bk_spsr[4];
-            },
+            }
 
-            CpuMode::User | CpuMode::System => { /* NOP */ },
-
+            CpuMode::User | CpuMode::System => { /* NOP */ }
 
             _ => unreachable!("bad new cpu mode in on_mode_switch: {new_mode}"),
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -421,9 +550,9 @@ mod tests {
         let mut registers = ArmRegisters::new(CpuMode::System);
 
         // first write some random values to banked and unbanked register locations:
-        registers.write( 0, 428983);
-        registers.write( 4, 736834);
-        registers.write( 9, 234);
+        registers.write(0, 428983);
+        registers.write(4, 736834);
+        registers.write(9, 234);
         registers.write(12, 15);
         registers.write(14, 3373);
 
@@ -435,7 +564,7 @@ mod tests {
         assert_eq!(registers.read(4), 736834);
         // then we write some random values to the banked registers in this new mode
         registers.write(12, 4787);
-        registers.write( 9, 1397);
+        registers.write(9, 1397);
         registers.write(14, 33387);
         // write to the spsr as well
         registers.write_spsr(897987);
@@ -460,27 +589,27 @@ mod tests {
         registers.write_cpsr(cpsr);
         assert_eq!(registers.read_mode(), CpuMode::User);
         // then we check all of the original registers:
-        assert_eq!(registers.read( 0), 428983);
-        assert_eq!(registers.read( 4), 736834);
-        assert_eq!(registers.read( 9), 234);
+        assert_eq!(registers.read(0), 428983);
+        assert_eq!(registers.read(4), 736834);
+        assert_eq!(registers.read(9), 234);
         assert_eq!(registers.read(14), 3373);
 
         // now we go back to the used privilidged modes and make sure their banked registers
         // are correct.
         registers.write_mode(CpuMode::FIQ);
         assert_eq!(registers.read_mode(), CpuMode::FIQ);
-        assert_eq!(registers.read( 0), 428983);
-        assert_eq!(registers.read( 4), 736834);
-        assert_eq!(registers.read( 9), 1397);
+        assert_eq!(registers.read(0), 428983);
+        assert_eq!(registers.read(4), 736834);
+        assert_eq!(registers.read(9), 1397);
         assert_eq!(registers.read(12), 4787);
         assert_eq!(registers.read(14), 33387);
         assert_eq!(registers.read_spsr(), 897987);
 
         registers.write_mode(CpuMode::Abort);
         assert_eq!(registers.read_mode(), CpuMode::Abort);
-        assert_eq!(registers.read( 0), 428983);
-        assert_eq!(registers.read( 4), 736834);
-        assert_eq!(registers.read( 9), 234);
+        assert_eq!(registers.read(0), 428983);
+        assert_eq!(registers.read(4), 736834);
+        assert_eq!(registers.read(9), 234);
         assert_eq!(registers.read(12), 15);
         assert_eq!(registers.read(14), 761357);
         assert_eq!(registers.read_spsr(), 555);

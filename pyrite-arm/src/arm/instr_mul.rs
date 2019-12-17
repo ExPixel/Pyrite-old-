@@ -1,10 +1,10 @@
-use super::super::{ ArmCpu, ArmMemory };
-use super::super::alu::{ set_nz_flags, set_nz_flags64, internal_multiply_cycles };
+use super::super::alu::{internal_multiply_cycles, set_nz_flags, set_nz_flags64};
+use super::super::{ArmCpu, ArmMemory};
 
 #[inline]
 fn get_mulinstr_regs(instr: u32) -> (u32, u32, u32, u32) {
-    let rm = bits!(instr,  0,  3);
-    let rs = bits!(instr,  8, 11);
+    let rm = bits!(instr, 0, 3);
+    let rs = bits!(instr, 8, 11);
     let rn = bits!(instr, 12, 15);
     let rd = bits!(instr, 16, 19);
     (rm, rs, rn, rd)
@@ -250,4 +250,3 @@ pub fn arm_umulls(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     cpu.cycles += icycles;
     memory.on_internal_cycles(icycles);
 }
-

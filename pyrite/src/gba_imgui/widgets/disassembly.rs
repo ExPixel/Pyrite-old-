@@ -1,5 +1,5 @@
-use pyrite_arm::{ ArmCpu, ArmMemory };
-use pyrite_arm::disasm::{ disassemble_arm, disassemble_thumb };
+use pyrite_arm::disasm::{disassemble_arm, disassemble_thumb};
+use pyrite_arm::{ArmCpu, ArmMemory};
 
 const MAX_OPCODE_SIZE: u32 = 44;
 
@@ -50,20 +50,22 @@ impl DisassemblyWindow {
     fn calc_sizes(&self) -> Sizes {
         let mut sizes = Sizes::default();
         let style = imgui::get_style().expect("failed to get imgui style");
-        sizes.line_height   = imgui::get_text_line_height();
-        sizes.glyph_width   = imgui::calc_text_size(imgui::str!("F"), None, None).x + 1.0;
+        sizes.line_height = imgui::get_text_line_height();
+        sizes.glyph_width = imgui::calc_text_size(imgui::str!("F"), None, None).x + 1.0;
 
-        sizes.reg_begin     = 0.0;
+        sizes.reg_begin = 0.0;
         sizes.reg_val_begin = sizes.reg_begin + (6.0 * sizes.glyph_width); // CPSR is the longest register name
-        sizes.reg_end       = sizes.reg_val_begin + (8.0 * sizes.glyph_width);
-        sizes.reg_width     = sizes.reg_end + (style.FramePadding.x + style.ChildBorderSize + style.WindowPadding.x) * 2.0 + style.ScrollbarSize;
+        sizes.reg_end = sizes.reg_val_begin + (8.0 * sizes.glyph_width);
+        sizes.reg_width = sizes.reg_end
+            + (style.FramePadding.x + style.ChildBorderSize + style.WindowPadding.x) * 2.0
+            + style.ScrollbarSize;
 
-        sizes.cursor_begin  = 1.0 * sizes.glyph_width;
-        sizes.addr_digits   = 8.0;
-        sizes.addr_begin    = sizes.cursor_begin + (sizes.glyph_width * 1.5);
-        sizes.opcode_begin  = sizes.addr_begin + (sizes.addr_digits + 1.0) * sizes.glyph_width;
-        sizes.disasm_begin  = sizes.opcode_begin + (sizes.addr_digits + 1.0) * sizes.glyph_width;
-        sizes.disasm_end    = sizes.disasm_begin + (MAX_OPCODE_SIZE as f32 * sizes.glyph_width);
+        sizes.cursor_begin = 1.0 * sizes.glyph_width;
+        sizes.addr_digits = 8.0;
+        sizes.addr_begin = sizes.cursor_begin + (sizes.glyph_width * 1.5);
+        sizes.opcode_begin = sizes.addr_begin + (sizes.addr_digits + 1.0) * sizes.glyph_width;
+        sizes.disasm_begin = sizes.opcode_begin + (sizes.addr_digits + 1.0) * sizes.glyph_width;
+        sizes.disasm_end = sizes.disasm_begin + (MAX_OPCODE_SIZE as f32 * sizes.glyph_width);
 
         sizes.scrollbar_size = style.ScrollbarSize;
         sizes.window_padding = style.WindowPadding.x;
@@ -74,12 +76,22 @@ impl DisassemblyWindow {
     pub fn draw(&mut self, cpu: &ArmCpu, memory: &dyn ArmMemory) {
         let sizes = self.calc_sizes();
         imgui::set_next_window_size_constraints(
-            imgui::vec2(sizes.reg_width + sizes.disasm_end + sizes.scrollbar_size + sizes.window_padding, 0.0),
-            imgui::vec2(sizes.reg_width + sizes.disasm_end + sizes.scrollbar_size + sizes.window_padding, std::f32::MAX),
-            None
+            imgui::vec2(
+                sizes.reg_width + sizes.disasm_end + sizes.scrollbar_size + sizes.window_padding,
+                0.0,
+            ),
+            imgui::vec2(
+                sizes.reg_width + sizes.disasm_end + sizes.scrollbar_size + sizes.window_padding,
+                std::f32::MAX,
+            ),
+            None,
         );
 
-        if imgui::begin(imgui::str!("Disassembly"), &mut self.open, imgui::WindowFlags::NoScrollbar) {
+        if imgui::begin(
+            imgui::str!("Disassembly"),
+            &mut self.open,
+            imgui::WindowFlags::NoScrollbar,
+        ) {
             self.draw_disassembly_window(&sizes, cpu, memory);
         }
         imgui::end();
@@ -103,9 +115,18 @@ impl DisassemblyWindow {
             cursor_moved = true;
         }
 
-        imgui::begin_child(imgui::str!("##scrolling_registers"), imgui::vec2(sizes.reg_width, 0.0), true, imgui::WindowFlags::NoMove);
+        imgui::begin_child(
+            imgui::str!("##scrolling_registers"),
+            imgui::vec2(sizes.reg_width, 0.0),
+            true,
+            imgui::WindowFlags::NoMove,
+        );
         for r in 0..10 {
-            imgui::text(imgui::str_gbuf!("  R{} = 0x{:08X}", r, cpu.registers.read(r)));
+            imgui::text(imgui::str_gbuf!(
+                "  R{} = 0x{:08X}",
+                r,
+                cpu.registers.read(r)
+            ));
         }
         imgui::text(imgui::str_gbuf!(" R10 = 0x{:08X}", cpu.registers.read(10)));
         imgui::text(imgui::str_gbuf!(" R11 = 0x{:08X}", cpu.registers.read(11)));
@@ -113,13 +134,24 @@ impl DisassemblyWindow {
         imgui::text(imgui::str_gbuf!("  SP = 0x{:08X}", cpu.registers.read(13)));
         imgui::text(imgui::str_gbuf!("  LR = 0x{:08X}", cpu.registers.read(14)));
         imgui::text(imgui::str_gbuf!("  PC = 0x{:08X}", cpu.registers.read(15)));
-        imgui::text(imgui::str_gbuf!("CPSR = 0x{:08X}", cpu.registers.read_cpsr()));
-        imgui::text(imgui::str_gbuf!("SPSR = 0x{:08X}", cpu.registers.read_spsr()));
+        imgui::text(imgui::str_gbuf!(
+            "CPSR = 0x{:08X}",
+            cpu.registers.read_cpsr()
+        ));
+        imgui::text(imgui::str_gbuf!(
+            "SPSR = 0x{:08X}",
+            cpu.registers.read_spsr()
+        ));
         imgui::end_child();
 
         imgui::same_line(0.0);
 
-        imgui::begin_child(imgui::str!("##scrolling_disasm"), imgui::vec2(sizes.disasm_end, 0.0), true, imgui::WindowFlags::NoMove);
+        imgui::begin_child(
+            imgui::str!("##scrolling_disasm"),
+            imgui::vec2(sizes.disasm_end, 0.0),
+            true,
+            imgui::WindowFlags::NoMove,
+        );
 
         let draw_list = imgui::get_window_draw_list().expect("failed to get window draw list");
 
@@ -128,7 +160,8 @@ impl DisassemblyWindow {
 
         let mut clipper = imgui::ListClipper::new(SCROLLBAR_STEPS, sizes.line_height);
         let mut clipper_item_start = clipper.DisplayStart;
-        let mut clipper_item_end = if clipper.DisplayEnd >= (clipper.DisplayStart.saturating_add(1)) {
+        let mut clipper_item_end = if clipper.DisplayEnd >= (clipper.DisplayStart.saturating_add(1))
+        {
             // Truncate the number of rows by one (if there is more than one row) because for some
             // reason ImGui's clipper always displays one row too many and the last one gets cut
             // off.
@@ -153,15 +186,23 @@ impl DisassemblyWindow {
             if imgui::is_key_pressed(imgui::get_key_index(imgui::Key::DownArrow), true) {
                 self.cursor_address = self.cursor_address.wrapping_add(instr_size);
 
-                if self.cursor_address > self.max_address { self.cursor_address = self.min_address; }
-                if self.cursor_address < self.min_address { self.cursor_address = self.min_address; }
+                if self.cursor_address > self.max_address {
+                    self.cursor_address = self.min_address;
+                }
+                if self.cursor_address < self.min_address {
+                    self.cursor_address = self.min_address;
+                }
                 self.cursor_address &= instr_align;
                 cursor_moved = true;
             } else if imgui::is_key_pressed(imgui::get_key_index(imgui::Key::UpArrow), true) {
                 self.cursor_address = self.cursor_address.wrapping_sub(instr_size);
 
-                if self.cursor_address > self.max_address { self.cursor_address = self.min_address; }
-                if self.cursor_address < self.min_address { self.cursor_address = self.min_address; }
+                if self.cursor_address > self.max_address {
+                    self.cursor_address = self.min_address;
+                }
+                if self.cursor_address < self.min_address {
+                    self.cursor_address = self.min_address;
+                }
                 self.cursor_address &= instr_align;
                 cursor_moved = true;
             }
@@ -174,21 +215,26 @@ impl DisassemblyWindow {
             self.first_address + ((self.visible_rows - 1) * instr_size)
         };
 
-        if cursor_moved { 
+        if cursor_moved {
             if self.cursor_address <= self.first_address {
-                self.first_address = std::cmp::max(self.min_address, self.cursor_address.saturating_sub(instr_size));
+                self.first_address = std::cmp::max(
+                    self.min_address,
+                    self.cursor_address.saturating_sub(instr_size),
+                );
             }
 
             if self.cursor_address >= last_address {
                 self.first_address = if self.visible_rows == 0 {
-                    std::cmp::max(self.min_address, self.cursor_address.saturating_sub(instr_size))
+                    std::cmp::max(
+                        self.min_address,
+                        self.cursor_address.saturating_sub(instr_size),
+                    )
                 } else {
                     let target = self.cursor_address - ((self.visible_rows - 1) * instr_size);
                     std::cmp::min(self.max_address, target.saturating_add(instr_size))
                 };
                 last_address = self.cursor_address;
             }
-
 
             let percentage = self.first_address as f64 / self.max_address as f64;
             let scroll_y = imgui::get_scroll_max_y() as f64 * percentage;
@@ -213,7 +259,8 @@ impl DisassemblyWindow {
                     address_offset_f as u32
                 };
                 clipper_item_start = clipper.DisplayStart;
-                clipper_item_end = if clipper.DisplayEnd >= (clipper.DisplayStart.saturating_add(1)) {
+                clipper_item_end = if clipper.DisplayEnd >= (clipper.DisplayStart.saturating_add(1))
+                {
                     // Truncate the number of rows by one (if there is more than one row) because for some
                     // reason ImGui's clipper always displays one row too many and the last one gets cut
                     // off.
@@ -257,7 +304,9 @@ impl DisassemblyWindow {
             }
             imgui::same_line(sizes.disasm_begin);
             imgui::text(unsafe {
-                imgui::imstr::ImStr::from_bytes_with_nul_unchecked(self.disasm_buffer.as_str().as_bytes())
+                imgui::imstr::ImStr::from_bytes_with_nul_unchecked(
+                    self.disasm_buffer.as_str().as_bytes(),
+                )
             });
 
             if (address == self.cursor_address) | (address == executing_address) {
@@ -266,13 +315,13 @@ impl DisassemblyWindow {
                 let cursor_pad_x = sizes.line_height / 8.0;
                 let cursor_pad_y = sizes.glyph_width / 8.0;
 
-                let cursor_width    = sizes.glyph_width - (cursor_pad_x * 2.0);
-                let cursor_height   = sizes.line_height - (cursor_pad_y * 2.0);
+                let cursor_width = sizes.glyph_width - (cursor_pad_x * 2.0);
+                let cursor_height = sizes.line_height - (cursor_pad_y * 2.0);
 
-                let cursor_left     = cursor_display_x + cursor_pad_x;
-                let cursor_right    = cursor_left + cursor_width;
-                let cursor_top      = cursor_display_y + cursor_pad_y;
-                let cursor_bottom   = cursor_top + cursor_height;
+                let cursor_left = cursor_display_x + cursor_pad_x;
+                let cursor_right = cursor_left + cursor_width;
+                let cursor_top = cursor_display_y + cursor_pad_y;
+                let cursor_bottom = cursor_top + cursor_height;
                 let cursor_center_h = cursor_left + (cursor_width / 2.0);
                 let cursor_center_v = cursor_top + (cursor_height / 2.0);
 
@@ -281,7 +330,7 @@ impl DisassemblyWindow {
                         imgui::vec2(cursor_left, cursor_top),
                         imgui::vec2(cursor_left, cursor_bottom),
                         imgui::vec2(cursor_right, cursor_center_v),
-                        imgui::rgb8(252, 196, 25)
+                        imgui::rgb8(252, 196, 25),
                     );
                 }
 
@@ -290,7 +339,8 @@ impl DisassemblyWindow {
                         imgui::vec2(cursor_center_h, cursor_center_v),
                         cursor_width / 2.0,
                         imgui::rgb(0xCC5DE8),
-                        None);
+                        None,
+                    );
                 }
             }
         }
@@ -303,18 +353,18 @@ impl DisassemblyWindow {
 
 #[derive(Default)]
 struct Sizes {
-    reg_begin:      f32,
-    reg_val_begin:  f32,
-    reg_end:        f32,
-    reg_width:      f32,
-    addr_digits:    f32,
-    line_height:    f32,
-    glyph_width:    f32,
-    addr_begin:     f32,
-    opcode_begin:   f32,
-    disasm_begin:   f32,
-    disasm_end:     f32,
+    reg_begin: f32,
+    reg_val_begin: f32,
+    reg_end: f32,
+    reg_width: f32,
+    addr_digits: f32,
+    line_height: f32,
+    glyph_width: f32,
+    addr_begin: f32,
+    opcode_begin: f32,
+    disasm_begin: f32,
+    disasm_end: f32,
     scrollbar_size: f32,
     window_padding: f32,
-    cursor_begin:   f32,
+    cursor_begin: f32,
 }

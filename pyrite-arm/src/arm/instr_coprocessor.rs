@@ -1,6 +1,6 @@
 //! Stubs for ARM _instructions that have yet to be implemented.
 
-use super::super::{ ArmCpu, ArmMemory };
+use super::super::{ArmCpu, ArmMemory};
 
 // Perform coprocessor data operation
 pub fn arm_cdp(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _instr: u32) {
@@ -115,4 +115,3 @@ pub fn arm_stc_unp(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _instr: u32) {
     cpu.arm_prefetch(memory);
     gba_error!("coprocessor instructions not implemented"); // #COPROCESSOR_FN
 }
-

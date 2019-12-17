@@ -1,14 +1,9 @@
 ///! A thin opengl wrapper. You'll probably still have to use raw opengl calls most of the time but
 ///  this should at least handle the lifetime of the more common objects like buffers and textures.
-
-use gl::types::{
-    GLuint,
-    GLint,
-    GLboolean,
-};
-use std::{ mem, ptr };
+use gl::types::{GLboolean, GLint, GLuint};
 use std::borrow::Cow;
-use std::ffi::{ CStr, CString };
+use std::ffi::{CStr, CString};
+use std::{mem, ptr};
 
 #[derive(Copy, Clone)]
 pub enum BufferUsage {
@@ -80,7 +75,12 @@ impl Buffer {
         unsafe {
             let data_type_size = mem::size_of::<DataType>();
             let buffer_size = data.len() * data_type_size;
-            gl::BufferData(self.1.as_gl(), buffer_size as isize, mem::transmute(data.as_ptr()), usage.as_gl());
+            gl::BufferData(
+                self.1.as_gl(),
+                buffer_size as isize,
+                mem::transmute(data.as_ptr()),
+                usage.as_gl(),
+            );
         }
     }
 }
@@ -169,7 +169,12 @@ impl Shader {
             let mut buf: Vec<u8> = Vec::with_capacity(log_length as usize);
             buf.resize(log_length as usize, 0);
             unsafe {
-                gl::GetShaderInfoLog(handle, log_length, ptr::null_mut(), mem::transmute(buf.as_mut_ptr()));
+                gl::GetShaderInfoLog(
+                    handle,
+                    log_length,
+                    ptr::null_mut(),
+                    mem::transmute(buf.as_mut_ptr()),
+                );
                 String::from_utf8_unchecked(buf)
             }
         } else {
@@ -213,16 +218,12 @@ impl Program {
 
     pub fn attrib_location(&self, attrib: &str) -> GLint {
         let zattrib = as_zero_str(attrib);
-        unsafe {
-            gl::GetAttribLocation(self.0, zattrib.as_ptr())
-        }
+        unsafe { gl::GetAttribLocation(self.0, zattrib.as_ptr()) }
     }
 
     pub fn uniform_location(&self, uniform: &str) -> GLint {
         let zuniform = as_zero_str(uniform);
-        unsafe {
-            gl::GetUniformLocation(self.0, zuniform.as_ptr())
-        }
+        unsafe { gl::GetUniformLocation(self.0, zuniform.as_ptr()) }
     }
 
     fn is_link_success(handle: GLuint) -> bool {
@@ -242,7 +243,12 @@ impl Program {
             let mut buf: Vec<u8> = Vec::with_capacity(log_length as usize);
             buf.resize(log_length as usize, 0);
             unsafe {
-                gl::GetProgramInfoLog(handle, log_length, ptr::null_mut(), mem::transmute(buf.as_mut_ptr()));
+                gl::GetProgramInfoLog(
+                    handle,
+                    log_length,
+                    ptr::null_mut(),
+                    mem::transmute(buf.as_mut_ptr()),
+                );
                 String::from_utf8_unchecked(buf)
             }
         } else {
@@ -253,9 +259,7 @@ impl Program {
 
 impl Drop for Program {
     fn drop(&mut self) {
-        unsafe {
-            gl::DeleteProgram(self.0)
-        }
+        unsafe { gl::DeleteProgram(self.0) }
     }
 }
 
@@ -285,7 +289,7 @@ pub enum PixelDataFormat {
     RGB,
     BGR,
     RGBA,
-    BGRA
+    BGRA,
 }
 
 impl PixelDataFormat {
@@ -364,12 +368,19 @@ impl PixelDataType {
 
 pub struct Texture {
     handle: GLuint,
-    width:  u32,
+    width: u32,
     height: u32,
 }
 
 impl Texture {
-    pub fn new<PData: PixelData>(width: u32, height: u32, internal_format: InternalPixelFormat,  pixel_data_format: PixelDataFormat, pixel_data_type: PixelDataType, pixel_data: Option<PData>) -> Texture {
+    pub fn new<PData: PixelData>(
+        width: u32,
+        height: u32,
+        internal_format: InternalPixelFormat,
+        pixel_data_format: PixelDataFormat,
+        pixel_data_type: PixelDataType,
+        pixel_data: Option<PData>,
+    ) -> Texture {
         let mut handle: GLuint = 0;
         unsafe {
             gl::GenTextures(1, &mut handle);
@@ -379,16 +390,36 @@ impl Texture {
 
             if let Some(data) = pixel_data {
                 let pixel_data_ptr = data.get_data_ptr();
-                gl::TexImage2D(gl::TEXTURE_2D, 0, internal_format.as_gl() as _, width as _, height as _, 0, pixel_data_format.as_gl(), pixel_data_type.as_gl(), mem::transmute(pixel_data_ptr));
+                gl::TexImage2D(
+                    gl::TEXTURE_2D,
+                    0,
+                    internal_format.as_gl() as _,
+                    width as _,
+                    height as _,
+                    0,
+                    pixel_data_format.as_gl(),
+                    pixel_data_type.as_gl(),
+                    mem::transmute(pixel_data_ptr),
+                );
             } else {
-                gl::TexImage2D(gl::TEXTURE_2D, 0, internal_format.as_gl() as _, width as _, height as _, 0, pixel_data_format.as_gl(), pixel_data_type.as_gl(), ptr::null());
+                gl::TexImage2D(
+                    gl::TEXTURE_2D,
+                    0,
+                    internal_format.as_gl() as _,
+                    width as _,
+                    height as _,
+                    0,
+                    pixel_data_format.as_gl(),
+                    pixel_data_type.as_gl(),
+                    ptr::null(),
+                );
             }
         }
 
         Texture {
             handle,
             width,
-            height
+            height,
         }
     }
 
@@ -407,13 +438,31 @@ impl Texture {
     /// This calls `glTexImage2D` which will recreate all of the internal data structures which can
     /// be quite slow. If you just want to update the pixel data, use `set_pixels` instead which
     /// will use `glTexSubImage2D`.
-    pub fn set_data<PData: PixelData>(&mut self, width: u32, height: u32, internal_format: InternalPixelFormat, pixel_data_format: PixelDataFormat, pixel_data_type: PixelDataType, pixel_data: PData) {
+    pub fn set_data<PData: PixelData>(
+        &mut self,
+        width: u32,
+        height: u32,
+        internal_format: InternalPixelFormat,
+        pixel_data_format: PixelDataFormat,
+        pixel_data_type: PixelDataType,
+        pixel_data: PData,
+    ) {
         self.width = width;
         self.height = height;
 
         let pixel_data_ptr = pixel_data.get_data_ptr();
         unsafe {
-            gl::TexImage2D(gl::TEXTURE_2D, 0, internal_format.as_gl() as _, width as _, height as _, 0, pixel_data_format.as_gl(), pixel_data_type.as_gl(), mem::transmute(pixel_data_ptr));
+            gl::TexImage2D(
+                gl::TEXTURE_2D,
+                0,
+                internal_format.as_gl() as _,
+                width as _,
+                height as _,
+                0,
+                pixel_data_format.as_gl(),
+                pixel_data_type.as_gl(),
+                mem::transmute(pixel_data_ptr),
+            );
         }
     }
 
@@ -423,13 +472,38 @@ impl Texture {
         }
     }
 
-    pub fn set_pixels<PData: PixelData>(&self, xoffset: u32, yoffset: u32, width: u32, height: u32, pixel_data_format: PixelDataFormat, pixel_data_type: PixelDataType, pixel_data: PData) {
-        debug_assert!(xoffset + width <= self.width, "out of bounds 'xoffset + width'");
-        debug_assert!(yoffset + height <= self.height, "out of bounds 'yoffset + height'");
+    pub fn set_pixels<PData: PixelData>(
+        &self,
+        xoffset: u32,
+        yoffset: u32,
+        width: u32,
+        height: u32,
+        pixel_data_format: PixelDataFormat,
+        pixel_data_type: PixelDataType,
+        pixel_data: PData,
+    ) {
+        debug_assert!(
+            xoffset + width <= self.width,
+            "out of bounds 'xoffset + width'"
+        );
+        debug_assert!(
+            yoffset + height <= self.height,
+            "out of bounds 'yoffset + height'"
+        );
 
-        let pixel_data_ptr= pixel_data.get_data_ptr();
+        let pixel_data_ptr = pixel_data.get_data_ptr();
         unsafe {
-            gl::TexSubImage2D(gl::TEXTURE_2D, 0, xoffset as _, yoffset as _, width as _, height as _, pixel_data_format.as_gl(), pixel_data_type.as_gl(), mem::transmute(pixel_data_ptr));
+            gl::TexSubImage2D(
+                gl::TEXTURE_2D,
+                0,
+                xoffset as _,
+                yoffset as _,
+                width as _,
+                height as _,
+                pixel_data_format.as_gl(),
+                pixel_data_type.as_gl(),
+                mem::transmute(pixel_data_ptr),
+            );
         }
     }
 }
@@ -448,40 +522,33 @@ pub trait PixelData {
 
 impl PixelData for &[u32] {
     fn get_data_ptr(&self) -> *mut u8 {
-        unsafe {
-            mem::transmute(self.as_ptr())
-        }
+        unsafe { mem::transmute(self.as_ptr()) }
     }
 }
 
 impl PixelData for &[u16] {
     fn get_data_ptr(&self) -> *mut u8 {
-        unsafe {
-            mem::transmute(self.as_ptr())
-        }
+        unsafe { mem::transmute(self.as_ptr()) }
     }
 }
 
 impl PixelData for &[u8] {
     fn get_data_ptr(&self) -> *mut u8 {
-        unsafe {
-            mem::transmute(self.as_ptr())
-        }
+        unsafe { mem::transmute(self.as_ptr()) }
     }
 }
 
 pub const FULLSCREEN_BUFFER_DATA: [f32; 24] = [
     /* Position */  /* UV */
-    -1.0, -1.0,      0.0,  1.0, // bottom left
-    -1.0,  1.0,      0.0,  0.0, // top left
-     1.0, -1.0,      1.0,  1.0, // bottom right
-
-     1.0, -1.0,      1.0,  1.0, // bottom left
-     1.0,  1.0,      1.0,  0.0, // top right
-    -1.0,  1.0,      0.0,  0.0, // top left
+    -1.0, -1.0, 0.0, 1.0, // bottom left
+    -1.0, 1.0, 0.0, 0.0, // top left
+    1.0, -1.0, 1.0, 1.0, // bottom right
+    1.0, -1.0, 1.0, 1.0, // bottom left
+    1.0, 1.0, 1.0, 0.0, // top right
+    -1.0, 1.0, 0.0, 0.0, // top left
 ];
 
-pub const SIMPLE_VERTEX_SHADER: &str   = "\
+pub const SIMPLE_VERTEX_SHADER: &str = "\
 #version 130
 
 in  vec2 Position;
@@ -520,14 +587,10 @@ impl BufferDataType for f64 {}
 fn as_zero_str<'s>(string: &'s str) -> Cow<'s, CStr> {
     if string.ends_with('\0') {
         // if it's zero terminated there's nothing to do.
-        Cow::from(
-            unsafe {
-                CStr::from_bytes_with_nul_unchecked(string.as_bytes())
-            }
-        )
+        Cow::from(unsafe { CStr::from_bytes_with_nul_unchecked(string.as_bytes()) })
     } else {
         Cow::from(
-            CString::new(string).expect("Failed to create zero-terminated string in CString::new.")
+            CString::new(string).expect("Failed to create zero-terminated string in CString::new."),
         )
     }
 }

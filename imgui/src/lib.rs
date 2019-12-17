@@ -52,9 +52,9 @@ macro_rules! str_gbuf {
     };
 }
 
+pub mod api;
 #[allow(non_upper_case_globals)]
 mod flags;
-pub mod api;
 pub mod impls;
 pub mod imstr;
 
@@ -69,7 +69,7 @@ pub use flags::*;
 
 #[macro_export]
 macro_rules! check_version {
-    () => ({
+    () => {{
         use std::mem::size_of;
         $crate::api::debug_version_and_data_layout(
             $crate::api::get_version(),
@@ -78,7 +78,7 @@ macro_rules! check_version {
             size_of::<$crate::sys::ImVec2>(),
             size_of::<$crate::sys::ImVec4>(),
             size_of::<$crate::sys::ImDrawVert>(),
-            size_of::<$crate::sys::ImDrawIdx>()
+            size_of::<$crate::sys::ImDrawIdx>(),
         )
-    })
+    }};
 }

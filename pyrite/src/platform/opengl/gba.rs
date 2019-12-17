@@ -1,10 +1,5 @@
+use super::globj::{InternalPixelFormat, PixelDataFormat, PixelDataType, Texture};
 use pyrite_gba::GbaVideoOutput;
-use super::globj::{
-    Texture,
-    InternalPixelFormat,
-    PixelDataFormat,
-    PixelDataType,
-};
 
 pub struct GbaTexture {
     texture: Texture,
@@ -15,7 +10,14 @@ pub struct GbaTexture {
 impl GbaTexture {
     pub fn new() -> GbaTexture {
         let mut x = GbaTexture {
-            texture: Texture::new::<&[u8]>(240, 160, InternalPixelFormat::RGBA, PixelDataFormat::BGRA, PixelDataType::UnsignedShort_1_5_5_5_Rev, None),
+            texture: Texture::new::<&[u8]>(
+                240,
+                160,
+                InternalPixelFormat::RGBA,
+                PixelDataFormat::BGRA,
+                PixelDataType::UnsignedShort_1_5_5_5_Rev,
+                None,
+            ),
             data: Box::new([0xFFFF; 240 * 160]),
             frame_ready: false,
         };
@@ -31,7 +33,15 @@ impl GbaTexture {
         self.texture.bind();
         unsafe {
             gl::PixelStorei(gl::UNPACK_ALIGNMENT, 2);
-            self.texture.set_pixels::<&[u8]>(0, 0, 240, 160, PixelDataFormat::RGBA, PixelDataType::UnsignedShort_1_5_5_5_Rev, std::mem::transmute(&self.data[0..]));
+            self.texture.set_pixels::<&[u8]>(
+                0,
+                0,
+                240,
+                160,
+                PixelDataFormat::RGBA,
+                PixelDataType::UnsignedShort_1_5_5_5_Rev,
+                std::mem::transmute(&self.data[0..]),
+            );
         }
     }
 }

@@ -7,18 +7,19 @@ macro_rules! read_bytes_le {
 
         let mut data: $Type = 0;
         unsafe {
-            std::ptr::copy_nonoverlapping(
-                src.as_ptr(),
-                &mut data as *mut $Type as *mut u8,
-                $Size);
+            std::ptr::copy_nonoverlapping(src.as_ptr(), &mut data as *mut $Type as *mut u8, $Size);
         }
 
         #[cfg(target_endian = "big")]
-        { data.swap_bytes() }
+        {
+            data.swap_bytes()
+        }
 
         #[cfg(target_endian = "little")]
-        { data }
-    }}
+        {
+            data
+        }
+    }};
 }
 
 macro_rules! read_bytes_le_no_bounds_check {
@@ -27,17 +28,18 @@ macro_rules! read_bytes_le_no_bounds_check {
 
         let mut data: $Type = 0;
 
-        std::ptr::copy_nonoverlapping(
-            src as *const _,
-            &mut data as *mut $Type as *mut u8,
-            $Size);
+        std::ptr::copy_nonoverlapping(src as *const _, &mut data as *mut $Type as *mut u8, $Size);
 
         #[cfg(target_endian = "big")]
-        { data.swap_bytes() }
+        {
+            data.swap_bytes()
+        }
 
         #[cfg(target_endian = "little")]
-        { data }
-    }}
+        {
+            data
+        }
+    }};
 }
 
 macro_rules! write_bytes_le {
@@ -57,11 +59,11 @@ macro_rules! write_bytes_le {
             std::ptr::copy_nonoverlapping(
                 &data as *const $Type as *const u8,
                 dst.as_mut_ptr(),
-                $Size);
+                $Size,
+            );
         }
-    }}
+    }};
 }
-
 
 #[inline]
 pub fn read_u32(mem: &[u8], offset: usize) -> u32 {

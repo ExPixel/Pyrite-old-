@@ -9,35 +9,51 @@ macro_rules! as_conversion {
                 self as $To
             }
         }
+    };
+}
+
+impl FieldConvert<bool> for u8 {
+    fn convert(self) -> bool {
+        self != 0
+    }
+}
+impl FieldConvert<bool> for u16 {
+    fn convert(self) -> bool {
+        self != 0
+    }
+}
+impl FieldConvert<bool> for u32 {
+    fn convert(self) -> bool {
+        self != 0
+    }
+}
+impl FieldConvert<bool> for u64 {
+    fn convert(self) -> bool {
+        self != 0
     }
 }
 
-impl FieldConvert<bool> for  u8 { fn convert(self) -> bool { self != 0 } }
-impl FieldConvert<bool> for u16 { fn convert(self) -> bool { self != 0 } }
-impl FieldConvert<bool> for u32 { fn convert(self) -> bool { self != 0 } }
-impl FieldConvert<bool> for u64 { fn convert(self) -> bool { self != 0 } }
-
-as_conversion!(bool,  u8);
+as_conversion!(bool, u8);
 as_conversion!(bool, u16);
 as_conversion!(bool, u32);
 as_conversion!(bool, u64);
 
-as_conversion!( u8,  u8);
-as_conversion!( u8, u16);
-as_conversion!( u8, u32);
-as_conversion!( u8, u64);
+as_conversion!(u8, u8);
+as_conversion!(u8, u16);
+as_conversion!(u8, u32);
+as_conversion!(u8, u64);
 
-as_conversion!(u16,  u8);
+as_conversion!(u16, u8);
 as_conversion!(u16, u16);
 as_conversion!(u16, u32);
 as_conversion!(u16, u64);
 
-as_conversion!(u32,  u8);
+as_conversion!(u32, u8);
 as_conversion!(u32, u16);
 as_conversion!(u32, u32);
 as_conversion!(u32, u64);
 
-as_conversion!(u64,  u8);
+as_conversion!(u64, u8);
 as_conversion!(u64, u16);
 as_conversion!(u64, u32);
 as_conversion!(u64, u64);

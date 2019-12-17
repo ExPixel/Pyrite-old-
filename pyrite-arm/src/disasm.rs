@@ -1,23 +1,34 @@
-use std::fmt::Write;
 use super::ArmMemory;
+use std::fmt::Write;
 // ARM
 const ARM_OPCODE_TABLE: [(u32, u32, ARMInstrType); 15] = [
     (0x0ffffff0, 0x012fff10, ARMInstrType::BranchAndExchange), // Branch and Exchange
-    (0x0fb00ff0, 0x01000090, ARMInstrType::SingleDataSwap), // Single Data Swap
-    (0x0fc000f0, 0x00000090, ARMInstrType::Multiply), // Multiply
+    (0x0fb00ff0, 0x01000090, ARMInstrType::SingleDataSwap),    // Single Data Swap
+    (0x0fc000f0, 0x00000090, ARMInstrType::Multiply),          // Multiply
     (0x0e400f90, 0x00000090, ARMInstrType::HalfwordDataTransfer), // Halfword Data Transfer (register offset)
-    (0x0f8000f0, 0x00800090, ARMInstrType::MultiplyLong), // Multiply Long
+    (0x0f8000f0, 0x00800090, ARMInstrType::MultiplyLong),         // Multiply Long
     (0x0e400090, 0x00400090, ARMInstrType::HalfwordDataTransfer), // Halfword Data Transfer (immediate offset)
-    (0x0f000010, 0x0e000000, ARMInstrType::CoprocessorDataOperation), // Coprocessor Data Operation
-    (0x0f000010, 0x0e000010, ARMInstrType::CoprocessorRegisterTransfer), // Coprocessor Register Transfer
-    (0x0e000010, 0x06000010, ARMInstrType::Undefined), // Undefined
-    (0x0f000000, 0x0f000000, ARMInstrType::SoftwareInterrupt), // Software Interrupt
-    (0x0e000000, 0x08000000, ARMInstrType::BlockDataTransfer), // Block Data Transfer
-    (0x0e000000, 0x0a000000, ARMInstrType::Branch), // Branch
-    (0x0e000000, 0x0c000000, ARMInstrType::CoprocessorDataTransfer), // Coprocessor Data Transfer
-    (0x0c000000, 0x00000000, ARMInstrType::DataProcessing), // Data Processing / PSR Transfer
-    (0x0c000000, 0x04000000, ARMInstrType::SingleDataTransfer), // Single Data Transfer
-
+    (
+        0x0f000010,
+        0x0e000000,
+        ARMInstrType::CoprocessorDataOperation,
+    ), // Coprocessor Data Operation
+    (
+        0x0f000010,
+        0x0e000010,
+        ARMInstrType::CoprocessorRegisterTransfer,
+    ), // Coprocessor Register Transfer
+    (0x0e000010, 0x06000010, ARMInstrType::Undefined),            // Undefined
+    (0x0f000000, 0x0f000000, ARMInstrType::SoftwareInterrupt),    // Software Interrupt
+    (0x0e000000, 0x08000000, ARMInstrType::BlockDataTransfer),    // Block Data Transfer
+    (0x0e000000, 0x0a000000, ARMInstrType::Branch),               // Branch
+    (
+        0x0e000000,
+        0x0c000000,
+        ARMInstrType::CoprocessorDataTransfer,
+    ), // Coprocessor Data Transfer
+    (0x0c000000, 0x00000000, ARMInstrType::DataProcessing),       // Data Processing / PSR Transfer
+    (0x0c000000, 0x04000000, ARMInstrType::SingleDataTransfer),   // Single Data Transfer
 ];
 
 #[derive(Debug, PartialEq, Eq)]
@@ -38,29 +49,27 @@ pub enum ARMInstrType {
     SingleDataTransfer,
 }
 
-
 // THUMB
 const THUMB_OPCODE_TABLE: [(u32, u32, THUMBInstrType); 19] = [
     (0xff00, 0xb000, THUMBInstrType::AddOffsetToStackPointer), // Add Offset to Stack Pointer
-    (0xff00, 0xdf00, THUMBInstrType::SoftwareInterrupt), // Software Interrupt
-    (0xfc00, 0x4000, THUMBInstrType::ALUOperations), // ALU Operations
+    (0xff00, 0xdf00, THUMBInstrType::SoftwareInterrupt),       // Software Interrupt
+    (0xfc00, 0x4000, THUMBInstrType::ALUOperations),           // ALU Operations
     (0xfc00, 0x4400, THUMBInstrType::HiRegisterOperations), // Hi Register Operations / Branch Exchange
-    (0xf600, 0xb400, THUMBInstrType::PushPopRegisters), // Push/Pop Registers
-    (0xf800, 0x1800, THUMBInstrType::AddSubtract), // Add / Subtract
-    (0xf800, 0x4800, THUMBInstrType::PCRelativeLoad), // PC-relative Load
+    (0xf600, 0xb400, THUMBInstrType::PushPopRegisters),     // Push/Pop Registers
+    (0xf800, 0x1800, THUMBInstrType::AddSubtract),          // Add / Subtract
+    (0xf800, 0x4800, THUMBInstrType::PCRelativeLoad),       // PC-relative Load
     (0xf200, 0x5000, THUMBInstrType::LoadStoreWithRegisterOffset), // Load/Store with register offset
     (0xf200, 0x5200, THUMBInstrType::LoadStoreSignHalfwordByte), // Load/Store Sign-Extended Byte/Halfword
-    (0xf800, 0xe000, THUMBInstrType::UnconditionalBranch), // Unconditional Branch
-    (0xf000, 0x8000, THUMBInstrType::LoadStoreHalfword), // Load/Store Halfword
-    (0xf000, 0x9000, THUMBInstrType::SPRelativeLoadStore), // SP-relative Load/Store
-    (0xf000, 0xa000, THUMBInstrType::LoadAddress), // Load Address
-    (0xf000, 0xc000, THUMBInstrType::MultipleLoadStore), // Multiple Load/Store
-    (0xf000, 0xd000, THUMBInstrType::ConditionalBranch), // Conditional Branch
-    (0xf000, 0xf000, THUMBInstrType::LongBranchWithLink), // Long Branch with Link
-    (0xe000, 0x0000, THUMBInstrType::MoveShiftedRegister), // Move Shifted Register
+    (0xf800, 0xe000, THUMBInstrType::UnconditionalBranch),       // Unconditional Branch
+    (0xf000, 0x8000, THUMBInstrType::LoadStoreHalfword),         // Load/Store Halfword
+    (0xf000, 0x9000, THUMBInstrType::SPRelativeLoadStore),       // SP-relative Load/Store
+    (0xf000, 0xa000, THUMBInstrType::LoadAddress),               // Load Address
+    (0xf000, 0xc000, THUMBInstrType::MultipleLoadStore),         // Multiple Load/Store
+    (0xf000, 0xd000, THUMBInstrType::ConditionalBranch),         // Conditional Branch
+    (0xf000, 0xf000, THUMBInstrType::LongBranchWithLink),        // Long Branch with Link
+    (0xe000, 0x0000, THUMBInstrType::MoveShiftedRegister),       // Move Shifted Register
     (0xe000, 0x2000, THUMBInstrType::MoveCompareAddSubtractImm), // Move/ Compare/ Add/ Subtract Immediate
-    (0xe000, 0x6000, THUMBInstrType::LoadStoreWithImmOffset), // Load/Store with Immediate Offset
-
+    (0xe000, 0x6000, THUMBInstrType::LoadStoreWithImmOffset),    // Load/Store with Immediate Offset
 ];
 
 #[derive(Debug, PartialEq, Eq)]
@@ -90,7 +99,13 @@ pub fn disassemble_arm(dest: &mut String, address: u32, memory: &dyn ArmMemory) 
     let opcode = memory.view_word(address);
     for (select_bits, diff, instr_type) in ARM_OPCODE_TABLE.iter() {
         if ((opcode & select_bits) ^ diff) == 0 {
-            write!(dest, "undefined @ = {:08X} ({:?})", memory.view_word(address), instr_type).unwrap();
+            write!(
+                dest,
+                "undefined @ = {:08X} ({:?})",
+                memory.view_word(address),
+                instr_type
+            )
+            .unwrap();
             return;
         }
     }
@@ -102,26 +117,45 @@ pub fn disassemble_thumb(dest: &mut String, address: u32, memory: &dyn ArmMemory
     for (select_bits, diff, instr_type) in THUMB_OPCODE_TABLE.iter() {
         if ((opcode & *select_bits) ^ *diff) == 0 {
             match instr_type {
-                THUMBInstrType::MoveShiftedRegister => thumb_disasm_move_shifted_register(opcode, dest),
+                THUMBInstrType::MoveShiftedRegister => {
+                    thumb_disasm_move_shifted_register(opcode, dest)
+                }
                 THUMBInstrType::AddSubtract => thumb_disasm_add_sub(opcode, dest),
-                THUMBInstrType::MoveCompareAddSubtractImm => thumb_disasm_mov_cmp_add_sub_imm(opcode, dest),
+                THUMBInstrType::MoveCompareAddSubtractImm => {
+                    thumb_disasm_mov_cmp_add_sub_imm(opcode, dest)
+                }
                 THUMBInstrType::ALUOperations => thumb_disasm_alu(opcode, dest),
                 THUMBInstrType::HiRegisterOperations => thumb_disasm_hi_register_ops(opcode, dest),
-                THUMBInstrType::PCRelativeLoad => thumb_disasm_pc_relative_load(opcode, dest, address, memory),
-                THUMBInstrType::LoadStoreWithRegisterOffset => thumb_disasm_load_store_reg(opcode, dest),
-                THUMBInstrType::LoadStoreSignHalfwordByte => thumb_disasm_load_store_se_byte_halfword(opcode, dest),
+                THUMBInstrType::PCRelativeLoad => {
+                    thumb_disasm_pc_relative_load(opcode, dest, address, memory)
+                }
+                THUMBInstrType::LoadStoreWithRegisterOffset => {
+                    thumb_disasm_load_store_reg(opcode, dest)
+                }
+                THUMBInstrType::LoadStoreSignHalfwordByte => {
+                    thumb_disasm_load_store_se_byte_halfword(opcode, dest)
+                }
                 THUMBInstrType::LoadStoreWithImmOffset => thumb_disasm_load_store_imm(opcode, dest),
                 THUMBInstrType::LoadStoreHalfword => thumb_disasm_load_store_halfword(opcode, dest),
-                THUMBInstrType::SPRelativeLoadStore => thumb_disasm_load_store_sp_relative(opcode, dest),
+                THUMBInstrType::SPRelativeLoadStore => {
+                    thumb_disasm_load_store_sp_relative(opcode, dest)
+                }
                 THUMBInstrType::LoadAddress => thumb_disasm_add_offset_to_pc(opcode, dest, address),
-                THUMBInstrType::AddOffsetToStackPointer => thumb_disasm_add_offset_to_sp(opcode, dest),
+                THUMBInstrType::AddOffsetToStackPointer => {
+                    thumb_disasm_add_offset_to_sp(opcode, dest)
+                }
                 THUMBInstrType::PushPopRegisters => thumb_disasm_push_pop_reg(opcode, dest),
                 THUMBInstrType::MultipleLoadStore => thumb_disasm_multiple_load_store(opcode, dest),
-                THUMBInstrType::ConditionalBranch => thumb_disasm_conditional_branch(opcode, dest, address),
+                THUMBInstrType::ConditionalBranch => {
+                    thumb_disasm_conditional_branch(opcode, dest, address)
+                }
                 THUMBInstrType::SoftwareInterrupt => thumb_disasm_swi(opcode, dest),
-                THUMBInstrType::UnconditionalBranch => thumb_disasm_unconditional_branch(opcode, dest, address),
-                THUMBInstrType::LongBranchWithLink => thumb_disasm_branch_with_link(opcode, dest, address, memory),
-                // _ => write!(dest, "undefined @ = {:04X} ({:?})", memory.view_halfword(address), instr_type).unwrap(),
+                THUMBInstrType::UnconditionalBranch => {
+                    thumb_disasm_unconditional_branch(opcode, dest, address)
+                }
+                THUMBInstrType::LongBranchWithLink => {
+                    thumb_disasm_branch_with_link(opcode, dest, address, memory)
+                } // _ => write!(dest, "undefined @ = {:04X} ({:?})", memory.view_halfword(address), instr_type).unwrap(),
             }
             return;
         }
@@ -147,7 +181,14 @@ fn thumb_disasm_add_offset_to_pc(opcode: u32, buffer: &mut String, address: u32)
     let pc = address.wrapping_add(4); // PC is 4 ahead in THUMB mode.
     let offset = (opcode & 0xFF) << 2;
     let loaded_addr = (pc & 0xFFFFFFFD).wrapping_add(offset); // bit 1 of PC is forced to 1 for this.
-    write!(buffer, "add {}, #{} ; = 0x{:08X}", reg_str(15), offset, loaded_addr).unwrap();
+    write!(
+        buffer,
+        "add {}, #{} ; = 0x{:08X}",
+        reg_str(15),
+        offset,
+        loaded_addr
+    )
+    .unwrap();
 }
 
 fn thumb_disasm_move_shifted_register(opcode: u32, buffer: &mut String) {
@@ -161,7 +202,15 @@ fn thumb_disasm_move_shifted_register(opcode: u32, buffer: &mut String) {
         3 => "UND",
         _ => unreachable!(),
     };
-    write!(buffer, "{} {}, {}, #{}", op, reg_str(rd), reg_str(rs), offset).unwrap();
+    write!(
+        buffer,
+        "{} {}, {}, #{}",
+        op,
+        reg_str(rd),
+        reg_str(rs),
+        offset
+    )
+    .unwrap();
 }
 
 fn thumb_disasm_add_sub(opcode: u32, buffer: &mut String) {
@@ -176,7 +225,15 @@ fn thumb_disasm_add_sub(opcode: u32, buffer: &mut String) {
     } else {
         // register operand
         let rn = bits!(opcode, 6, 8);
-        write!(buffer, "{} {}, {}, {}", op, reg_str(rd), reg_str(rs), reg_str(rn)).unwrap();
+        write!(
+            buffer,
+            "{} {}, {}, {}",
+            op,
+            reg_str(rd),
+            reg_str(rs),
+            reg_str(rn)
+        )
+        .unwrap();
     }
 }
 
@@ -238,13 +295,27 @@ fn thumb_disasm_hi_register_ops(opcode: u32, buffer: &mut String) {
     }
 }
 
-fn thumb_disasm_pc_relative_load(opcode: u32, buffer: &mut String, address: u32, memory: &dyn ArmMemory) {
+fn thumb_disasm_pc_relative_load(
+    opcode: u32,
+    buffer: &mut String,
+    address: u32,
+    memory: &dyn ArmMemory,
+) {
     let pc = address.wrapping_add(4); // PC is 4 ahead in THUMB mode.
     let rd = bits!(opcode, 8, 10);
     let offset = (opcode & 0xFF) << 2;
     let addr = pc.wrapping_add(offset);
     let data = memory.view_word(addr);
-    write!(buffer, "ldr {} [{}, #{}] ; [0x{:08X}] = 0x{:08X}", reg_str(rd), reg_str(15), offset, addr, data).unwrap();
+    write!(
+        buffer,
+        "ldr {} [{}, #{}] ; [0x{:08X}] = 0x{:08X}",
+        reg_str(rd),
+        reg_str(15),
+        offset,
+        addr,
+        data
+    )
+    .unwrap();
 }
 
 fn thumb_disasm_load_store_reg(opcode: u32, buffer: &mut String) {
@@ -255,13 +326,21 @@ fn thumb_disasm_load_store_reg(opcode: u32, buffer: &mut String) {
     let l = bits_b!(opcode, 11);
 
     let op = match (l, b) {
-        ( true,  true) => "ldrb",
-        ( true, false) => "ldr",
-        (false,  true) => "strb",
+        (true, true) => "ldrb",
+        (true, false) => "ldr",
+        (false, true) => "strb",
         (false, false) => "strb",
     };
 
-    write!(buffer, "{} {}, [{}, {}]", op, reg_str(rd), reg_str(rb), reg_str(ro)).unwrap();
+    write!(
+        buffer,
+        "{} {}, [{}, {}]",
+        op,
+        reg_str(rd),
+        reg_str(rb),
+        reg_str(ro)
+    )
+    .unwrap();
 }
 
 fn thumb_disasm_load_store_se_byte_halfword(opcode: u32, buffer: &mut String) {
@@ -273,12 +352,20 @@ fn thumb_disasm_load_store_se_byte_halfword(opcode: u32, buffer: &mut String) {
 
     let op = match (s, h) {
         (false, false) => "strh",
-        (false,  true) => "ldrh",
-        ( true, false) => "ldsb",
-        ( true,  true) => "ldsh",
+        (false, true) => "ldrh",
+        (true, false) => "ldsb",
+        (true, true) => "ldsh",
     };
 
-    write!(buffer, "{} {}, [{}, {}]", op, reg_str(rd), reg_str(rb), reg_str(ro)).unwrap();
+    write!(
+        buffer,
+        "{} {}, [{}, {}]",
+        op,
+        reg_str(rd),
+        reg_str(rb),
+        reg_str(ro)
+    )
+    .unwrap();
 }
 
 fn thumb_disasm_load_store_imm(opcode: u32, buffer: &mut String) {
@@ -294,13 +381,21 @@ fn thumb_disasm_load_store_imm(opcode: u32, buffer: &mut String) {
     };
 
     let op = match (l, b) {
-        ( true,  true) => "ldrb",
-        ( true, false) => "ldr",
-        (false,  true) => "strb",
+        (true, true) => "ldrb",
+        (true, false) => "ldr",
+        (false, true) => "strb",
         (false, false) => "strb",
     };
 
-    write!(buffer, "{} {}, [{}, #{}]", op, reg_str(rd), reg_str(rb), offset).unwrap();
+    write!(
+        buffer,
+        "{} {}, [{}, #{}]",
+        op,
+        reg_str(rd),
+        reg_str(rb),
+        offset
+    )
+    .unwrap();
 }
 
 fn thumb_disasm_load_store_halfword(opcode: u32, buffer: &mut String) {
@@ -309,7 +404,15 @@ fn thumb_disasm_load_store_halfword(opcode: u32, buffer: &mut String) {
     let l = bits_b!(opcode, 11);
     let op = if l { "ldrh" } else { "strh" };
     let offset = bits!(opcode, 6, 10) << 1;
-    write!(buffer, "{} {}, [{}, #{}]", op, reg_str(rd), reg_str(rb), offset).unwrap();
+    write!(
+        buffer,
+        "{} {}, [{}, #{}]",
+        op,
+        reg_str(rd),
+        reg_str(rb),
+        offset
+    )
+    .unwrap();
 }
 
 fn thumb_disasm_load_store_sp_relative(opcode: u32, buffer: &mut String) {
@@ -317,7 +420,15 @@ fn thumb_disasm_load_store_sp_relative(opcode: u32, buffer: &mut String) {
     let offset = bits!(opcode, 0, 7) << 2;
     let l = bits_b!(opcode, 11);
     let op = if l { "ldr" } else { "str" };
-    write!(buffer, "{} {}, [{}, #{}]", op, reg_str(rd), reg_str(13), offset).unwrap();
+    write!(
+        buffer,
+        "{} {}, [{}, #{}]",
+        op,
+        reg_str(rd),
+        reg_str(13),
+        offset
+    )
+    .unwrap();
 }
 
 fn thumb_disasm_push_pop_reg(opcode: u32, buffer: &mut String) {
@@ -361,7 +472,12 @@ fn thumb_disasm_unconditional_branch(opcode: u32, buffer: &mut String, address: 
     write!(buffer, "b 0x{:08X}", dest).unwrap();
 }
 
-fn thumb_disasm_branch_with_link(opcode: u32, buffer: &mut String, address: u32, memory: &dyn ArmMemory) {
+fn thumb_disasm_branch_with_link(
+    opcode: u32,
+    buffer: &mut String,
+    address: u32,
+    memory: &dyn ArmMemory,
+) {
     if bits_b!(opcode, 11) {
         thumb_disasm_branch_with_link_offset(opcode, buffer, address, memory);
     } else {
@@ -376,7 +492,12 @@ fn thumb_disasm_branch_with_link_setup(opcode: u32, buffer: &mut String, address
     write!(buffer, "bl.setup 0x{:08X}", setup).unwrap();
 }
 
-fn thumb_disasm_branch_with_link_offset(opcode: u32, buffer: &mut String, address: u32, memory: &dyn ArmMemory) {
+fn thumb_disasm_branch_with_link_offset(
+    opcode: u32,
+    buffer: &mut String,
+    address: u32,
+    memory: &dyn ArmMemory,
+) {
     // let pc = address.wrapping_add(4); // PC is 4 ahead in THUMB mode.
 
     let previous_address = address.wrapping_sub(2);
@@ -427,43 +548,42 @@ fn write_register_list(rlist: u32, reg_count: u32, buffer: &mut String) -> bool 
 }
 
 const REGISTERS: [&str; 16] = [
-    "r0", "r1", "r2", "r3",
-    "r4", "r5", "r6", "r7",
-    "r8", "r9", "r10", "r11",
-    "r12", "sp", "lr", "pc",
+    "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "sp", "lr",
+    "pc",
 ];
 
 fn reg_str(reg: u32) -> &'static str {
-    if reg > 15 { return "r??" }
+    if reg > 15 {
+        return "r??";
+    }
     REGISTERS[reg as usize]
 }
 
 const CONDITION_CODES: [&str; 16] = [
-    "eq", "ne", "cs", "cc",
-    "mi", "pl", "vs", "vc",
-    "hi", "ls", "ge", "lt",
-    "gt", "le", "al", "nv",
+    "eq", "ne", "cs", "cc", "mi", "pl", "vs", "vc", "hi", "ls", "ge", "lt", "gt", "le", "al", "nv",
 ];
 
 fn condition_code_str(code: u32) -> &'static str {
-    if code > 15 { return "??" }
+    if code > 15 {
+        return "??";
+    }
     CONDITION_CODES[code as usize]
 }
 
-    // AddOffsetToStackPointer,
-    // SoftwareInterrupt,
-    // ALUOperations,
-    // HiRegisterOperations,
-    // PushPopRegisters,
-    // AddSubtract,
-    // PCRelativeLoad,
-    // LoadStoreWithRegisterOffset,
-    // LoadStoreSignHalfwordByte,
-    // LoadStoreHalfword,
-    // SPRelativeLoadStore,
-    // LoadAddress,
-    // MultipleLoadStore,
-    // ConditionalBranch,
-    // MoveShiftedRegister,
-    // MoveCompareAddSubtractImm,
-    // LoadStoreWithImmOffset,
+// AddOffsetToStackPointer,
+// SoftwareInterrupt,
+// ALUOperations,
+// HiRegisterOperations,
+// PushPopRegisters,
+// AddSubtract,
+// PCRelativeLoad,
+// LoadStoreWithRegisterOffset,
+// LoadStoreSignHalfwordByte,
+// LoadStoreHalfword,
+// SPRelativeLoadStore,
+// LoadAddress,
+// MultipleLoadStore,
+// ConditionalBranch,
+// MoveShiftedRegister,
+// MoveCompareAddSubtractImm,
+// LoadStoreWithImmOffset,

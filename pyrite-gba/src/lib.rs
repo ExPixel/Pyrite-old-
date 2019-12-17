@@ -1,49 +1,55 @@
-#[macro_use] mod util;
-mod sysctl;
+#[macro_use]
+mod util;
+mod hardware;
 #[allow(dead_code)]
 mod ioregs;
-mod hardware;
-pub mod lcd;
 pub mod keypad;
+pub mod lcd;
+mod sysctl;
 
 use hardware::GbaHardware;
-use pyrite_arm::ArmCpu;
 use pyrite_arm::cpu::CpuException;
+use pyrite_arm::ArmCpu;
 
 pub struct Gba {
-    pub cpu:        ArmCpu,
-    pub hardware:   GbaHardware,
+    pub cpu: ArmCpu,
+    pub hardware: GbaHardware,
 }
 
 impl Gba {
     pub fn new() -> Gba {
         let mut g = Gba {
-            cpu:        ArmCpu::new(),
-            hardware:   GbaHardware::new(),
+            cpu: ArmCpu::new(),
+            hardware: GbaHardware::new(),
         };
         g.setup_handler();
         return g;
     }
 
     fn setup_handler(&mut self) {
-        self.cpu.set_exception_handler(Box::new(|_cpu, _memory, exception, exception_addr| {
-            match exception {
-                CpuException::Reset => false,
-                CpuException::SWI   => {
-                    // println!("SWI from {:08X}", exception_addr);
-                    false
-                },
-                CpuException::IRQ   => {
-                    // println!("IRQ from {:08X}", exception_addr);
-                    false
-                },
-                _ => {
-                    eprintln!("error: {} exception at 0x{:08X}", exception.name(), exception_addr);
-                    // consume the exception
-                    true 
-                },
-            }
-        }));
+        self.cpu
+            .set_exception_handler(Box::new(|_cpu, _memory, exception, exception_addr| {
+                match exception {
+                    CpuException::Reset => false,
+                    CpuException::SWI => {
+                        // println!("SWI from {:08X}", exception_addr);
+                        false
+                    }
+                    CpuException::IRQ => {
+                        // println!("IRQ from {:08X}", exception_addr);
+                        false
+                    }
+                    _ => {
+                        eprintln!(
+                            "error: {} exception at 0x{:08X}",
+                            exception.name(),
+                            exception_addr
+                        );
+                        // consume the exception
+                        true
+                    }
+                }
+            }));
     }
 
     pub fn reset(&mut self, skip_bios: bool) {
@@ -54,13 +60,21 @@ impl Gba {
             self.cpu.set_pc(0x08000000, &mut self.hardware);
             self.cpu.registers.setf_i(); // Disables IRQ interrupts
             self.cpu.registers.write_mode(registers::CpuMode::System);
-            self.cpu.registers.write_with_mode(registers::CpuMode::User, 13, 0x03007F00); // Also System
-            self.cpu.registers.write_with_mode(registers::CpuMode::IRQ, 13, 0x03007FA0);
-            self.cpu.registers.write_with_mode(registers::CpuMode::Supervisor, 13, 0x03007FE0);
+            self.cpu
+                .registers
+                .write_with_mode(registers::CpuMode::User, 13, 0x03007F00); // Also System
+            self.cpu
+                .registers
+                .write_with_mode(registers::CpuMode::IRQ, 13, 0x03007FA0);
+            self.cpu
+                .registers
+                .write_with_mode(registers::CpuMode::Supervisor, 13, 0x03007FE0);
         } else {
             self.cpu.registers.setf_i(); // Disables IRQ interrupts
             self.cpu.set_pc(0x00000000, &mut self.hardware);
-            self.cpu.registers.write_mode(registers::CpuMode::Supervisor);
+            self.cpu
+                .registers
+                .write_mode(registers::CpuMode::Supervisor);
         }
     }
 
@@ -81,7 +95,13 @@ impl Gba {
     pub fn step(&mut self, video: &mut dyn GbaVideoOutput, _audio: &mut dyn GbaAudioOutput) {
         // @TODO reimplement DMA and other step stuff.
         let cycles = self.cpu.step(&mut self.hardware);
-        self.hardware.lcd.step(cycles, &self.hardware.vram, &self.hardware.oam, &self.hardware.pal, video);
+        self.hardware.lcd.step(
+            cycles,
+            &self.hardware.vram,
+            &self.hardware.oam,
+            &self.hardware.pal,
+            video,
+        );
         // let cycles = if dma::is_any_dma_active(&self.memory) {
         //     dma::step_active_channels(&mut self.memory, !self.cpu.registers.getf_i())
         // } else if !self.memory.ioregs.internal_halt {
@@ -146,20 +166,20 @@ pub struct NoVideoOutput {
 
 impl NoVideoOutput {
     pub const fn new() -> NoVideoOutput {
-        NoVideoOutput {
-            frame_ready: false,
-        }
+        NoVideoOutput { frame_ready: false }
     }
 }
 
 pub struct NoAudioOutput;
 
 impl GbaVideoOutput for NoVideoOutput {
-    fn pre_frame(&mut self) { /* NOP */ }
+    fn pre_frame(&mut self) { /* NOP */
+    }
     fn post_frame(&mut self) {
         self.frame_ready = true;
     }
-    fn display_line(&mut self, _line: u32, _pixels: &[u16]) { /* NOP */ }
+    fn display_line(&mut self, _line: u32, _pixels: &[u16]) { /* NOP */
+    }
 }
 
 impl GbaAudioOutput for NoAudioOutput {

@@ -6,13 +6,13 @@ pub trait ZeroFlag {
 }
 
 macro_rules! create_zero_flag_impl {
-    ($FlagType:ident, $FlagZero:ident) => (
+    ($FlagType:ident, $FlagZero:ident) => {
         impl ZeroFlag for $FlagType {
             fn get_zero_flag() -> $FlagType {
                 $FlagType::$FlagZero
             }
         }
-    )
+    };
 }
 
 bitflags::bitflags! {

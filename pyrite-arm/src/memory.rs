@@ -2,20 +2,20 @@ pub trait ArmMemory {
     /// The CPU will call this during its internal cycles.
     fn on_internal_cycles(&mut self, icycles: u32);
 
-    fn     read_code_word(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u32;
+    fn read_code_word(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u32;
     fn read_code_halfword(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u16;
 
-    fn     read_data_word(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u32;
+    fn read_data_word(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u32;
     fn read_data_halfword(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u16;
-    fn     read_data_byte(&mut self, addr: u32, seq: bool, cycles: &mut u32) ->  u8;
+    fn read_data_byte(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u8;
 
-    fn     write_data_word(&mut self, addr: u32, data: u32, seq: bool, cycles: &mut u32);
+    fn write_data_word(&mut self, addr: u32, data: u32, seq: bool, cycles: &mut u32);
     fn write_data_halfword(&mut self, addr: u32, data: u16, seq: bool, cycles: &mut u32);
-    fn     write_data_byte(&mut self, addr: u32, data:  u8, seq: bool, cycles: &mut u32);
+    fn write_data_byte(&mut self, addr: u32, data: u8, seq: bool, cycles: &mut u32);
 
-    fn     view_word(&self, addr: u32) -> u32;
+    fn view_word(&self, addr: u32) -> u32;
     fn view_halfword(&self, addr: u32) -> u16;
-    fn     view_byte(&self, addr: u32) ->  u8;
+    fn view_byte(&self, addr: u32) -> u8;
 
     /// Branches will use this to get the cycles for a prefetch instead of actually doing reads.
     /// Used for optimization.
@@ -35,7 +35,8 @@ pub trait ArmMemory {
 }
 
 impl ArmMemory for Vec<u8> {
-    fn on_internal_cycles(&mut self, _icycles: u32) { /* NOP */ }
+    fn on_internal_cycles(&mut self, _icycles: u32) { /* NOP */
+    }
 
     fn read_code_word(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u32 {
         return self.read_data_word(addr, seq, cycles);
@@ -49,7 +50,7 @@ impl ArmMemory for Vec<u8> {
         let addr = addr & 0xFFFFFFFC;
         let lo = self.read_data_halfword(addr, seq, cycles) as u32;
         let hi = self.read_data_halfword(addr + 2, seq, cycles) as u32;
-        return lo | (hi << 16)
+        return lo | (hi << 16);
     }
 
     fn read_data_halfword(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u16 {
@@ -59,8 +60,12 @@ impl ArmMemory for Vec<u8> {
         return lo | (hi << 8);
     }
 
-    fn read_data_byte(&mut self, addr: u32, seq: bool, cycles: &mut u32) ->  u8 {
-        if seq { *cycles += 1 } else { *cycles += 2 }
+    fn read_data_byte(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u8 {
+        if seq {
+            *cycles += 1
+        } else {
+            *cycles += 2
+        }
         if let Some(data) = self.get(addr as usize) {
             *data
         } else {
@@ -82,8 +87,12 @@ impl ArmMemory for Vec<u8> {
         self.write_data_byte(addr + 1, (data >> 8) as u8, seq, cycles);
     }
 
-    fn write_data_byte(&mut self, addr: u32, data:  u8, seq: bool, cycles: &mut u32) {
-        if seq { *cycles += 1 } else { *cycles += 2 }
+    fn write_data_byte(&mut self, addr: u32, data: u8, seq: bool, cycles: &mut u32) {
+        if seq {
+            *cycles += 1
+        } else {
+            *cycles += 2
+        }
 
         if let Some(dst) = self.get_mut(addr as usize) {
             *dst = data;
@@ -96,7 +105,7 @@ impl ArmMemory for Vec<u8> {
         let addr = addr & 0xFFFFFFFC;
         let lo = self.view_halfword(addr) as u32;
         let hi = self.view_halfword(addr + 2) as u32;
-        return lo | (hi << 16)
+        return lo | (hi << 16);
     }
 
     fn view_halfword(&self, addr: u32) -> u16 {
@@ -106,7 +115,7 @@ impl ArmMemory for Vec<u8> {
         return lo | (hi << 8);
     }
 
-    fn view_byte(&self, addr: u32) ->  u8 {
+    fn view_byte(&self, addr: u32) -> u8 {
         if let Some(data) = self.get(addr as usize) {
             *data
         } else {

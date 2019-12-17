@@ -1,6 +1,8 @@
-#[allow(dead_code)] mod platform;
 mod gba_imgui;
-#[allow(dead_code)] mod util;
+#[allow(dead_code)]
+mod platform;
+#[allow(dead_code)]
+mod util;
 
 use pyrite_gba::Gba;
 
@@ -23,19 +25,19 @@ fn run_emulator() -> i32 {
     match load_binary(&BIOS_FILE) {
         Ok(bios_binary) => {
             gba.set_bios(bios_binary);
-        },
+        }
 
         Err(err) => {
             eprintln!("error occurred while loading BIOS ({}): {}", BIOS_FILE, err);
             return 1;
-        },
+        }
     }
 
     if let Some(rom_file) = std::env::args().nth(1) {
         match load_binary(&rom_file) {
             Ok(rom_binary) => {
                 gba.set_rom(rom_binary);
-            },
+            }
 
             Err(err) => {
                 eprintln!("error occurred while loading ROM ({}): {}", rom_file, err);

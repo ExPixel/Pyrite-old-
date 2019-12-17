@@ -1,6 +1,6 @@
 mod widgets;
-use pyrite_gba::Gba;
 use crate::platform::opengl::GbaTexture;
+use pyrite_gba::Gba;
 
 pub struct GbaImGui {
     gba: Gba,
@@ -34,12 +34,14 @@ impl GbaImGui {
         };
         let dpi_factor = window.get_hidpi_factor() as f32;
         unsafe {
-            gl::Viewport(0, 0, (window_width * dpi_factor) as i32, (window_height * dpi_factor) as i32);
+            gl::Viewport(
+                0,
+                0,
+                (window_width * dpi_factor) as i32,
+                (window_height * dpi_factor) as i32,
+            );
         }
-        imgui::impls::glutin::init(
-            imgui::vec2(window_width, window_height),
-            dpi_factor
-        );
+        imgui::impls::glutin::init(imgui::vec2(window_width, window_height), dpi_factor);
     }
 
     fn dispose(&mut self) {
@@ -58,8 +60,8 @@ impl GbaImGui {
         match event {
             &glutin::Event::WindowEvent { ref event, .. } => {
                 window_event = event;
-            }, 
-            _ => { return },
+            }
+            _ => return,
         }
 
         match window_event {
@@ -71,33 +73,58 @@ impl GbaImGui {
                     };
 
                     match input.virtual_keycode {
-                        Some(VirtualKeyCode::Left) => self.gba.set_key_pressed(KeypadInput::Left, pressed),
-                        Some(VirtualKeyCode::Right) => self.gba.set_key_pressed(KeypadInput::Right, pressed),
-                        Some(VirtualKeyCode::Up) => self.gba.set_key_pressed(KeypadInput::Up, pressed),
-                        Some(VirtualKeyCode::Down) => self.gba.set_key_pressed(KeypadInput::Down, pressed),
+                        Some(VirtualKeyCode::Left) => {
+                            self.gba.set_key_pressed(KeypadInput::Left, pressed)
+                        }
+                        Some(VirtualKeyCode::Right) => {
+                            self.gba.set_key_pressed(KeypadInput::Right, pressed)
+                        }
+                        Some(VirtualKeyCode::Up) => {
+                            self.gba.set_key_pressed(KeypadInput::Up, pressed)
+                        }
+                        Some(VirtualKeyCode::Down) => {
+                            self.gba.set_key_pressed(KeypadInput::Down, pressed)
+                        }
 
-                        Some(VirtualKeyCode::Return) => self.gba.set_key_pressed(KeypadInput::Start, pressed),
-                        Some(VirtualKeyCode::Back) => self.gba.set_key_pressed(KeypadInput::Select, pressed),
+                        Some(VirtualKeyCode::Return) => {
+                            self.gba.set_key_pressed(KeypadInput::Start, pressed)
+                        }
+                        Some(VirtualKeyCode::Back) => {
+                            self.gba.set_key_pressed(KeypadInput::Select, pressed)
+                        }
 
-                        Some(VirtualKeyCode::Z) => self.gba.set_key_pressed(KeypadInput::ButtonA, pressed),
-                        Some(VirtualKeyCode::X) => self.gba.set_key_pressed(KeypadInput::ButtonB, pressed),
+                        Some(VirtualKeyCode::Z) => {
+                            self.gba.set_key_pressed(KeypadInput::ButtonA, pressed)
+                        }
+                        Some(VirtualKeyCode::X) => {
+                            self.gba.set_key_pressed(KeypadInput::ButtonB, pressed)
+                        }
 
-                        Some(VirtualKeyCode::A) => self.gba.set_key_pressed(KeypadInput::ButtonL, pressed),
-                        Some(VirtualKeyCode::S) => self.gba.set_key_pressed(KeypadInput::ButtonR, pressed),
+                        Some(VirtualKeyCode::A) => {
+                            self.gba.set_key_pressed(KeypadInput::ButtonL, pressed)
+                        }
+                        Some(VirtualKeyCode::S) => {
+                            self.gba.set_key_pressed(KeypadInput::ButtonR, pressed)
+                        }
 
-                        _ => { /* NOP */ },
+                        _ => { /* NOP */ }
                     }
                 }
-            },
+            }
 
             glutin::WindowEvent::Resized(logical_size) => {
                 let dpi_factor = window.get_hidpi_factor();
                 unsafe {
-                    gl::Viewport(0, 0, (logical_size.width * dpi_factor) as i32, (logical_size.height * dpi_factor) as i32);
+                    gl::Viewport(
+                        0,
+                        0,
+                        (logical_size.width * dpi_factor) as i32,
+                        (logical_size.height * dpi_factor) as i32,
+                    );
                 }
-            },
+            }
 
-            _ => { /* NOP */ },
+            _ => { /* NOP */ }
         }
     }
 
@@ -105,7 +132,9 @@ impl GbaImGui {
         let mut no_audio = pyrite_gba::NoAudioOutput;
         loop {
             self.gba.step(&mut self.gba_texture, &mut no_audio);
-            if self.gba_texture.frame_ready { break }
+            if self.gba_texture.frame_ready {
+                break;
+            }
         }
         self.gba_texture.frame_ready = false;
     }
@@ -116,7 +145,12 @@ impl GbaImGui {
         // a full frame to complete.
         // clear the screen
         unsafe {
-            gl::ClearColor((0xC4 as f32)/255.0, (0x3D as f32)/255.0, (0x5F as f32)/255.0, 1.0);
+            gl::ClearColor(
+                (0xC4 as f32) / 255.0,
+                (0x3D as f32) / 255.0,
+                (0x5F as f32) / 255.0,
+                1.0,
+            );
             gl::Clear(gl::COLOR_BUFFER_BIT);
         }
 
@@ -149,7 +183,8 @@ impl GbaImGui {
     }
 
     fn render_gui(&mut self) {
-        self.main_emulator_gui.draw(&mut self.gba, &self.gba_texture);
+        self.main_emulator_gui
+            .draw(&mut self.gba, &self.gba_texture);
     }
 }
 

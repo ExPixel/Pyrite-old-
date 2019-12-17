@@ -1,11 +1,10 @@
-use super::super::{ ArmCpu, ArmMemory, registers::CpuMode };
+use super::super::{registers::CpuMode, ArmCpu, ArmMemory};
 
-
-const LOAD:  bool = true;
+const LOAD: bool = true;
 const STORE: bool = false;
 
 const POST: bool = false;
-const PRE:  bool = true;
+const PRE: bool = true;
 
 const DEC: bool = false;
 const INC: bool = true;
@@ -125,7 +124,13 @@ macro_rules! arm_gen_bdt {
 }
 
 #[inline(always)]
-fn store_word(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, reg: u32, addr: u32, first_transfer: bool) {
+fn store_word(
+    cpu: &mut ArmCpu,
+    memory: &mut dyn ArmMemory,
+    reg: u32,
+    addr: u32,
+    first_transfer: bool,
+) {
     let mut value = cpu.registers.read(reg);
     // Whenever R15 is stored to memory the stored value is the address of the STM instruction plus 12.
     if reg == 15 {
@@ -135,104 +140,365 @@ fn store_word(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, reg: u32, addr: u32,
 }
 
 #[inline(always)]
-fn load_word(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, reg: u32, addr: u32, first_transfer: bool) {
+fn load_word(
+    cpu: &mut ArmCpu,
+    memory: &mut dyn ArmMemory,
+    reg: u32,
+    addr: u32,
+    first_transfer: bool,
+) {
     let value = memory.read_data_word(addr, !first_transfer, &mut cpu.cycles);
     cpu.registers.write(reg, value);
 }
 
 // Load multiple words, decrement after
-arm_gen_bdt!(arm_ldmda, load_word, LOAD, DEC, POST, NO_WRITEBACK, NO_USER_MODE);
+arm_gen_bdt!(
+    arm_ldmda,
+    load_word,
+    LOAD,
+    DEC,
+    POST,
+    NO_WRITEBACK,
+    NO_USER_MODE
+);
 
 // Load multiple words, decrement after, Use user-mode registers
-arm_gen_bdt!(arm_ldmda_u, load_word, LOAD, DEC, POST, NO_WRITEBACK, USER_MODE);
+arm_gen_bdt!(
+    arm_ldmda_u,
+    load_word,
+    LOAD,
+    DEC,
+    POST,
+    NO_WRITEBACK,
+    USER_MODE
+);
 
 // Load multiple words, decrement after, Use user-mode registers, with write back
-arm_gen_bdt!(arm_ldmda_uw, load_word, LOAD, DEC, POST, WRITEBACK, USER_MODE);
+arm_gen_bdt!(
+    arm_ldmda_uw,
+    load_word,
+    LOAD,
+    DEC,
+    POST,
+    WRITEBACK,
+    USER_MODE
+);
 
 // Load multiple words, decrement after, Write back
-arm_gen_bdt!(arm_ldmda_w, load_word, LOAD, DEC, POST, WRITEBACK, NO_USER_MODE);
+arm_gen_bdt!(
+    arm_ldmda_w,
+    load_word,
+    LOAD,
+    DEC,
+    POST,
+    WRITEBACK,
+    NO_USER_MODE
+);
 
 // Load multiple words, decrement before
-arm_gen_bdt!(arm_ldmdb, load_word, LOAD, DEC, PRE, NO_WRITEBACK, NO_USER_MODE);
+arm_gen_bdt!(
+    arm_ldmdb,
+    load_word,
+    LOAD,
+    DEC,
+    PRE,
+    NO_WRITEBACK,
+    NO_USER_MODE
+);
 
 // Load multiple words, decrement before, Use user-mode registers
-arm_gen_bdt!(arm_ldmdb_u, load_word, LOAD, DEC, PRE, NO_WRITEBACK, USER_MODE);
+arm_gen_bdt!(
+    arm_ldmdb_u,
+    load_word,
+    LOAD,
+    DEC,
+    PRE,
+    NO_WRITEBACK,
+    USER_MODE
+);
 
 // Load multiple words, decrement before, Use user-mode registers, with write back
-arm_gen_bdt!(arm_ldmdb_uw, load_word, LOAD, DEC, PRE, WRITEBACK, USER_MODE);
+arm_gen_bdt!(
+    arm_ldmdb_uw,
+    load_word,
+    LOAD,
+    DEC,
+    PRE,
+    WRITEBACK,
+    USER_MODE
+);
 
 // Load multiple words, decrement before, Write back
-arm_gen_bdt!(arm_ldmdb_w, load_word, LOAD, DEC, PRE, WRITEBACK, NO_USER_MODE);
+arm_gen_bdt!(
+    arm_ldmdb_w,
+    load_word,
+    LOAD,
+    DEC,
+    PRE,
+    WRITEBACK,
+    NO_USER_MODE
+);
 
 // Load multiple words, increment after
-arm_gen_bdt!(arm_ldmia, load_word, LOAD, INC, POST, NO_WRITEBACK, NO_USER_MODE);
+arm_gen_bdt!(
+    arm_ldmia,
+    load_word,
+    LOAD,
+    INC,
+    POST,
+    NO_WRITEBACK,
+    NO_USER_MODE
+);
 
 // Load multiple words, increment after, Use user-mode registers
-arm_gen_bdt!(arm_ldmia_u, load_word, LOAD, INC, POST, NO_WRITEBACK, USER_MODE);
+arm_gen_bdt!(
+    arm_ldmia_u,
+    load_word,
+    LOAD,
+    INC,
+    POST,
+    NO_WRITEBACK,
+    USER_MODE
+);
 
 // Load multiple words, increment after, Use user-mode registers, with write back
-arm_gen_bdt!(arm_ldmia_uw, load_word, LOAD, INC, POST, WRITEBACK, USER_MODE);
+arm_gen_bdt!(
+    arm_ldmia_uw,
+    load_word,
+    LOAD,
+    INC,
+    POST,
+    WRITEBACK,
+    USER_MODE
+);
 
 // Load multiple words, increment after, Write back
-arm_gen_bdt!(arm_ldmia_w, load_word, LOAD, INC, POST, WRITEBACK, NO_USER_MODE);
+arm_gen_bdt!(
+    arm_ldmia_w,
+    load_word,
+    LOAD,
+    INC,
+    POST,
+    WRITEBACK,
+    NO_USER_MODE
+);
 
 // Load multiple words, increment before
-arm_gen_bdt!(arm_ldmib, load_word, LOAD, INC, PRE, NO_WRITEBACK, NO_USER_MODE);
+arm_gen_bdt!(
+    arm_ldmib,
+    load_word,
+    LOAD,
+    INC,
+    PRE,
+    NO_WRITEBACK,
+    NO_USER_MODE
+);
 
 // Load multiple words, increment before, Use user-mode registers
-arm_gen_bdt!(arm_ldmib_u, load_word, LOAD, INC, PRE, NO_WRITEBACK, USER_MODE);
+arm_gen_bdt!(
+    arm_ldmib_u,
+    load_word,
+    LOAD,
+    INC,
+    PRE,
+    NO_WRITEBACK,
+    USER_MODE
+);
 
 // Load multiple words, increment before, Use user-mode registers, with write back
-arm_gen_bdt!(arm_ldmib_uw, load_word, LOAD, INC, PRE, WRITEBACK, USER_MODE);
+arm_gen_bdt!(
+    arm_ldmib_uw,
+    load_word,
+    LOAD,
+    INC,
+    PRE,
+    WRITEBACK,
+    USER_MODE
+);
 
 // Load multiple words, increment before, Write back
-arm_gen_bdt!(arm_ldmib_w, load_word, LOAD, INC, PRE, WRITEBACK, NO_USER_MODE);
+arm_gen_bdt!(
+    arm_ldmib_w,
+    load_word,
+    LOAD,
+    INC,
+    PRE,
+    WRITEBACK,
+    NO_USER_MODE
+);
 
 // Store multiple words, decrement after
-arm_gen_bdt!(arm_stmda, store_word, STORE, DEC, POST, NO_WRITEBACK, NO_USER_MODE);
+arm_gen_bdt!(
+    arm_stmda,
+    store_word,
+    STORE,
+    DEC,
+    POST,
+    NO_WRITEBACK,
+    NO_USER_MODE
+);
 
 // Store multiple words, decrement after, Use user-mode registers
-arm_gen_bdt!(arm_stmda_u, store_word, STORE, DEC, POST, NO_WRITEBACK, USER_MODE);
+arm_gen_bdt!(
+    arm_stmda_u,
+    store_word,
+    STORE,
+    DEC,
+    POST,
+    NO_WRITEBACK,
+    USER_MODE
+);
 
 // Store multiple words, decrement after, Use user-mode registers, with write back
-arm_gen_bdt!(arm_stmda_uw, store_word, STORE, DEC, POST, WRITEBACK, USER_MODE);
+arm_gen_bdt!(
+    arm_stmda_uw,
+    store_word,
+    STORE,
+    DEC,
+    POST,
+    WRITEBACK,
+    USER_MODE
+);
 
 // Store multiple words, decrement after, Write back
-arm_gen_bdt!(arm_stmda_w, store_word, STORE, DEC, POST, WRITEBACK, NO_USER_MODE);
+arm_gen_bdt!(
+    arm_stmda_w,
+    store_word,
+    STORE,
+    DEC,
+    POST,
+    WRITEBACK,
+    NO_USER_MODE
+);
 
 // Store multiple words, decrement before
-arm_gen_bdt!(arm_stmdb, store_word, STORE, DEC, PRE, NO_WRITEBACK, NO_USER_MODE);
+arm_gen_bdt!(
+    arm_stmdb,
+    store_word,
+    STORE,
+    DEC,
+    PRE,
+    NO_WRITEBACK,
+    NO_USER_MODE
+);
 
 // Store multiple words, decrement before, Use user-mode registers
-arm_gen_bdt!(arm_stmdb_u, store_word, STORE, DEC, PRE, NO_WRITEBACK, USER_MODE);
+arm_gen_bdt!(
+    arm_stmdb_u,
+    store_word,
+    STORE,
+    DEC,
+    PRE,
+    NO_WRITEBACK,
+    USER_MODE
+);
 
 // Store multiple words, decrement before, Use user-mode registers, with write back
-arm_gen_bdt!(arm_stmdb_uw, store_word, STORE, DEC, PRE, WRITEBACK, USER_MODE);
+arm_gen_bdt!(
+    arm_stmdb_uw,
+    store_word,
+    STORE,
+    DEC,
+    PRE,
+    WRITEBACK,
+    USER_MODE
+);
 
 // Store multiple words, decrement before, Write back
-arm_gen_bdt!(arm_stmdb_w, store_word, STORE, DEC, PRE, WRITEBACK, NO_USER_MODE);
+arm_gen_bdt!(
+    arm_stmdb_w,
+    store_word,
+    STORE,
+    DEC,
+    PRE,
+    WRITEBACK,
+    NO_USER_MODE
+);
 
 // Store multiple words, increment after
-arm_gen_bdt!(arm_stmia, store_word, STORE, INC, POST, NO_WRITEBACK, NO_USER_MODE);
+arm_gen_bdt!(
+    arm_stmia,
+    store_word,
+    STORE,
+    INC,
+    POST,
+    NO_WRITEBACK,
+    NO_USER_MODE
+);
 
 // Store multiple words, increment after, Use user-mode registers
-arm_gen_bdt!(arm_stmia_u, store_word, STORE, INC, POST, NO_WRITEBACK, USER_MODE);
+arm_gen_bdt!(
+    arm_stmia_u,
+    store_word,
+    STORE,
+    INC,
+    POST,
+    NO_WRITEBACK,
+    USER_MODE
+);
 
 // Store multiple words, increment after, Use user-mode registers, with write back
-arm_gen_bdt!(arm_stmia_uw, store_word, STORE, INC, POST, WRITEBACK, USER_MODE);
+arm_gen_bdt!(
+    arm_stmia_uw,
+    store_word,
+    STORE,
+    INC,
+    POST,
+    WRITEBACK,
+    USER_MODE
+);
 
 // Store multiple words, increment after, Write back
-arm_gen_bdt!(arm_stmia_w, store_word, STORE, INC, POST, WRITEBACK, NO_USER_MODE);
+arm_gen_bdt!(
+    arm_stmia_w,
+    store_word,
+    STORE,
+    INC,
+    POST,
+    WRITEBACK,
+    NO_USER_MODE
+);
 
 // Store multiple words, increment before
-arm_gen_bdt!(arm_stmib, store_word, STORE, INC, PRE, NO_WRITEBACK, NO_USER_MODE);
+arm_gen_bdt!(
+    arm_stmib,
+    store_word,
+    STORE,
+    INC,
+    PRE,
+    NO_WRITEBACK,
+    NO_USER_MODE
+);
 
 // Store multiple words, increment before, Use user-mode registers
-arm_gen_bdt!(arm_stmib_u, store_word, STORE, INC, PRE, NO_WRITEBACK, USER_MODE);
+arm_gen_bdt!(
+    arm_stmib_u,
+    store_word,
+    STORE,
+    INC,
+    PRE,
+    NO_WRITEBACK,
+    USER_MODE
+);
 
 // Store multiple words, increment before, Use user-mode registers, with write back
-arm_gen_bdt!(arm_stmib_uw, store_word, STORE, INC, PRE, WRITEBACK, USER_MODE);
+arm_gen_bdt!(
+    arm_stmib_uw,
+    store_word,
+    STORE,
+    INC,
+    PRE,
+    WRITEBACK,
+    USER_MODE
+);
 
 // Store multiple words, increment before, Write back
-arm_gen_bdt!(arm_stmib_w, store_word, STORE, INC, PRE, WRITEBACK, NO_USER_MODE);
-
+arm_gen_bdt!(
+    arm_stmib_w,
+    store_word,
+    STORE,
+    INC,
+    PRE,
+    WRITEBACK,
+    NO_USER_MODE
+);

@@ -1,8 +1,4 @@
-use glutin::{
-    EventsLoop,
-    WindowedContext,
-    PossiblyCurrent,
-};
+use glutin::{EventsLoop, PossiblyCurrent, WindowedContext};
 
 pub struct Window {
     events_loop: Option<EventsLoop>,
@@ -46,18 +42,24 @@ impl Window {
         self.internal_handle_events(|_window, _event| {});
     }
 
-    pub fn handle_events_with_handler<F: FnMut(&glutin::Window, &glutin::Event)>(&mut self, custom_handler: F) {
+    pub fn handle_events_with_handler<F: FnMut(&glutin::Window, &glutin::Event)>(
+        &mut self,
+        custom_handler: F,
+    ) {
         self.internal_handle_events(custom_handler);
     }
 
-    fn internal_handle_events<F: FnMut(&glutin::Window, &glutin::Event)>(&mut self, mut custom_handler: F) {
+    fn internal_handle_events<F: FnMut(&glutin::Window, &glutin::Event)>(
+        &mut self,
+        mut custom_handler: F,
+    ) {
         if let Some(mut events_loop) = self.events_loop.take() {
             events_loop.poll_events(|event| {
                 custom_handler(self.win_context.window(), &event);
                 match event {
                     glutin::Event::WindowEvent { event, .. } => {
                         self.handle_window_event(event);
-                    },
+                    }
 
                     _ => { /* NOP */ }
                 }
@@ -76,7 +78,7 @@ impl Window {
                         self.close_request_flag = true;
                     }
                 }
-            },
+            }
             glutin::WindowEvent::CloseRequested => self.close_request_flag = true,
             glutin::WindowEvent::Resized(logical_size) => {
                 let dpi_factor = self.win_context.window().get_hidpi_factor();
@@ -86,7 +88,7 @@ impl Window {
                 unsafe {
                     gl::Viewport(0, 0, physical_size.width as _, physical_size.height as _);
                 }
-            },
+            }
             _ => { /* NOP */ }
         }
     }

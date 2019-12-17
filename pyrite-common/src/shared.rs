@@ -1,5 +1,5 @@
+use std::cell::{Ref, RefCell, RefMut};
 use std::rc::Rc;
-use std::cell::{ Ref, RefMut, RefCell };
 
 pub struct Shared<T: ?Sized> {
     inner: Rc<RefCell<T>>,
@@ -7,7 +7,9 @@ pub struct Shared<T: ?Sized> {
 
 impl<T: Sized> Shared<T> {
     pub fn new(v: T) -> Shared<T> {
-        Shared { inner: Rc::new(RefCell::new(v)) }
+        Shared {
+            inner: Rc::new(RefCell::new(v)),
+        }
     }
 
     pub fn try_unwrap(this: Shared<T>) -> Result<T, Shared<T>> {
@@ -38,18 +40,24 @@ impl<T: ?Sized> Shared<T> {
     }
 
     #[inline(always)]
-    pub fn with<F>(&self, f: F) where F: FnOnce(Ref<T>) {
+    pub fn with<F>(&self, f: F)
+    where
+        F: FnOnce(Ref<T>),
+    {
         f(self.inner.borrow());
     }
 
     #[inline(always)]
-    pub fn with_mut<F>(&mut self, f: F) where F: FnOnce(RefMut<T>) {
+    pub fn with_mut<F>(&mut self, f: F)
+    where
+        F: FnOnce(RefMut<T>),
+    {
         f(self.inner.borrow_mut());
     }
 
     pub fn share(this: &Self) -> Self {
         Shared {
-            inner: Rc::clone(&this.inner)
+            inner: Rc::clone(&this.inner),
         }
     }
 }

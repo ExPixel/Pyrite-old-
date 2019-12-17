@@ -1,15 +1,15 @@
-use super::{ arm, thumb };
-use super::registers::{ CpuMode, ArmRegisters };
 use super::memory::ArmMemory;
+use super::registers::{ArmRegisters, CpuMode};
+use super::{arm, thumb};
 
 pub const EXCEPTION_BASE: u32 = 0;
 
 pub struct ArmCpu {
     /// The last instruction that was fetched.
-    fetched:    u32,
+    fetched: u32,
 
     /// This last instruction that was decoded.
-    decoded:    u32,
+    decoded: u32,
 
     /// Temporary cycle count used by the currently running step if
     /// there is one.
@@ -18,7 +18,7 @@ pub struct ArmCpu {
     /// The total number of cycles that have elapsed.
     total_cycles: u64,
 
-    pub registers:  ArmRegisters,
+    pub registers: ArmRegisters,
 
     /// Exception that should be handled on the next call to step instead of running the next
     /// instruction.
@@ -172,7 +172,7 @@ impl ArmCpu {
         self.decoded = self.fetched;
 
         let opcode_row = bits!(opcode, 20, 27);
-        let opcode_col = bits!(opcode,  4,  7);
+        let opcode_col = bits!(opcode, 4, 7);
         let opcode_idx = (opcode_row * 16) + opcode_col;
 
         if check_condition((opcode >> 28) & 0xF, &self.registers) {
@@ -189,7 +189,7 @@ impl ArmCpu {
         self.decoded = self.fetched;
 
         let opcode_row = bits!(opcode, 12, 15);
-        let opcode_col = bits!(opcode, 8,  11);
+        let opcode_col = bits!(opcode, 8, 11);
         let opcode_idx = (opcode_row * 16) + opcode_col;
 
         let thumb_fn = thumb::THUMB_OPCODE_TABLE[opcode_idx as usize];
@@ -197,7 +197,10 @@ impl ArmCpu {
     }
 
     /// Sets the new exception handler. This will return the old exception handler.
-    pub fn set_exception_handler(&mut self, on_exception: ExceptionHandler) -> Option<ExceptionHandler> {
+    pub fn set_exception_handler(
+        &mut self,
+        on_exception: ExceptionHandler,
+    ) -> Option<ExceptionHandler> {
         let old_handler = self.on_exception.take();
         self.on_exception = Some(on_exception);
         return old_handler;
@@ -222,13 +225,23 @@ impl ArmCpu {
     ///   - CPSR new I bit         ;IRQs disabled (I=1), done by ALL exceptions
     ///   - CPSR new F bit         ;FIQs disabled (F=1), done by Reset and FIQ only
     ///   - PC=exception_vector
-    pub(crate) fn handle_exception(&mut self, exception: CpuException, memory: &mut dyn ArmMemory, next_instr_address: u32) -> bool {
+    pub(crate) fn handle_exception(
+        &mut self,
+        exception: CpuException,
+        memory: &mut dyn ArmMemory,
+        next_instr_address: u32,
+    ) -> bool {
         let exception_info = exception.info();
 
-        if (exception_info.disable & 0b01) != 0 && self.registers.getf_i() { return false; }
-        if (exception_info.disable & 0b10) != 0 && self.registers.getf_f() { return false; }
+        if (exception_info.disable & 0b01) != 0 && self.registers.getf_i() {
+            return false;
+        }
+        if (exception_info.disable & 0b10) != 0 && self.registers.getf_f() {
+            return false;
+        }
 
-        let exception_addr = next_instr_address.wrapping_sub(if self.registers.getf_t() { 2 } else { 4 });
+        let exception_addr =
+            next_instr_address.wrapping_sub(if self.registers.getf_t() { 2 } else { 4 });
 
         // we temporarily remove the handler while processing an exception
         // because we don't want possible reentrant into the handler and
@@ -242,19 +255,22 @@ impl ArmCpu {
         }
 
         let cpsr = self.registers.read_cpsr();
-        self.registers.write_mode(exception_info.mode_on_entry);    // Set the entry mode.
-        self.registers.write_spsr(cpsr);                            // Set the CPSR of the old mode to the SPSR of the new mode.
-        self.registers.write(14, next_instr_address.wrapping_add(exception_info.pc_adjust)); // Save the return address.
-        self.registers.clearf_t();                                  // Go into ARM mode.
+        self.registers.write_mode(exception_info.mode_on_entry); // Set the entry mode.
+        self.registers.write_spsr(cpsr); // Set the CPSR of the old mode to the SPSR of the new mode.
+        self.registers.write(
+            14,
+            next_instr_address.wrapping_add(exception_info.pc_adjust),
+        ); // Save the return address.
+        self.registers.clearf_t(); // Go into ARM mode.
 
-        self.registers.putf_i(true);                               // IRQ disable (done by all modes)
+        self.registers.putf_i(true); // IRQ disable (done by all modes)
 
         if let Some(f) = exception_info.f_flag {
-            self.registers.putf_f(f);                               // FIQ disable (done by RESET and FIQ only)
+            self.registers.putf_f(f); // FIQ disable (done by RESET and FIQ only)
         }
 
         let exception_vector = EXCEPTION_BASE + exception_info.offset;
-        self.arm_branch_to(exception_vector, memory);               // PC = exception_vector
+        self.arm_branch_to(exception_vector, memory); // PC = exception_vector
         return true;
     }
 }
@@ -264,28 +280,30 @@ impl ArmCpu {
 #[inline]
 pub(crate) fn check_condition(cond: u32, regs: &ArmRegisters) -> bool {
     match cond {
-        0x0 => regs.getf_z(),                   // 0:   EQ     Z=1           equal (zero) (same)
-        0x1 => !regs.getf_z(),                  // 1:   NE     Z=0           not equal (nonzero) (not same)
-        0x2 => regs.getf_c(),                   // 2:   CS/HS  C=1           unsigned higher or same (carry set)
-        0x3 => !regs.getf_c(),                  // 3:   CC/LO  C=0           unsigned lower (carry cleared)
-        0x4 => regs.getf_n(),                   // 4:   MI     N=1           negative (minus)
-        0x5 => !regs.getf_n(),                  // 5:   PL     N=0           positive or zero (plus)
-        0x6 => regs.getf_v(),                   // 6:   VS     V=1           overflow (V set)
-        0x7 => !regs.getf_v(),                  // 7:   VC     V=0           no overflow (V cleared)
-        0x8 => regs.getf_c() & !regs.getf_z(),  // 8:   HI     C=1 and Z=0   unsigned higher
-        0x9 => !regs.getf_c() | regs.getf_z(),  // 9:   LS     C=0 or Z=1    unsigned lower or same
-        0xA => regs.getf_n() == regs.getf_v(),  // A:   GE     N=V           greater or equal
-        0xB => regs.getf_n() != regs.getf_v(),  // B:   LT     N<>V          less than
-        0xC => {                                // C:   GT     Z=0 and N=V   greater than
+        0x0 => regs.getf_z(),  // 0:   EQ     Z=1           equal (zero) (same)
+        0x1 => !regs.getf_z(), // 1:   NE     Z=0           not equal (nonzero) (not same)
+        0x2 => regs.getf_c(),  // 2:   CS/HS  C=1           unsigned higher or same (carry set)
+        0x3 => !regs.getf_c(), // 3:   CC/LO  C=0           unsigned lower (carry cleared)
+        0x4 => regs.getf_n(),  // 4:   MI     N=1           negative (minus)
+        0x5 => !regs.getf_n(), // 5:   PL     N=0           positive or zero (plus)
+        0x6 => regs.getf_v(),  // 6:   VS     V=1           overflow (V set)
+        0x7 => !regs.getf_v(), // 7:   VC     V=0           no overflow (V cleared)
+        0x8 => regs.getf_c() & !regs.getf_z(), // 8:   HI     C=1 and Z=0   unsigned higher
+        0x9 => !regs.getf_c() | regs.getf_z(), // 9:   LS     C=0 or Z=1    unsigned lower or same
+        0xA => regs.getf_n() == regs.getf_v(), // A:   GE     N=V           greater or equal
+        0xB => regs.getf_n() != regs.getf_v(), // B:   LT     N<>V          less than
+        0xC => {
+            // C:   GT     Z=0 and N=V   greater than
             !regs.getf_z() & (regs.getf_n() == regs.getf_v())
-        },   
-        0xD => {                                // D:   LE     Z=1 or N<>V   less or equal
+        }
+        0xD => {
+            // D:   LE     Z=1 or N<>V   less or equal
             regs.getf_z() | (regs.getf_n() != regs.getf_v())
-        },    
-        0xE => true,                            // E:   AL     -             always (the "AL" suffix can be omitted)
-        0xF => false,                           // F:   NV     -             never (ARMv1,v2 only) (Reserved ARMv3 and up)
+        }
+        0xE => true, // E:   AL     -             always (the "AL" suffix can be omitted)
+        0xF => false, // F:   NV     -             never (ARMv1,v2 only) (Reserved ARMv3 and up)
         // :(
-        _   => panic!("bad condition code: 0x{:08X} ({:04b})", cond, cond),
+        _ => panic!("bad condition code: 0x{:08X} ({:04b})", cond, cond),
     }
 }
 
@@ -333,8 +351,8 @@ impl CpuException {
 pub struct CpuExceptionInfo {
     mode_on_entry: CpuMode,
     f_flag: Option<bool>,
-    pc_adjust:  u32,
-    offset:     u32,
+    pc_adjust: u32,
+    offset: u32,
 
     /// Disable if 2 bits used as a mask for the I and F flags to check if
     /// a particular exception is disabled. bit 0 = I and bit 1 = F.
@@ -345,8 +363,22 @@ pub struct CpuExceptionInfo {
 }
 
 impl CpuExceptionInfo {
-    pub const fn new(priority: u8, mode_on_entry: CpuMode, f_flag: Option<bool>, pc_adjust: u32, offset: u32, disable: u8) -> CpuExceptionInfo {
-        CpuExceptionInfo { priority, mode_on_entry, f_flag, pc_adjust, offset, disable }
+    pub const fn new(
+        priority: u8,
+        mode_on_entry: CpuMode,
+        f_flag: Option<bool>,
+        pc_adjust: u32,
+        offset: u32,
+        disable: u8,
+    ) -> CpuExceptionInfo {
+        CpuExceptionInfo {
+            priority,
+            mode_on_entry,
+            f_flag,
+            pc_adjust,
+            offset,
+            disable,
+        }
     }
 }
 
@@ -360,15 +392,24 @@ impl CpuExceptionInfo {
 //   BASE+14h ??    Address Exceeds 26bit      Supervisor (_svc)  I=1, F=unchanged
 //   BASE+18h 4     Normal Interrupt (IRQ)     IRQ        (_irq)  I=1, F=unchanged
 //   BASE+1Ch 3     Fast Interrupt (FIQ)       FIQ        (_fiq)  I=1, F=1
-pub const EXCEPTION_RESET: CpuExceptionInfo             = CpuExceptionInfo::new(1, CpuMode::Supervisor, Some(true), 0, 0x00, 0b00);
-pub const EXCEPTION_UNDEFINED: CpuExceptionInfo         = CpuExceptionInfo::new(7, CpuMode::Undefined,  None,       0, 0x04, 0b00);
-pub const EXCEPTION_SWI: CpuExceptionInfo               = CpuExceptionInfo::new(6, CpuMode::Supervisor, None,       0, 0x08, 0b00);
-pub const EXCEPTION_PREFETCH_ABORT: CpuExceptionInfo    = CpuExceptionInfo::new(5, CpuMode::Abort,      None,       4, 0x0C, 0b00);
-pub const EXCEPTION_DATA_ABORT: CpuExceptionInfo        = CpuExceptionInfo::new(2, CpuMode::Abort,      None,       4, 0x10, 0b00);
-pub const EXCEPTION_IRQ: CpuExceptionInfo               = CpuExceptionInfo::new(4, CpuMode::IRQ,        None,       4, 0x18, 0b01);
-pub const EXCEPTION_FIQ: CpuExceptionInfo               = CpuExceptionInfo::new(3, CpuMode::FIQ,        Some(true), 4, 0x1C, 0b10);
+pub const EXCEPTION_RESET: CpuExceptionInfo =
+    CpuExceptionInfo::new(1, CpuMode::Supervisor, Some(true), 0, 0x00, 0b00);
+pub const EXCEPTION_UNDEFINED: CpuExceptionInfo =
+    CpuExceptionInfo::new(7, CpuMode::Undefined, None, 0, 0x04, 0b00);
+pub const EXCEPTION_SWI: CpuExceptionInfo =
+    CpuExceptionInfo::new(6, CpuMode::Supervisor, None, 0, 0x08, 0b00);
+pub const EXCEPTION_PREFETCH_ABORT: CpuExceptionInfo =
+    CpuExceptionInfo::new(5, CpuMode::Abort, None, 4, 0x0C, 0b00);
+pub const EXCEPTION_DATA_ABORT: CpuExceptionInfo =
+    CpuExceptionInfo::new(2, CpuMode::Abort, None, 4, 0x10, 0b00);
+pub const EXCEPTION_IRQ: CpuExceptionInfo =
+    CpuExceptionInfo::new(4, CpuMode::IRQ, None, 4, 0x18, 0b01);
+pub const EXCEPTION_FIQ: CpuExceptionInfo =
+    CpuExceptionInfo::new(3, CpuMode::FIQ, Some(true), 4, 0x1C, 0b10);
 
 // #TODO I don't actually know the priority for the 26bit address overflow exception.
-pub const EXCEPTION_ADDRESS_EXCEEDS_26BIT: CpuExceptionInfo = CpuExceptionInfo::new(8, CpuMode::Supervisor, None, 4, 0x14, 0b00);
+pub const EXCEPTION_ADDRESS_EXCEEDS_26BIT: CpuExceptionInfo =
+    CpuExceptionInfo::new(8, CpuMode::Supervisor, None, 4, 0x14, 0b00);
 
-pub type ExceptionHandler = Box<dyn FnMut(&mut ArmCpu, &mut dyn ArmMemory, CpuException, u32) -> bool>;
+pub type ExceptionHandler =
+    Box<dyn FnMut(&mut ArmCpu, &mut dyn ArmMemory, CpuException, u32) -> bool>;

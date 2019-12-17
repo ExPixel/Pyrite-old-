@@ -1,5 +1,5 @@
-use super::super::{ ArmCpu, ArmMemory };
 use super::super::alu::*;
+use super::super::{ArmCpu, ArmMemory};
 
 pub const S_SET: bool = true;
 pub const S_CLR: bool = false;
@@ -9,7 +9,7 @@ pub const IMM_SHIFT: bool = false;
 /// Creates a function for an arithmetic data processing function that writes
 /// back to the destination register.
 macro_rules! dataproc {
-    ($name:ident, $get_operand:expr, $operation:expr, $s_flag:expr, $r_shift:expr) => (
+    ($name:ident, $get_operand:expr, $operation:expr, $s_flag:expr, $r_shift:expr) => {
         // #TODO possibly add some debug code here in the data processing instruction
         //       gen so that I can log an error when Rs is R15 which is not supported
         //       by these sets of instructions.
@@ -54,13 +54,13 @@ macro_rules! dataproc {
                 }
             }
         }
-    )
+    };
 }
 
 /// Creates a function data processing function that does not write
 /// back to the destination register. These always have the S flag set.
 macro_rules! dataproc_no_write {
-    ($name:ident, $get_operand:expr, $operation:expr, $r_shift:expr) => (
+    ($name:ident, $get_operand:expr, $operation:expr, $r_shift:expr) => {
         // #TODO possibly add some debug code here in the data processing instruction
         //       gen so that I can log an error when Rs is R15 which is not supported
         //       by these sets of instructions.
@@ -108,7 +108,7 @@ macro_rules! dataproc_no_write {
                 }
             }
         }
-    )
+    };
 }
 
 // instr: AND
@@ -418,4 +418,3 @@ dataproc_no_write!(arm_tsts_arr, bs::arr_s, arm_alu_tsts, true);
 dataproc_no_write!(arm_tsts_rri, bs::rri_s, arm_alu_tsts, IMM_SHIFT);
 dataproc_no_write!(arm_tsts_rrr, bs::rrr_s, arm_alu_tsts, true);
 dataproc_no_write!(arm_tsts_imm, bs::imm, arm_alu_tsts, IMM_SHIFT);
-

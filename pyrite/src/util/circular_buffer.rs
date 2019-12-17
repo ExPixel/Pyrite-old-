@@ -3,19 +3,17 @@ macro_rules! impl_circular_buffer {
     ($CircularBuffer:ident, $N:expr) => {
         pub struct $CircularBuffer<T: Default> {
             length: usize,
-            tail:   usize,
+            tail: usize,
             buffer: [T; $N],
         }
 
         impl<T: Default> $CircularBuffer<T> {
             pub fn new() -> $CircularBuffer<T> {
-                use std::mem::{MaybeUninit};
+                use std::mem::MaybeUninit;
                 use std::ptr;
 
                 let buffer = {
-                    let mut uninit_buffer: [T; $N] = unsafe {
-                        MaybeUninit::uninit().assume_init()
-                    };
+                    let mut uninit_buffer: [T; $N] = unsafe { MaybeUninit::uninit().assume_init() };
 
                     // initialize elements
                     for elem in &mut uninit_buffer[0..] {
@@ -47,7 +45,7 @@ macro_rules! impl_circular_buffer {
 
                 $CircularBuffer {
                     buffer: buffer,
-                    tail:   0,
+                    tail: 0,
                     length: 0,
                 }
             }
@@ -75,7 +73,10 @@ macro_rules! impl_circular_buffer {
             }
 
             pub fn push_back(&mut self, item: T) {
-                assert!(self.length < $N, "attempted to push into a full circular buffer");
+                assert!(
+                    self.length < $N,
+                    "attempted to push into a full circular buffer"
+                );
                 self.buffer[self.tail] = item;
                 self.tail = (self.tail + 1) % $N;
                 self.length += 1;
@@ -102,16 +103,23 @@ macro_rules! impl_circular_buffer {
             }
 
             pub fn insert(&mut self, index: usize, element: T) {
-                assert!(self.length < $N, "attempted to insert into a full circular buffer");
-                assert!(index <= self.length, "attempted to insert after the end of a circular buffer");
+                assert!(
+                    self.length < $N,
+                    "attempted to insert into a full circular buffer"
+                );
+                assert!(
+                    index <= self.length,
+                    "attempted to insert after the end of a circular buffer"
+                );
 
                 // inserting at the end is the same as a push_back
-                if index ==  self.length {
+                if index == self.length {
                     self.push_back(element);
                     return;
                 }
 
-                let dest_index = self.tail.wrapping_sub(self.length).wrapping_add(index) % self.buffer.len();
+                let dest_index =
+                    self.tail.wrapping_sub(self.length).wrapping_add(index) % self.buffer.len();
                 let mut shift_into = self.tail; // start shifting elements into tail
 
                 while shift_into != dest_index {
@@ -141,7 +149,8 @@ macro_rules! impl_circular_buffer {
 
             pub fn get(&self, idx: usize) -> Option<&T> {
                 if idx < self.length {
-                    let idx = self.tail.wrapping_sub(self.length).wrapping_add(idx) % self.buffer.len();
+                    let idx =
+                        self.tail.wrapping_sub(self.length).wrapping_add(idx) % self.buffer.len();
                     Some(&self.buffer[idx])
                 } else {
                     None
@@ -150,7 +159,8 @@ macro_rules! impl_circular_buffer {
 
             pub fn get_mut(&mut self, idx: usize) -> Option<&mut T> {
                 if idx < self.length {
-                    let idx = self.tail.wrapping_sub(self.length).wrapping_add(idx) % self.buffer.len();
+                    let idx =
+                        self.tail.wrapping_sub(self.length).wrapping_add(idx) % self.buffer.len();
                     Some(&mut self.buffer[idx])
                 } else {
                     None
@@ -166,7 +176,10 @@ macro_rules! impl_circular_buffer {
             }
         }
 
-        impl<T: Default> Clone for $CircularBuffer<T> where T: Clone {
+        impl<T: Default> Clone for $CircularBuffer<T>
+        where
+            T: Clone,
+        {
             fn clone(&self) -> $CircularBuffer<T> {
                 let mut new_buffer = $CircularBuffer::new();
                 for elem in self.iter() {
@@ -176,32 +189,48 @@ macro_rules! impl_circular_buffer {
             }
         }
 
-        impl<T: Default> std::fmt::Debug for $CircularBuffer<T> where T: std::fmt::Debug {
+        impl<T: Default> std::fmt::Debug for $CircularBuffer<T>
+        where
+            T: std::fmt::Debug,
+        {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.debug_list().entries(self.iter()).finish()
             }
         }
 
-        impl<T: Default> std::cmp::PartialEq for $CircularBuffer<T> where T: std::cmp::PartialEq {
+        impl<T: Default> std::cmp::PartialEq for $CircularBuffer<T>
+        where
+            T: std::cmp::PartialEq,
+        {
             fn eq(&self, other: &Self) -> bool {
                 self.iter().eq(other.iter())
             }
         }
 
-        impl<T: Default> std::cmp::Eq for $CircularBuffer<T> where T: std::cmp::Eq { /* NOTHING TO DO HERE */ }
+        impl<T: Default> std::cmp::Eq for $CircularBuffer<T>
+        where
+            T: std::cmp::Eq,
+        {
+            /* NOTHING TO DO HERE */
+        }
     };
 }
 
 pub struct CircularBufferIter<'a, T> {
     buffer: &'a [T],
-    tail:   usize,
+    tail: usize,
     length: usize,
     offset: usize,
 }
 
 impl<'a, T> CircularBufferIter<'a, T> {
     pub fn new(buffer: &'a [T], tail: usize, length: usize) -> CircularBufferIter<'a, T> {
-        CircularBufferIter { buffer, tail, length, offset: 0 }
+        CircularBufferIter {
+            buffer,
+            tail,
+            length,
+            offset: 0,
+        }
     }
 }
 
@@ -212,7 +241,11 @@ impl<'a, T> Iterator for CircularBufferIter<'a, T> {
         if self.offset >= self.length {
             return None;
         } else {
-            let idx = self.tail.wrapping_sub(self.length).wrapping_add(self.offset) % self.buffer.len();
+            let idx = self
+                .tail
+                .wrapping_sub(self.length)
+                .wrapping_add(self.offset)
+                % self.buffer.len();
             self.offset += 1;
             Some(&self.buffer[idx])
         }
@@ -231,26 +264,26 @@ impl<'a, T> ExactSizeIterator for CircularBufferIter<'a, T> {
 }
 
 pub struct CircularBufferIterMut<'a, T> {
-    buf_start:  *mut T,
-    buf_len:    usize,
+    buf_start: *mut T,
+    buf_len: usize,
 
-    tail:   usize,
+    tail: usize,
     length: usize,
     offset: usize,
 
-    _marker: std::marker::PhantomData<&'a mut T>
+    _marker: std::marker::PhantomData<&'a mut T>,
 }
 
 impl<'a, T> CircularBufferIterMut<'a, T> {
     pub fn new(buffer: &'a mut [T], tail: usize, length: usize) -> CircularBufferIterMut<'a, T> {
         CircularBufferIterMut {
-            tail:   tail,
+            tail: tail,
             length: length,
             offset: 0,
 
-            buf_start:  buffer.as_mut_ptr(),
-            buf_len:    buffer.len(),
-            _marker:    std::marker::PhantomData,
+            buf_start: buffer.as_mut_ptr(),
+            buf_len: buffer.len(),
+            _marker: std::marker::PhantomData,
         }
     }
 }
@@ -263,11 +296,13 @@ impl<'a, T> Iterator for CircularBufferIterMut<'a, T> {
             return None;
         } else {
             // Rust is dumb, so I have to do this unsafe stuff to return a mutable reference here:
-            let idx = self.tail.wrapping_sub(self.length).wrapping_add(self.offset) % self.buf_len;
+            let idx = self
+                .tail
+                .wrapping_sub(self.length)
+                .wrapping_add(self.offset)
+                % self.buf_len;
             self.offset += 1;
-            unsafe {
-                self.buf_start.offset(idx as isize).as_mut()
-            }
+            unsafe { self.buf_start.offset(idx as isize).as_mut() }
         }
     }
 
@@ -298,14 +333,22 @@ mod test {
         for i in 0..16 {
             buf.push_back(i);
         }
-        assert_eq!(true, (0..16).eq(buf.iter().map(|elem| *elem)), "buf iterator contents not equal");
+        assert_eq!(
+            true,
+            (0..16).eq(buf.iter().map(|elem| *elem)),
+            "buf iterator contents not equal"
+        );
         assert_eq!(0, buf.available());
 
         assert_eq!(Some(0), buf.pop_front());
         assert_eq!(Some(1), buf.pop_front());
 
         buf.iter_mut().for_each(|e| *e = *e * 2);
-        assert_eq!(true, (2..16).map(|e| e * 2).eq(buf.iter().map(|elem| *elem)), "buf iterator contents not equal");
+        assert_eq!(
+            true,
+            (2..16).map(|e| e * 2).eq(buf.iter().map(|elem| *elem)),
+            "buf iterator contents not equal"
+        );
 
         for _ in 0..16 {
             buf.pop_front();
@@ -316,7 +359,11 @@ mod test {
             buf.push_back(i);
         }
         // test iter (and push)
-        assert_eq!(true, (0..16).eq(buf.iter().map(|elem| *elem)), "buf iterator contents not equal");
+        assert_eq!(
+            true,
+            (0..16).eq(buf.iter().map(|elem| *elem)),
+            "buf iterator contents not equal"
+        );
         assert_eq!(0, buf.available());
 
         // test pop
@@ -331,7 +378,11 @@ mod test {
         // test iter_mut
         buf.iter_mut().for_each(|e| *e = *e * 2);
         assert_ne!(buf, buf2);
-        assert_eq!(true, (2..16).map(|e| e * 2).eq(buf.iter().map(|elem| *elem)), "buf iterator contents not equal");
+        assert_eq!(
+            true,
+            (2..16).map(|e| e * 2).eq(buf.iter().map(|elem| *elem)),
+            "buf iterator contents not equal"
+        );
 
         // test insert
         buf2.insert(0, 45);
@@ -339,7 +390,6 @@ mod test {
         let expect = [45, 2, 3, 4, 5, 33, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let bufvec = buf2.iter().map(|e| *e).collect::<Vec<_>>();
         assert_eq!(&expect[0..], &bufvec[0..]);
-
     }
 
     #[test]

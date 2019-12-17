@@ -1,25 +1,34 @@
-use crate::hardware::{ VRAM, OAM };
-use crate::util::memory::{ read_u16, read_u16_unchecked };
-use crate::util::fixedpoint::{ FixedPoint32, FixedPoint16 };
 use super::palette::GbaPalette;
-use super::{ LCDRegisters, LCDLineBuffer, apply_mosaic_cond };
+use super::{apply_mosaic_cond, LCDLineBuffer, LCDRegisters};
+use crate::hardware::{OAM, VRAM};
+use crate::util::fixedpoint::{FixedPoint16, FixedPoint32};
+use crate::util::memory::{read_u16, read_u16_unchecked};
 
-pub fn render_objects(registers: &LCDRegisters, objects: &[u16], vram: &VRAM, oam: &OAM, pal: &GbaPalette, pixels: &mut LCDLineBuffer) {
+pub fn render_objects(
+    registers: &LCDRegisters,
+    objects: &[u16],
+    vram: &VRAM,
+    oam: &OAM,
+    pal: &GbaPalette,
+    pixels: &mut LCDLineBuffer,
+) {
     let bitmap_mode = match registers.dispcnt.mode() {
         3 | 4 | 5 => true,
         _ => false,
     };
 
-    let first_target    = registers.effects.is_first_target(4);
-    let second_target   = registers.effects.is_second_target(4);
+    let first_target = registers.effects.is_first_target(4);
+    let second_target = registers.effects.is_second_target(4);
 
     for obj_index in objects.iter().map(|x| (*x & 0xFF) as usize) {
         let attr_index = obj_index * 8;
-        let attrs = unsafe {(
-            ObjAttr0::wrap(read_u16_unchecked(oam, attr_index)),
-            ObjAttr1::wrap(read_u16_unchecked(oam, attr_index + 2)),
-            ObjAttr2::wrap(read_u16_unchecked(oam, attr_index + 4)),
-        )};
+        let attrs = unsafe {
+            (
+                ObjAttr0::wrap(read_u16_unchecked(oam, attr_index)),
+                ObjAttr1::wrap(read_u16_unchecked(oam, attr_index + 2)),
+                ObjAttr2::wrap(read_u16_unchecked(oam, attr_index + 4)),
+            )
+        };
         let one_dimensional = registers.dispcnt.one_dimensional_obj();
         let (mosaic_x, mosaic_y) = (registers.mosaic.obj.0 as u16, registers.mosaic.obj.1 as u16);
 
@@ -32,36 +41,45 @@ pub fn render_objects(registers: &LCDRegisters, objects: &[u16], vram: &VRAM, oa
             (obj_width, obj_height)
         };
 
-        let obj_screen_left     = attrs.1.x();
-        let obj_screen_right    = (obj_screen_left + obj_display_width - 1) % 512;
-        let obj_screen_top      = attrs.0.y();
-        let obj_screen_bottom   = (obj_screen_top + obj_display_height - 1) % 256;
+        let obj_screen_left = attrs.1.x();
+        let obj_screen_right = (obj_screen_left + obj_display_width - 1) % 512;
+        let obj_screen_top = attrs.0.y();
+        let obj_screen_bottom = (obj_screen_top + obj_display_height - 1) % 256;
 
         let in_bounds_horizontal = obj_screen_left < 240 || obj_screen_right < 240;
-        let in_bounds_vertical = obj_screen_top <= obj_screen_bottom && obj_screen_top <= registers.line && obj_screen_bottom >= registers.line;
-        let in_bounds_vertical_wrapped = obj_screen_top > obj_screen_bottom && (obj_screen_top <= registers.line || obj_screen_bottom >= registers.line);
+        let in_bounds_vertical = obj_screen_top <= obj_screen_bottom
+            && obj_screen_top <= registers.line
+            && obj_screen_bottom >= registers.line;
+        let in_bounds_vertical_wrapped = obj_screen_top > obj_screen_bottom
+            && (obj_screen_top <= registers.line || obj_screen_bottom >= registers.line);
 
         if !in_bounds_horizontal || (!in_bounds_vertical && !in_bounds_vertical_wrapped) {
-            continue
+            continue;
         }
 
         // need to start mutating these here:
-        let mut obj_screen_left     = obj_screen_left;
-        let mut obj_screen_right    = obj_screen_right;
+        let mut obj_screen_left = obj_screen_left;
+        let mut obj_screen_right = obj_screen_right;
 
         let (obj_xdraw_start, _obj_xdraw_end) = if obj_screen_left < obj_screen_right {
-            (0, if obj_screen_right >= 240 {
-                obj_screen_right = 239;
-                240 - obj_screen_left - 1
-            } else {
-                obj_display_width - 1
-            })
+            (
+                0,
+                if obj_screen_right >= 240 {
+                    obj_screen_right = 239;
+                    240 - obj_screen_left - 1
+                } else {
+                    obj_display_width - 1
+                },
+            )
         } else {
             // we have wrapped here so we need to start drawing farther to the right
             // of the object, but there will always be enough space on screen to draw the
             // object to the end.
             obj_screen_left = 0;
-            (obj_display_width - obj_screen_right - 1, obj_display_width - 1)
+            (
+                obj_display_width - obj_screen_right - 1,
+                obj_display_width - 1,
+            )
         };
 
         let pixels_drawn = obj_screen_right - obj_screen_left + 1;
@@ -77,7 +95,7 @@ pub fn render_objects(registers: &LCDRegisters, objects: &[u16], vram: &VRAM, oa
                 }
             } else {
                 pixels.obj_cycles = 0;
-                return
+                return;
             }
         } else {
             if pixels_drawn > pixels.obj_cycles {
@@ -90,7 +108,7 @@ pub fn render_objects(registers: &LCDRegisters, objects: &[u16], vram: &VRAM, oa
 
         let semi_transparent = attrs.0.mode() == ObjMode::SemiTransparent;
 
-        let obj_origin_x = FixedPoint32::from( obj_display_width / 2);
+        let obj_origin_x = FixedPoint32::from(obj_display_width / 2);
         let obj_origin_y = FixedPoint32::from(obj_display_height / 2);
 
         let obj_xdraw_start = FixedPoint32::from(obj_xdraw_start);
@@ -103,16 +121,26 @@ pub fn render_objects(registers: &LCDRegisters, objects: &[u16], vram: &VRAM, oa
         let mut obj_xdraw_start_distance = obj_xdraw_start - obj_origin_x;
         let mut obj_ydraw_start_distance = obj_ydraw_start - obj_origin_y;
 
-        let obj_dx; let obj_dmx;
-        let obj_dy; let obj_dmy;
+        let obj_dx;
+        let obj_dmx;
+        let obj_dy;
+        let obj_dmy;
         if attrs.0.affine() {
             let params_idx = attrs.1.affine_param_index() as usize;
-            obj_dx  = FixedPoint32::from(FixedPoint16::wrap((read_u16(oam, 0x06 + (params_idx * 32))) as i16));
-            obj_dmx = FixedPoint32::from(FixedPoint16::wrap((read_u16(oam, 0x0E + (params_idx * 32))) as i16));
-            obj_dy  = FixedPoint32::from(FixedPoint16::wrap((read_u16(oam, 0x16 + (params_idx * 32))) as i16));
-            obj_dmy = FixedPoint32::from(FixedPoint16::wrap((read_u16(oam, 0x1E + (params_idx * 32))) as i16));
+            obj_dx = FixedPoint32::from(FixedPoint16::wrap(
+                (read_u16(oam, 0x06 + (params_idx * 32))) as i16,
+            ));
+            obj_dmx = FixedPoint32::from(FixedPoint16::wrap(
+                (read_u16(oam, 0x0E + (params_idx * 32))) as i16,
+            ));
+            obj_dy = FixedPoint32::from(FixedPoint16::wrap(
+                (read_u16(oam, 0x16 + (params_idx * 32))) as i16,
+            ));
+            obj_dmy = FixedPoint32::from(FixedPoint16::wrap(
+                (read_u16(oam, 0x1E + (params_idx * 32))) as i16,
+            ));
         } else {
-            obj_dy  = FixedPoint32::from(0u32);
+            obj_dy = FixedPoint32::from(0u32);
             obj_dmx = FixedPoint32::from(0u32);
             obj_dmy = FixedPoint32::from(1u32);
 
@@ -120,7 +148,7 @@ pub fn render_objects(registers: &LCDRegisters, objects: &[u16], vram: &VRAM, oa
                 obj_dx = FixedPoint32::from(-1i32);
 
                 // @NOTE add 1 so that we start on the other side of the center line...if that makes sense :|
-                obj_xdraw_start_distance += FixedPoint32::wrap(0x100); 
+                obj_xdraw_start_distance += FixedPoint32::wrap(0x100);
             } else {
                 obj_dx = FixedPoint32::from(1u32);
             }
@@ -133,8 +161,12 @@ pub fn render_objects(registers: &LCDRegisters, objects: &[u16], vram: &VRAM, oa
         // Down here we use the real width and height for the origin instead of the double sized
         // because I randomly wrote it and it works. Maybe one day I'll actually do the math and
         // come up with an exact reason as to why. For now I just had a feeling and I was right.
-        let mut obj_x = FixedPoint32::from( obj_width / 2) + (obj_ydraw_start_distance * obj_dmx) + (obj_xdraw_start_distance * obj_dx);
-        let mut obj_y = FixedPoint32::from(obj_height / 2) + (obj_ydraw_start_distance * obj_dmy) + (obj_xdraw_start_distance * obj_dy);
+        let mut obj_x = FixedPoint32::from(obj_width / 2)
+            + (obj_ydraw_start_distance * obj_dmx)
+            + (obj_xdraw_start_distance * obj_dx);
+        let mut obj_y = FixedPoint32::from(obj_height / 2)
+            + (obj_ydraw_start_distance * obj_dmy)
+            + (obj_xdraw_start_distance * obj_dy);
 
         let tile_data = &vram[0x10000..];
         let tile_stride: usize = if one_dimensional {
@@ -153,18 +185,35 @@ pub fn render_objects(registers: &LCDRegisters, objects: &[u16], vram: &VRAM, oa
 
             for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize) {
                 // converting them to u32s and comparing like this will also handle the 'less than 0' case
-                if (obj_x.integer() as u32) < obj_width as u32 && (obj_y.integer() as u32) < obj_height as u32 {
-                    let obj_x_i = apply_mosaic_cond(attrs.0.mosaic(), obj_x.integer() as u16, mosaic_x) as usize;
-                    let obj_y_i = apply_mosaic_cond(attrs.0.mosaic(), obj_y.integer() as u16, mosaic_y) as usize;
+                if (obj_x.integer() as u32) < obj_width as u32
+                    && (obj_y.integer() as u32) < obj_height as u32
+                {
+                    let obj_x_i =
+                        apply_mosaic_cond(attrs.0.mosaic(), obj_x.integer() as u16, mosaic_x)
+                            as usize;
+                    let obj_y_i =
+                        apply_mosaic_cond(attrs.0.mosaic(), obj_y.integer() as u16, mosaic_y)
+                            as usize;
 
-                    let tile = (((attrs.2.first_tile_index() / 2) as usize) + ((obj_y_i / 8) * tile_stride) + (obj_x_i/8)) & 0x3FF;
+                    let tile = (((attrs.2.first_tile_index() / 2) as usize)
+                        + ((obj_y_i / 8) * tile_stride)
+                        + (obj_x_i / 8))
+                        & 0x3FF;
                     if !bitmap_mode || tile >= 512 {
-                        let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_y_i % 8) * BYTES_PER_LINE) + (obj_x_i % 8);
+                        let pixel_offset = (tile * BYTES_PER_TILE)
+                            + ((obj_y_i % 8) * BYTES_PER_LINE)
+                            + (obj_x_i % 8);
                         let palette_entry = tile_data[pixel_offset as usize] as usize;
 
                         if palette_entry != 0 {
                             let color = pal.obj256(palette_entry);
-                            pixels.push_pixel(obj_screen_draw, color, first_target, second_target, semi_transparent);
+                            pixels.push_pixel(
+                                obj_screen_draw,
+                                color,
+                                first_target,
+                                second_target,
+                                semi_transparent,
+                            );
                         }
                     }
                 }
@@ -178,17 +227,36 @@ pub fn render_objects(registers: &LCDRegisters, objects: &[u16], vram: &VRAM, oa
 
             for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize) {
                 // converting them to u32s and comparing like this will also handle the 'less than 0' case
-                if (obj_x.integer() as u32) < obj_width as u32 && (obj_y.integer() as u32) < obj_height as u32 {
-                    let obj_x_i = apply_mosaic_cond(attrs.0.mosaic(), obj_x.integer() as u16, mosaic_x) as usize;
-                    let obj_y_i = apply_mosaic_cond(attrs.0.mosaic(), obj_y.integer() as u16, mosaic_y) as usize;
+                if (obj_x.integer() as u32) < obj_width as u32
+                    && (obj_y.integer() as u32) < obj_height as u32
+                {
+                    let obj_x_i =
+                        apply_mosaic_cond(attrs.0.mosaic(), obj_x.integer() as u16, mosaic_x)
+                            as usize;
+                    let obj_y_i =
+                        apply_mosaic_cond(attrs.0.mosaic(), obj_y.integer() as u16, mosaic_y)
+                            as usize;
 
-                    let tile = ((attrs.2.first_tile_index() as usize) + ((obj_y_i / 8) * tile_stride) + (obj_x_i/8)) & 0x3FF;
-                    let pixel_offset = (tile * BYTES_PER_TILE) + ((obj_y_i % 8) * BYTES_PER_LINE) + (obj_x_i % 8)/2;
-                    let palette_entry = (tile_data[pixel_offset as usize] >> ((obj_x_i % 2) << 2)) & 0xF;
+                    let tile = ((attrs.2.first_tile_index() as usize)
+                        + ((obj_y_i / 8) * tile_stride)
+                        + (obj_x_i / 8))
+                        & 0x3FF;
+                    let pixel_offset = (tile * BYTES_PER_TILE)
+                        + ((obj_y_i % 8) * BYTES_PER_LINE)
+                        + (obj_x_i % 8) / 2;
+                    let palette_entry =
+                        (tile_data[pixel_offset as usize] >> ((obj_x_i % 2) << 2)) & 0xF;
 
                     if palette_entry != 0 {
-                        let color = pal.obj16(attrs.2.palette_number() as usize, palette_entry as usize);
-                        pixels.push_pixel(obj_screen_draw, color, first_target, second_target, semi_transparent);
+                        let color =
+                            pal.obj16(attrs.2.palette_number() as usize, palette_entry as usize);
+                        pixels.push_pixel(
+                            obj_screen_draw,
+                            color,
+                            first_target,
+                            second_target,
+                            semi_transparent,
+                        );
                     }
                 }
 
@@ -235,18 +303,18 @@ pub enum ObjShape {
 impl ObjShape {
     pub fn size(self, size_select: u16) -> (u16, u16) {
         match (self, size_select) {
-            (ObjShape::Square, 0) => ( 8,  8),
+            (ObjShape::Square, 0) => (8, 8),
             (ObjShape::Square, 1) => (16, 16),
             (ObjShape::Square, 2) => (32, 32),
             (ObjShape::Square, 3) => (64, 64),
 
-            (ObjShape::Horizontal, 0) => (16,  8),
-            (ObjShape::Horizontal, 1) => (32,  8),
+            (ObjShape::Horizontal, 0) => (16, 8),
+            (ObjShape::Horizontal, 1) => (32, 8),
             (ObjShape::Horizontal, 2) => (32, 16),
             (ObjShape::Horizontal, 3) => (64, 32),
 
-            (ObjShape::Vertical, 0) => ( 8, 16),
-            (ObjShape::Vertical, 1) => ( 8, 32),
+            (ObjShape::Vertical, 0) => (8, 16),
+            (ObjShape::Vertical, 1) => (8, 32),
             (ObjShape::Vertical, 2) => (16, 32),
             (ObjShape::Vertical, 3) => (32, 64),
 
@@ -308,41 +376,43 @@ impl crate::util::bitfields::FieldConvert<ObjMode> for u16 {
 }
 
 pub struct ObjectPriority {
-    pub priority_pos:   [(/* offset */ usize, /* length */ usize); 6],
+    pub priority_pos: [(/* offset */ usize, /* length */ usize); 6],
 
     /// Object priority is stored at the upper 8 bits, and obj_index is stored in the lower 8 bits.
     /// So we can compare objects by just comparing the two u16s. Disabled objects are given
     /// priority 5 and placed at the end of the sorted_objects array **UNSORTED**. Objects that are
     /// part of the OBJ Window are given priority 4.
-    pub sorted_objects: [u16;  128],
+    pub sorted_objects: [u16; 128],
 }
 
 impl ObjectPriority {
     pub fn sorted(oam: &OAM) -> ObjectPriority {
         macro_rules! mkobj {
             ($Index:expr, $Priority:expr) => {
-                (($Priority as u16) << 8) | ($Index as u16) 
-            }
+                (($Priority as u16) << 8) | ($Index as u16)
+            };
         }
 
         let mut priority_pos = [(0, 0); 6];
         let mut objects = [0u16; 128];
 
-        let mut enabled_index   = 0; // start inserting enabled objects here
-        let mut disabled_index  = 128; // start inserting disabled objects here
+        let mut enabled_index = 0; // start inserting enabled objects here
+        let mut disabled_index = 128; // start inserting disabled objects here
 
         for obj_index in 0..128 {
             let attr_index = obj_index * 8;
             let attr0_hi = unsafe { *oam.get_unchecked(attr_index + 1) };
 
-            if attr0_hi & 0x1 != 1 && (attr0_hi >> 1) & 0x1 == 1 { // Check Affine and Disabled flag
+            if attr0_hi & 0x1 != 1 && (attr0_hi >> 1) & 0x1 == 1 {
+                // Check Affine and Disabled flag
                 priority_pos[5].1 += 1;
                 disabled_index -= 1;
                 objects[disabled_index] = mkobj!(obj_index, 5);
                 continue;
             }
 
-            if (attr0_hi >> 2) & 0x3 == 2 { // Check OBJ Mode
+            if (attr0_hi >> 2) & 0x3 == 2 {
+                // Check OBJ Mode
                 priority_pos[4].1 += 1;
                 objects[enabled_index] |= mkobj!(obj_index, 4);
                 enabled_index += 1;
@@ -368,9 +438,9 @@ impl ObjectPriority {
         priority_pos[5].0 = disabled_index;
 
         return ObjectPriority {
-            priority_pos:   priority_pos,
+            priority_pos: priority_pos,
             sorted_objects: objects,
-        }
+        };
     }
 
     /// Returns the number of objects with a given priority. Priority 4 is mapped to OBJ window

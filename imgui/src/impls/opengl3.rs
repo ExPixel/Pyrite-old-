@@ -1,24 +1,24 @@
 use crate::api as imgui;
-use crate::sys::{ImDrawData, ImDrawVert, ImDrawList, ImVec2, ImDrawIdx, ImDrawCmd};
+use crate::sys::{ImDrawCmd, ImDrawData, ImDrawIdx, ImDrawList, ImDrawVert, ImVec2};
 use gl;
-use gl::types::{GLint, GLuint, GLenum, GLboolean, GLsizei};
-use std::mem::{transmute};
+use gl::types::{GLboolean, GLenum, GLint, GLsizei, GLuint};
+use std::mem::transmute;
 use std::ptr;
 
 macro_rules! offset_of {
-    ($Struct:path, $field:ident) => ({
+    ($Struct:path, $field:ident) => {{
         let u = std::mem::MaybeUninit::<$Struct>::uninit();
         let uptr = u.as_ptr();
         let field = &((*uptr).$field);
         let o = (field as *const _ as usize).wrapping_sub(uptr as usize);
         o
-    })
+    }};
 }
 
 macro_rules! size_of {
-    ($Type:path) => (
+    ($Type:path) => {
         std::mem::size_of::<$Type>()
-    )
+    };
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -70,7 +70,6 @@ static mut g: OpenGLGlobals = OpenGLGlobals {
     single_context_mode: false,
 };
 
-
 pub fn init(glsl_version: Option<GLSLVersion>, single_context_mode: bool) -> bool {
     let mut io = imgui::get_io().unwrap();
     io.BackendRendererName = str!("imgui::impls::opengl3").as_ptr();
@@ -115,14 +114,17 @@ unsafe fn render_draw_data_unsafe(draw_data: Option<&mut ImDrawData>) {
 
     // Backup GL state
     let mut last_active_texture: GLenum = 0;
-    gl::GetIntegerv(gl::ACTIVE_TEXTURE, transmute::<_, *mut GLint>(&mut last_active_texture));
+    gl::GetIntegerv(
+        gl::ACTIVE_TEXTURE,
+        transmute::<_, *mut GLint>(&mut last_active_texture),
+    );
     gl::ActiveTexture(gl::TEXTURE0);
     let mut last_program: GLint = 0;
     gl::GetIntegerv(gl::CURRENT_PROGRAM, &mut last_program);
     let mut last_texture: GLint = 0;
     gl::GetIntegerv(gl::TEXTURE_BINDING_2D, &mut last_texture);
 
-    let mut last_sampler: GLint = 0 ;
+    let mut last_sampler: GLint = 0;
     if GL_SAMPLER_BINDING {
         gl::GetIntegerv(gl::SAMPLER_BINDING, &mut last_sampler);
     }
@@ -142,17 +144,35 @@ unsafe fn render_draw_data_unsafe(draw_data: Option<&mut ImDrawData>) {
     let mut last_scissor_box: [GLint; 4] = [0; 4];
     gl::GetIntegerv(gl::SCISSOR_BOX, &mut last_scissor_box[0]);
     let mut last_blend_src_rgb: GLenum = 0;
-    gl::GetIntegerv(gl::BLEND_SRC_RGB, transmute::<_, *mut GLint>(&mut last_blend_src_rgb));
+    gl::GetIntegerv(
+        gl::BLEND_SRC_RGB,
+        transmute::<_, *mut GLint>(&mut last_blend_src_rgb),
+    );
     let mut last_blend_dst_rgb: GLenum = 0;
-    gl::GetIntegerv(gl::BLEND_DST_RGB, transmute::<_, *mut GLint>(&mut last_blend_dst_rgb));
+    gl::GetIntegerv(
+        gl::BLEND_DST_RGB,
+        transmute::<_, *mut GLint>(&mut last_blend_dst_rgb),
+    );
     let mut last_blend_src_alpha: GLenum = 0;
-    gl::GetIntegerv(gl::BLEND_SRC_ALPHA, transmute::<_, *mut GLint>(&mut last_blend_src_alpha));
+    gl::GetIntegerv(
+        gl::BLEND_SRC_ALPHA,
+        transmute::<_, *mut GLint>(&mut last_blend_src_alpha),
+    );
     let mut last_blend_dst_alpha: GLenum = 0;
-    gl::GetIntegerv(gl::BLEND_DST_ALPHA, transmute::<_, *mut GLint>(&mut last_blend_dst_alpha));
+    gl::GetIntegerv(
+        gl::BLEND_DST_ALPHA,
+        transmute::<_, *mut GLint>(&mut last_blend_dst_alpha),
+    );
     let mut last_blend_equation_rgb: GLenum = 0;
-    gl::GetIntegerv(gl::BLEND_EQUATION_RGB, transmute::<_, *mut GLint>(&mut last_blend_equation_rgb));
+    gl::GetIntegerv(
+        gl::BLEND_EQUATION_RGB,
+        transmute::<_, *mut GLint>(&mut last_blend_equation_rgb),
+    );
     let mut last_blend_equation_alpha: GLenum = 0;
-    gl::GetIntegerv(gl::BLEND_EQUATION_ALPHA, transmute::<_, *mut GLint>(&mut last_blend_equation_alpha));
+    gl::GetIntegerv(
+        gl::BLEND_EQUATION_ALPHA,
+        transmute::<_, *mut GLint>(&mut last_blend_equation_alpha),
+    );
 
     let last_enable_blend: GLboolean = gl::IsEnabled(gl::BLEND);
     let last_enable_cull_face: GLboolean = gl::IsEnabled(gl::CULL_FACE);
@@ -162,7 +182,10 @@ unsafe fn render_draw_data_unsafe(draw_data: Option<&mut ImDrawData>) {
     let mut clip_origin_lower_left = true;
     if GL_CLIP_ORIGIN {
         let mut last_clip_origin: GLenum = 0;
-        gl::GetIntegerv(gl::CLIP_ORIGIN, transmute::<_, *mut GLint>(&mut last_clip_origin));
+        gl::GetIntegerv(
+            gl::CLIP_ORIGIN,
+            transmute::<_, *mut GLint>(&mut last_clip_origin),
+        );
         if last_clip_origin == gl::UPPER_LEFT {
             clip_origin_lower_left = false;
         }
@@ -188,14 +211,19 @@ unsafe fn render_draw_data_unsafe(draw_data: Option<&mut ImDrawData>) {
     let b = draw_data.DisplayPos.y + draw_data.DisplaySize.y;
 
     let ortho_projection: [[f32; 4]; 4] = [
-        [ 2.0/(r-l),    0.0,          0.0,   0.0 ],
-        [ 0.0,          2.0/(t-b),    0.0,   0.0 ],
-        [ 0.0,          0.0,         -1.0,   0.0 ],
-        [ (r+l)/(l-r),  (t+b)/(b-t),  0.0,   1.0 ]
+        [2.0 / (r - l), 0.0, 0.0, 0.0],
+        [0.0, 2.0 / (t - b), 0.0, 0.0],
+        [0.0, 0.0, -1.0, 0.0],
+        [(r + l) / (l - r), (t + b) / (b - t), 0.0, 1.0],
     ];
     gl::UseProgram(g.shader_handle);
     gl::Uniform1i(g.attrib_location_tex, 0);
-    gl::UniformMatrix4fv(g.attrib_location_proj_mtx, 1, gl::FALSE, &ortho_projection[0][0]);
+    gl::UniformMatrix4fv(
+        g.attrib_location_proj_mtx,
+        1,
+        gl::FALSE,
+        &ortho_projection[0][0],
+    );
     if GL_SAMPLER_BINDING {
         gl::BindSampler(0, 0); // We use combined texture/sampler state. Applications using GL 3.3 may set that otherwise.
     }
@@ -212,9 +240,30 @@ unsafe fn render_draw_data_unsafe(draw_data: Option<&mut ImDrawData>) {
     gl::EnableVertexAttribArray(g.attrib_location_position as _);
     gl::EnableVertexAttribArray(g.attrib_location_uv as _);
     gl::EnableVertexAttribArray(g.attrib_location_color as _);
-    gl::VertexAttribPointer(g.attrib_location_position as _, 2, gl::FLOAT, gl::FALSE, size_of!(ImDrawVert) as _, transmute(offset_of!(ImDrawVert, pos)));
-    gl::VertexAttribPointer(g.attrib_location_uv as _, 2, gl::FLOAT, gl::FALSE, size_of!(ImDrawVert) as _, transmute(offset_of!(ImDrawVert, uv)));
-    gl::VertexAttribPointer(g.attrib_location_color as _, 4, gl::UNSIGNED_BYTE, gl::TRUE, size_of!(ImDrawVert) as _, transmute(offset_of!(ImDrawVert, col)));
+    gl::VertexAttribPointer(
+        g.attrib_location_position as _,
+        2,
+        gl::FLOAT,
+        gl::FALSE,
+        size_of!(ImDrawVert) as _,
+        transmute(offset_of!(ImDrawVert, pos)),
+    );
+    gl::VertexAttribPointer(
+        g.attrib_location_uv as _,
+        2,
+        gl::FLOAT,
+        gl::FALSE,
+        size_of!(ImDrawVert) as _,
+        transmute(offset_of!(ImDrawVert, uv)),
+    );
+    gl::VertexAttribPointer(
+        g.attrib_location_color as _,
+        4,
+        gl::UNSIGNED_BYTE,
+        gl::TRUE,
+        size_of!(ImDrawVert) as _,
+        transmute(offset_of!(ImDrawVert, col)),
+    );
 
     // Draw
     let pos: ImVec2 = draw_data.DisplayPos;
@@ -224,33 +273,67 @@ unsafe fn render_draw_data_unsafe(draw_data: Option<&mut ImDrawData>) {
 
         gl::BindVertexArray(vao_handle); // <-- DO NOT REMOVE (not having this causes a rendering bug that took me days to solve)
         gl::BindBuffer(gl::ARRAY_BUFFER, g.vbo_handle);
-        gl::BufferData(gl::ARRAY_BUFFER, (*cmd_list).VtxBuffer.Size as isize * size_of!(ImDrawVert) as isize, transmute((*cmd_list).VtxBuffer.Data), gl::STREAM_DRAW);
+        gl::BufferData(
+            gl::ARRAY_BUFFER,
+            (*cmd_list).VtxBuffer.Size as isize * size_of!(ImDrawVert) as isize,
+            transmute((*cmd_list).VtxBuffer.Data),
+            gl::STREAM_DRAW,
+        );
 
         gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, g.elements_handle);
-        gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, (*cmd_list).IdxBuffer.Size as isize * size_of!(ImDrawIdx) as isize, transmute((*cmd_list).IdxBuffer.Data), gl::STREAM_DRAW);
+        gl::BufferData(
+            gl::ELEMENT_ARRAY_BUFFER,
+            (*cmd_list).IdxBuffer.Size as isize * size_of!(ImDrawIdx) as isize,
+            transmute((*cmd_list).IdxBuffer.Data),
+            gl::STREAM_DRAW,
+        );
 
         for cmd_i in 0..(*cmd_list).CmdBuffer.Size {
             let pcmd: *const ImDrawCmd = (*cmd_list).CmdBuffer.Data.offset(cmd_i as isize);
             if let Some(cb) = (*pcmd).UserCallback {
                 cb(cmd_list, pcmd);
             } else {
-                let clip_rect = imgui::vec4((*pcmd).ClipRect.x - pos.x, (*pcmd).ClipRect.y - pos.y, (*pcmd).ClipRect.z - pos.x, (*pcmd).ClipRect.w - pos.y);
-                if clip_rect.x < fb_width as f32 && clip_rect.y < fb_height as f32 && clip_rect.z >= 0.0 && clip_rect.w >= 0.0 {
+                let clip_rect = imgui::vec4(
+                    (*pcmd).ClipRect.x - pos.x,
+                    (*pcmd).ClipRect.y - pos.y,
+                    (*pcmd).ClipRect.z - pos.x,
+                    (*pcmd).ClipRect.w - pos.y,
+                );
+                if clip_rect.x < fb_width as f32
+                    && clip_rect.y < fb_height as f32
+                    && clip_rect.z >= 0.0
+                    && clip_rect.w >= 0.0
+                {
                     // Apply scissor/clipping rectangle
                     if clip_origin_lower_left {
-                        gl::Scissor(clip_rect.x as GLint, (fb_height as f32 - clip_rect.w) as GLint, (clip_rect.z - clip_rect.x) as GLsizei, (clip_rect.w - clip_rect.y) as GLsizei);
+                        gl::Scissor(
+                            clip_rect.x as GLint,
+                            (fb_height as f32 - clip_rect.w) as GLint,
+                            (clip_rect.z - clip_rect.x) as GLsizei,
+                            (clip_rect.w - clip_rect.y) as GLsizei,
+                        );
                     } else {
-                        gl::Scissor(clip_rect.x as GLint, clip_rect.y as GLint, clip_rect.z as GLsizei, clip_rect.w as GLsizei); // Support for GL 4.5's glClipControl(GL_UPPER_LEFT)
+                        gl::Scissor(
+                            clip_rect.x as GLint,
+                            clip_rect.y as GLint,
+                            clip_rect.z as GLsizei,
+                            clip_rect.w as GLsizei,
+                        ); // Support for GL 4.5's glClipControl(GL_UPPER_LEFT)
                     }
 
                     // Bind texture, Draw
-                    let _type = if size_of!(ImDrawIdx) == 2  {
+                    let _type = if size_of!(ImDrawIdx) == 2 {
                         gl::UNSIGNED_SHORT
                     } else {
                         gl::UNSIGNED_INT
                     };
                     gl::BindTexture(gl::TEXTURE_2D, (*pcmd).TextureId as GLuint);
-                    gl::DrawElements(gl::TRIANGLES, (*pcmd).ElemCount as GLint, _type, transmute(idx_buffer_offset));
+                    gl::DrawElements(
+                        gl::TRIANGLES,
+                        (*pcmd).ElemCount as GLint,
+                        _type,
+                        transmute(idx_buffer_offset),
+                    );
                 }
             }
             idx_buffer_offset = idx_buffer_offset.offset((*pcmd).ElemCount as isize);
@@ -271,18 +354,50 @@ unsafe fn render_draw_data_unsafe(draw_data: Option<&mut ImDrawData>) {
     gl::BindVertexArray(last_vertex_array as GLuint);
     gl::BindBuffer(gl::ARRAY_BUFFER, last_array_buffer as GLuint);
     gl::BlendEquationSeparate(last_blend_equation_rgb, last_blend_equation_alpha);
-    gl::BlendFuncSeparate(last_blend_src_rgb, last_blend_dst_rgb, last_blend_src_alpha, last_blend_dst_alpha);
-    if last_enable_blend != 0 { gl::Enable(gl::BLEND); } else { gl::Disable(gl::BLEND); }
-    if last_enable_cull_face != 0 { gl::Enable(gl::CULL_FACE); } { gl::Disable(gl::CULL_FACE); }
-    if last_enable_depth_test != 0 { gl::Enable(gl::DEPTH_TEST); } else { gl::Disable(gl::DEPTH_TEST); }
-    if last_enable_scissor_test != 0 { gl::Enable(gl::SCISSOR_TEST); } else { gl::Disable(gl::SCISSOR_TEST); }
+    gl::BlendFuncSeparate(
+        last_blend_src_rgb,
+        last_blend_dst_rgb,
+        last_blend_src_alpha,
+        last_blend_dst_alpha,
+    );
+    if last_enable_blend != 0 {
+        gl::Enable(gl::BLEND);
+    } else {
+        gl::Disable(gl::BLEND);
+    }
+    if last_enable_cull_face != 0 {
+        gl::Enable(gl::CULL_FACE);
+    }
+    {
+        gl::Disable(gl::CULL_FACE);
+    }
+    if last_enable_depth_test != 0 {
+        gl::Enable(gl::DEPTH_TEST);
+    } else {
+        gl::Disable(gl::DEPTH_TEST);
+    }
+    if last_enable_scissor_test != 0 {
+        gl::Enable(gl::SCISSOR_TEST);
+    } else {
+        gl::Disable(gl::SCISSOR_TEST);
+    }
 
     if GL_POLYGON_MODE {
         gl::PolygonMode(gl::FRONT_AND_BACK, last_polygon_mode[0] as GLenum);
     }
 
-    gl::Viewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
-    gl::Scissor(last_scissor_box[0], last_scissor_box[1], last_scissor_box[2], last_scissor_box[3]);
+    gl::Viewport(
+        last_viewport[0],
+        last_viewport[1],
+        last_viewport[2],
+        last_viewport[3],
+    );
+    gl::Scissor(
+        last_scissor_box[0],
+        last_scissor_box[1],
+        last_scissor_box[2],
+        last_scissor_box[3],
+    );
 }
 
 unsafe fn create_fonts_texture() -> bool {
@@ -301,7 +416,17 @@ unsafe fn create_fonts_texture() -> bool {
     gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as _);
     gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as _);
     gl::PixelStorei(gl::UNPACK_ROW_LENGTH, 0);
-    gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA as _, width, height, 0, gl::RGBA, gl::UNSIGNED_BYTE, transmute(pixels));
+    gl::TexImage2D(
+        gl::TEXTURE_2D,
+        0,
+        gl::RGBA as _,
+        width,
+        height,
+        0,
+        gl::RGBA,
+        gl::UNSIGNED_BYTE,
+        transmute(pixels),
+    );
 
     // Store our identifier
     (*io.Fonts).TexID = transmute(g.font_texture as usize);
@@ -326,12 +451,20 @@ unsafe fn check_shader(handle: GLuint, desc: &str) -> bool {
     gl::GetShaderiv(handle, gl::COMPILE_STATUS, &mut status);
     gl::GetShaderiv(handle, gl::INFO_LOG_LENGTH, &mut log_length);
     if status as GLboolean == gl::FALSE {
-        eprintln!("ERROR imgui::impls::opengl3::create_device_objects: failed to compile {}!", desc);
+        eprintln!(
+            "ERROR imgui::impls::opengl3::create_device_objects: failed to compile {}!",
+            desc
+        );
 
         if log_length > 0 {
             let mut buf: Vec<u8> = Vec::with_capacity(log_length as usize);
             buf.resize(log_length as usize, 0);
-            gl::GetShaderInfoLog(handle, log_length, ptr::null_mut(), transmute(buf.as_mut_ptr()));
+            gl::GetShaderInfoLog(
+                handle,
+                log_length,
+                ptr::null_mut(),
+                transmute(buf.as_mut_ptr()),
+            );
             let s = String::from_utf8_unchecked(buf);
             eprintln!("shader error: {}", s);
         }
@@ -345,12 +478,20 @@ unsafe fn check_program(handle: GLuint, desc: &str) -> bool {
     gl::GetProgramiv(handle, gl::LINK_STATUS, &mut status);
     gl::GetProgramiv(handle, gl::INFO_LOG_LENGTH, &mut log_length);
     if status as GLboolean == gl::FALSE {
-        eprintln!("ERROR imgui::impls::opengl3::create_device_objects: failed to link {}!", desc);
-        
+        eprintln!(
+            "ERROR imgui::impls::opengl3::create_device_objects: failed to link {}!",
+            desc
+        );
+
         if log_length > 0 {
             let mut buf: Vec<u8> = Vec::with_capacity(log_length as usize);
             buf.resize(log_length as usize, 0);
-            gl::GetProgramInfoLog(handle, log_length, ptr::null_mut(), transmute(buf.as_mut_ptr()));
+            gl::GetProgramInfoLog(
+                handle,
+                log_length,
+                ptr::null_mut(),
+                transmute(buf.as_mut_ptr()),
+            );
             let s = String::from_utf8_unchecked(buf);
             eprintln!("shader error: {}", s);
         }
@@ -376,27 +517,27 @@ pub unsafe fn create_device_objects() -> bool {
             vertex_shader_nv = VERTEX_SHADER_GLSL_120;
             fragment_shader_nv = FRAGMENT_SHADER_GLSL_120;
             version_number = 120;
-        },
+        }
         GLSL_VERSION_130 => {
             vertex_shader_nv = VERTEX_SHADER_GLSL_130;
             fragment_shader_nv = FRAGMENT_SHADER_GLSL_130;
             version_number = 130;
-        },
+        }
         GLSL_VERSION_300_ES => {
             vertex_shader_nv = VERTEX_SHADER_GLSL_300_ES;
             fragment_shader_nv = FRAGMENT_SHADER_GLSL_300_ES;
             version_number = 300;
-        },
+        }
         GLSL_VERSION_410_CORE => {
             vertex_shader_nv = VERTEX_SHADER_GLSL_410_CORE;
             fragment_shader_nv = FRAGMENT_SHADER_GLSL_410_CORE;
             version_number = 410;
-        },
+        }
         GLSLVersion(v) if v < 130 && v > 0 => {
             vertex_shader_nv = VERTEX_SHADER_GLSL_120;
             fragment_shader_nv = FRAGMENT_SHADER_GLSL_120;
             version_number = v;
-        },
+        }
         _ => {
             vertex_shader_nv = VERTEX_SHADER_GLSL_130;
             fragment_shader_nv = FRAGMENT_SHADER_GLSL_130;
@@ -405,16 +546,36 @@ pub unsafe fn create_device_objects() -> bool {
     }
 
     // Create shaders
-    let vertex_shader = format!("#version {}\n{}\0", version_number, std::str::from_utf8_unchecked(vertex_shader_nv)).into_bytes();
-    let fragment_shader = format!("#version {}\n{}\0", version_number, std::str::from_utf8_unchecked(fragment_shader_nv)).into_bytes();
+    let vertex_shader = format!(
+        "#version {}\n{}\0",
+        version_number,
+        std::str::from_utf8_unchecked(vertex_shader_nv)
+    )
+    .into_bytes();
+    let fragment_shader = format!(
+        "#version {}\n{}\0",
+        version_number,
+        std::str::from_utf8_unchecked(fragment_shader_nv)
+    )
+    .into_bytes();
 
     g.vert_handle = gl::CreateShader(gl::VERTEX_SHADER);
-    gl::ShaderSource(g.vert_handle, 1, transmute::<*const *const u8, _>(&vertex_shader.as_ptr()), ptr::null_mut());
+    gl::ShaderSource(
+        g.vert_handle,
+        1,
+        transmute::<*const *const u8, _>(&vertex_shader.as_ptr()),
+        ptr::null_mut(),
+    );
     gl::CompileShader(g.vert_handle);
     check_shader(g.vert_handle, "vertex shader");
 
     g.frag_handle = gl::CreateShader(gl::FRAGMENT_SHADER);
-    gl::ShaderSource(g.frag_handle, 1, transmute::<*const *const u8, _>(&fragment_shader.as_ptr()), ptr::null_mut());
+    gl::ShaderSource(
+        g.frag_handle,
+        1,
+        transmute::<*const *const u8, _>(&fragment_shader.as_ptr()),
+        ptr::null_mut(),
+    );
     gl::CompileShader(g.frag_handle);
     check_shader(g.frag_handle, "fragment shader");
 
@@ -467,7 +628,7 @@ unsafe fn destroy_device_objects() {
     if g.shader_handle != 0 && g.vert_handle != 0 {
         gl::DetachShader(g.shader_handle, g.vert_handle);
     }
-    if g.vert_handle != 0{
+    if g.vert_handle != 0 {
         gl::DeleteShader(g.vert_handle);
         g.vert_handle = 0;
     }
@@ -480,13 +641,12 @@ unsafe fn destroy_device_objects() {
         g.frag_handle = 0;
     }
 
-    if g.shader_handle != 0{
+    if g.shader_handle != 0 {
         gl::DeleteProgram(g.shader_handle);
     }
 
     destroy_fonts_texture();
 }
-
 
 static VERTEX_SHADER_GLSL_120: &[u8] = b"\
 uniform mat4 ProjMtx;

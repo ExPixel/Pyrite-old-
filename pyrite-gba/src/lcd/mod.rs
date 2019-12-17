@@ -1,20 +1,19 @@
-pub mod palette;
-pub mod obj;
 pub mod bitmap;
+pub mod obj;
+pub mod palette;
 pub mod tile;
 
 use self::palette::GbaPalette;
-use crate::util::fixedpoint::{ FixedPoint16, FixedPoint32 };
-use crate::hardware::{ OAM, VRAM };
+use crate::hardware::{OAM, VRAM};
+use crate::util::fixedpoint::{FixedPoint16, FixedPoint32};
 use crate::GbaVideoOutput;
 use pyrite_common::bits;
 
 pub const OBJ_LAYER: u16 = 4;
-pub const  BD_LAYER: u16 = 5;
+pub const BD_LAYER: u16 = 5;
 
 pub const HDRAW_CYCLES: u32 = 960;
 pub const HBLANK_CYCLES: u32 = 272;
-
 
 #[inline(always)]
 const fn set_halfword_of_word(word: u32, value: u16, off: u32) -> u32 {
@@ -23,26 +22,33 @@ const fn set_halfword_of_word(word: u32, value: u16, off: u32) -> u32 {
 }
 
 pub struct GbaLCD {
-    pub(crate) registers:   LCDRegisters,
-    pub(crate) pixels:      LCDLineBuffer,
-    hblank:                 bool,
-    next_state_cycles:      u32,
-    frame_ready:            bool,
+    pub(crate) registers: LCDRegisters,
+    pub(crate) pixels: LCDLineBuffer,
+    hblank: bool,
+    next_state_cycles: u32,
+    frame_ready: bool,
 }
 
 impl GbaLCD {
     pub fn new() -> GbaLCD {
         GbaLCD {
-            registers:          LCDRegisters::default(),
-            hblank:             false,
-            next_state_cycles:  HDRAW_CYCLES,
-            pixels:             LCDLineBuffer::new(),
-            frame_ready:        false,
+            registers: LCDRegisters::default(),
+            hblank: false,
+            next_state_cycles: HDRAW_CYCLES,
+            pixels: LCDLineBuffer::new(),
+            frame_ready: false,
         }
     }
 
     #[inline]
-    pub fn step(&mut self, cycles: u32, vram: &VRAM, oam: &OAM, palette: &GbaPalette, video: &mut dyn GbaVideoOutput) {
+    pub fn step(
+        &mut self,
+        cycles: u32,
+        vram: &VRAM,
+        oam: &OAM,
+        palette: &GbaPalette,
+        video: &mut dyn GbaVideoOutput,
+    ) {
         let original_cycles = self.next_state_cycles;
         self.next_state_cycles = self.next_state_cycles.saturating_sub(cycles);
         if self.next_state_cycles == 0 {
@@ -65,22 +71,34 @@ impl GbaLCD {
             160 => self.registers.dispstat.set_vblank(true),
             227 => self.registers.dispstat.set_vblank(false),
             228 => self.registers.line = 0,
-            _ => { /* NOP */ },
+            _ => { /* NOP */ }
         }
 
         let vcounter_match = self.registers.dispstat.vcounter_setting() == self.registers.line;
         self.registers.dispstat.set_vcounter(vcounter_match);
     }
 
-    fn hblank(&mut self, vram: &VRAM, oam: &OAM, palette: &GbaPalette, video: &mut dyn GbaVideoOutput) {
+    fn hblank(
+        &mut self,
+        vram: &VRAM,
+        oam: &OAM,
+        palette: &GbaPalette,
+        video: &mut dyn GbaVideoOutput,
+    ) {
         self.registers.dispstat.set_hblank(true);
 
         if self.registers.line < 160 {
-            if self.registers.line == 0 {  video.pre_frame(); }
+            if self.registers.line == 0 {
+                video.pre_frame();
+            }
             self.draw_line(vram, oam, palette);
-            self.pixels.mix(self.registers.effects.effect(), &self.registers);
+            self.pixels
+                .mix(self.registers.effects.effect(), &self.registers);
             video.display_line(self.registers.line as u32, &self.pixels.mixed);
-            if self.registers.line == 159 { video.post_frame(); self.frame_ready = true; }
+            if self.registers.line == 159 {
+                video.post_frame();
+                self.frame_ready = true;
+            }
         }
     }
 
@@ -100,7 +118,7 @@ impl GbaLCD {
         }
 
         let mode = self.registers.dispcnt.mode();
-        
+
         match mode {
             0 => tile::render_mode0(&self.registers, vram, oam, palette, &mut self.pixels),
             1 => tile::render_mode1(&self.registers, vram, oam, palette, &mut self.pixels),
@@ -114,29 +132,29 @@ impl GbaLCD {
 }
 
 pub struct LCDLineBuffer {
-    mixed:          [u16; 240],
-    unmixed:        [u32; 240],
-    obj_window:     LCDPixelBits,
-    obj_semitrans:  LCDPixelBits,
+    mixed: [u16; 240],
+    unmixed: [u32; 240],
+    obj_window: LCDPixelBits,
+    obj_semitrans: LCDPixelBits,
 
-    top_layer_first_target:  LCDPixelBits,
+    top_layer_first_target: LCDPixelBits,
     top_layer_second_target: LCDPixelBits,
     bot_layer_second_target: LCDPixelBits,
 
     /// Cycles remaining for drawing objects.
-    pub(crate) obj_cycles:      u16,
+    pub(crate) obj_cycles: u16,
 }
 
 impl LCDLineBuffer {
     pub const fn new() -> LCDLineBuffer {
         LCDLineBuffer {
-            mixed:          [0xFFFF; 240],
-            unmixed:        [0x0000; 240],
-            obj_window:     LCDPixelBits::new(),
-            obj_semitrans:  LCDPixelBits::new(),
-            obj_cycles:     1210,
+            mixed: [0xFFFF; 240],
+            unmixed: [0x0000; 240],
+            obj_window: LCDPixelBits::new(),
+            obj_semitrans: LCDPixelBits::new(),
+            obj_cycles: 1210,
 
-            top_layer_first_target:  LCDPixelBits::new(),
+            top_layer_first_target: LCDPixelBits::new(),
             top_layer_second_target: LCDPixelBits::new(),
             bot_layer_second_target: LCDPixelBits::new(),
         }
@@ -159,7 +177,14 @@ impl LCDLineBuffer {
     }
 
     #[inline]
-    pub fn push_pixel(&mut self, index: usize, color: u16, first_target: bool, second_target: bool, semi_trans: bool) {
+    pub fn push_pixel(
+        &mut self,
+        index: usize,
+        color: u16,
+        first_target: bool,
+        second_target: bool,
+        semi_trans: bool,
+    ) {
         if self.top_layer_second_target.get(index) {
             self.unmixed[index] = (self.unmixed[index] << 16) | (color as u32);
             self.bot_layer_second_target.set(index);
@@ -170,26 +195,31 @@ impl LCDLineBuffer {
             self.bot_layer_second_target.clear(index);
         }
 
-        self.top_layer_first_target.put(index, first_target | semi_trans);
+        self.top_layer_first_target
+            .put(index, first_target | semi_trans);
         self.top_layer_second_target.put(index, second_target);
         self.obj_semitrans.put(index, semi_trans);
     }
 
     pub fn mix(&mut self, effect: SpecialEffect, registers: &LCDRegisters) {
-        let no_blending = effect == SpecialEffect::None ||
-            (effect == SpecialEffect::AlphaBlending && self.bot_layer_second_target.is_all_zeroes()) ||
-            self.top_layer_first_target.is_all_zeroes();
+        let no_blending = effect == SpecialEffect::None
+            || (effect == SpecialEffect::AlphaBlending
+                && self.bot_layer_second_target.is_all_zeroes())
+            || self.top_layer_first_target.is_all_zeroes();
 
         if no_blending {
             // if we're not blending be can just copy the top most pixel into the mixed line
             // buffer.
-            self.unmixed.iter().zip(self.mixed.iter_mut()).for_each(|(&s, d)| {
-                *d = s as u16;
-            });
+            self.unmixed
+                .iter()
+                .zip(self.mixed.iter_mut())
+                .for_each(|(&s, d)| {
+                    *d = s as u16;
+                });
             return;
         }
 
-        let eva = bits!(registers.alpha, 0,  4); // EVA * 16
+        let eva = bits!(registers.alpha, 0, 4); // EVA * 16
         let evb = bits!(registers.alpha, 8, 12); // EVB * 16
 
         match effect {
@@ -197,7 +227,9 @@ impl LCDLineBuffer {
                 for index in 0..240 {
                     // for alpha blending, we only blend if there is both a first and second
                     // target:
-                    if !self.top_layer_first_target.get(index) || !self.bot_layer_second_target.get(index) {
+                    if !self.top_layer_first_target.get(index)
+                        || !self.bot_layer_second_target.get(index)
+                    {
                         self.mixed[index] = self.unmixed[index] as u16;
                         continue;
                     }
@@ -205,10 +237,11 @@ impl LCDLineBuffer {
                     self.mixed[index] = Self::alpha_blend(
                         self.unmixed[index] as u16,
                         (self.unmixed[index] >> 16) as u16,
-                        eva, evb
+                        eva,
+                        evb,
                     );
                 }
-            },
+            }
 
             SpecialEffect::BrightnessIncrease => {
                 let evy = bits!(registers.brightness, 0, 4); // EVY * 16
@@ -221,12 +254,14 @@ impl LCDLineBuffer {
                         continue;
                     }
 
-                    if self.obj_semitrans.get(index) { // implies first target
+                    if self.obj_semitrans.get(index) {
+                        // implies first target
                         if self.bot_layer_second_target.get(index) {
                             self.mixed[index] = Self::alpha_blend(
                                 self.unmixed[index] as u16,
                                 (self.unmixed[index] >> 16) as u16,
-                                eva, evb
+                                eva,
+                                evb,
                             );
                         } else {
                             self.mixed[index] = self.unmixed[index] as u16;
@@ -236,7 +271,7 @@ impl LCDLineBuffer {
 
                     self.mixed[index] = Self::brightness_increase(self.unmixed[index] as u16, evy);
                 }
-            },
+            }
 
             SpecialEffect::BrightnessDecrease => {
                 let evy = bits!(registers.brightness, 0, 4); // EVY * 16
@@ -249,12 +284,14 @@ impl LCDLineBuffer {
                         continue;
                     }
 
-                    if self.obj_semitrans.get(index) { // implies first target
+                    if self.obj_semitrans.get(index) {
+                        // implies first target
                         if self.bot_layer_second_target.get(index) {
                             self.mixed[index] = Self::alpha_blend(
                                 self.unmixed[index] as u16,
                                 (self.unmixed[index] >> 16) as u16,
-                                eva, evb
+                                eva,
+                                evb,
                             );
                         } else {
                             self.mixed[index] = self.unmixed[index] as u16;
@@ -264,7 +301,7 @@ impl LCDLineBuffer {
 
                     self.mixed[index] = Self::brightness_decrease(self.unmixed[index] as u16, evy);
                 }
-            },
+            }
 
             _ => unreachable!(),
         }
@@ -275,9 +312,9 @@ impl LCDLineBuffer {
         // where I is the separate R, G, and B components
         let (r1, g1, b1) = pixel_components(first);
         let (r2, g2, b2) = pixel_components(second);
-        let r = std::cmp::min(31, (r1*eva)/16 + (r2*evb)/16);
-        let g = std::cmp::min(31, (g1*eva)/16 + (g2*evb)/16);
-        let b = std::cmp::min(31, (b1*eva)/16 + (b2*evb)/16);
+        let r = std::cmp::min(31, (r1 * eva) / 16 + (r2 * evb) / 16);
+        let g = std::cmp::min(31, (g1 * eva) / 16 + (g2 * evb) / 16);
+        let b = std::cmp::min(31, (b1 * eva) / 16 + (b2 * evb) / 16);
         rgb16(r, g, b)
     }
 
@@ -285,9 +322,9 @@ impl LCDLineBuffer {
         // I = I1st + (31-I1st)*EVY
         // where I is the separate R, G, and B components
         let (r1, g1, b1) = pixel_components(color);
-        let r = std::cmp::min(31, r1 + ((31 - r1)*evy)/16);
-        let g = std::cmp::min(31, g1 + ((31 - g1)*evy)/16);
-        let b = std::cmp::min(31, b1 + ((31 - b1)*evy)/16);
+        let r = std::cmp::min(31, r1 + ((31 - r1) * evy) / 16);
+        let g = std::cmp::min(31, g1 + ((31 - g1) * evy) / 16);
+        let b = std::cmp::min(31, b1 + ((31 - b1) * evy) / 16);
         rgb16(r, g, b)
     }
 
@@ -295,9 +332,9 @@ impl LCDLineBuffer {
         // I = I1st - (I1st)*EVY
         // where I is the separate R, G, and B components
         let (r1, g1, b1) = pixel_components(color);
-        let r = std::cmp::min(31, r1 - (r1*evy)/16);
-        let g = std::cmp::min(31, g1 - (g1*evy)/16);
-        let b = std::cmp::min(31, b1 - (b1*evy)/16);
+        let r = std::cmp::min(31, r1 - (r1 * evy) / 16);
+        let g = std::cmp::min(31, g1 - (g1 * evy) / 16);
+        let b = std::cmp::min(31, b1 - (b1 * evy) / 16);
         rgb16(r, g, b)
     }
 }
@@ -309,22 +346,20 @@ pub(crate) struct LCDPixelBits {
 
 impl LCDPixelBits {
     pub const fn new() -> LCDPixelBits {
-        LCDPixelBits {
-             bits: [0, 0, 0, 0],
-        }
+        LCDPixelBits { bits: [0, 0, 0, 0] }
     }
 
     #[inline(always)]
     pub fn set(&mut self, bit: usize) {
-        let index   = bit / 64;
-        let shift   = bit as u64 % 64;
+        let index = bit / 64;
+        let shift = bit as u64 % 64;
         self.bits[index] |= 1 << shift;
     }
 
     #[inline(always)]
     pub fn clear(&mut self, bit: usize) {
-        let index   = bit / 64;
-        let shift   = bit as u64 % 64;
+        let index = bit / 64;
+        let shift = bit as u64 % 64;
         self.bits[index] &= !(1 << shift);
     }
 
@@ -339,15 +374,17 @@ impl LCDPixelBits {
 
     #[inline(always)]
     pub fn get(&self, bit: usize) -> bool {
-        let index   = bit / 64;
-        let shift   = bit as u64 % 64;
+        let index = bit / 64;
+        let shift = bit as u64 % 64;
 
         ((self.bits[index] >> shift) & 1) != 0
     }
 
     #[inline]
     pub fn clear_all(&mut self) {
-        for b in self.bits.iter_mut() { *b = 0 }
+        for b in self.bits.iter_mut() {
+            *b = 0
+        }
     }
 
     #[inline]
@@ -362,33 +399,32 @@ pub struct LCDRegisters {
     pub line: u16,
 
     /// LCD control register.
-    pub dispcnt:    DisplayControl,
+    pub dispcnt: DisplayControl,
 
     /// LCD status register.
-    pub dispstat:   DisplayStatus,
+    pub dispstat: DisplayStatus,
 
     // @TODO implement whatever this is.
-    pub greenswap:  u16,
+    pub greenswap: u16,
 
     // Background Control Registers:
-    pub bg_cnt:     [BGControl; 4],
-    pub bg_ofs:     [BGOffset; 4],
-
+    pub bg_cnt: [BGControl; 4],
+    pub bg_ofs: [BGOffset; 4],
 
     // LCD BG Rotation / Scaling:
-    pub bg2_affine_params:  AffineBGParams,
-    pub bg3_affine_params:  AffineBGParams,
+    pub bg2_affine_params: AffineBGParams,
+    pub bg3_affine_params: AffineBGParams,
 
     // LCD Windows:
-    pub win0_bounds:    WindowBounds,
-    pub win1_bounds:    WindowBounds,
-    pub winin:          WindowControl,
-    pub winout:         WindowControl,
+    pub win0_bounds: WindowBounds,
+    pub win1_bounds: WindowBounds,
+    pub winin: WindowControl,
+    pub winout: WindowControl,
 
     // Special Effects
-    pub mosaic:     Mosaic,
-    pub effects:    EffectsSelection,
-    pub alpha:      u16,
+    pub mosaic: Mosaic,
+    pub effects: EffectsSelection,
+    pub alpha: u16,
     pub brightness: u16,
 }
 
@@ -396,7 +432,8 @@ impl LCDRegisters {
     #[inline(always)]
     pub fn set_dispstat(&mut self, value: u16) {
         pub const DISPSTAT_WRITEABLE: u16 = 0xFFB4;
-        self.dispstat.value = (self.dispstat.value & !DISPSTAT_WRITEABLE) | (value & DISPSTAT_WRITEABLE);
+        self.dispstat.value =
+            (self.dispstat.value & !DISPSTAT_WRITEABLE) | (value & DISPSTAT_WRITEABLE);
     }
 }
 
@@ -439,7 +476,7 @@ bitfields! (BGControl: u16 {
 impl DisplayControl {
     /// Layers 0-3 are BG 0-3 respectively. Layer 4 is OBJ
     pub fn display_layer(&self, layer: u16) -> bool {
-        assert!(layer <= 4,"display layer index must be in range [0, 4]");
+        assert!(layer <= 4, "display layer index must be in range [0, 4]");
         ((self.value >> (layer + 8)) & 1) != 0
     }
 }
@@ -450,16 +487,28 @@ pub struct EffectsSelection {
 }
 
 impl EffectsSelection {
-    #[inline(always)] pub fn value(&self) -> u16 { self.inner }
-    #[inline(always)] pub fn set_value(&mut self, value: u16) { self.inner = value; }
+    #[inline(always)]
+    pub fn value(&self) -> u16 {
+        self.inner
+    }
+    #[inline(always)]
+    pub fn set_value(&mut self, value: u16) {
+        self.inner = value;
+    }
 
     pub fn is_first_target(&self, layer: u16) -> bool {
-        assert!(layer <= 5, "first target layer index must be in range [0, 5]");
+        assert!(
+            layer <= 5,
+            "first target layer index must be in range [0, 5]"
+        );
         return (self.inner & (1 << layer)) != 0;
     }
 
     pub fn is_second_target(&self, layer: u16) -> bool {
-        assert!(layer <= 5, "second target layer index must be in range [0, 5]");
+        assert!(
+            layer <= 5,
+            "second target layer index must be in range [0, 5]"
+        );
         return (self.inner & (1 << (layer + 8))) != 0;
     }
 
@@ -484,15 +533,15 @@ pub enum SpecialEffect {
 
 #[derive(Default, Clone, Copy)]
 pub struct Mosaic {
-    pub  bg: (/* horizontal */ u8, /* vertical */ u8),
+    pub bg: (/* horizontal */ u8, /* vertical */ u8),
     pub obj: (/* horizontal */ u8, /* vertical */ u8),
 }
 
 impl Mosaic {
     pub fn set_value(&mut self, value: u16) {
-         self.bg.0 = (bits!(value,  0,  3) + 1) as u8;
-         self.bg.1 = (bits!(value,  4,  7) + 1) as u8;
-        self.obj.0 = (bits!(value,  8, 11) + 1) as u8;
+        self.bg.0 = (bits!(value, 0, 3) + 1) as u8;
+        self.bg.1 = (bits!(value, 4, 7) + 1) as u8;
+        self.obj.0 = (bits!(value, 8, 11) + 1) as u8;
         self.obj.1 = (bits!(value, 12, 15) + 1) as u8;
     }
 }
@@ -520,13 +569,13 @@ pub struct AffineBGParams {
     pub internal_x: FixedPoint32,
     pub internal_y: FixedPoint32,
 
-    pub a:  FixedPoint32,
-    pub b:  FixedPoint32,
-    pub c:  FixedPoint32,
-    pub d:  FixedPoint32,
+    pub a: FixedPoint32,
+    pub b: FixedPoint32,
+    pub c: FixedPoint32,
+    pub d: FixedPoint32,
 
-    pub x:  u32,
-    pub y:  u32,
+    pub x: u32,
+    pub y: u32,
 }
 
 impl AffineBGParams {
@@ -538,20 +587,28 @@ impl AffineBGParams {
     }
 
     #[inline]
-    pub fn set_a(&mut self, value: u16) { self.a = FixedPoint32::from(FixedPoint16::wrap(value as i16)); }
+    pub fn set_a(&mut self, value: u16) {
+        self.a = FixedPoint32::from(FixedPoint16::wrap(value as i16));
+    }
     #[inline]
-    pub fn set_b(&mut self, value: u16) { self.b = FixedPoint32::from(FixedPoint16::wrap(value as i16)); }
+    pub fn set_b(&mut self, value: u16) {
+        self.b = FixedPoint32::from(FixedPoint16::wrap(value as i16));
+    }
     #[inline]
-    pub fn set_c(&mut self, value: u16) { self.c = FixedPoint32::from(FixedPoint16::wrap(value as i16)); }
+    pub fn set_c(&mut self, value: u16) {
+        self.c = FixedPoint32::from(FixedPoint16::wrap(value as i16));
+    }
     #[inline]
-    pub fn set_d(&mut self, value: u16) { self.d = FixedPoint32::from(FixedPoint16::wrap(value as i16)); }
+    pub fn set_d(&mut self, value: u16) {
+        self.d = FixedPoint32::from(FixedPoint16::wrap(value as i16));
+    }
 }
 
 #[derive(Default)]
 pub struct WindowBounds {
-    pub left:   u16,
-    pub top:    u16,
-    pub right:  u16,
+    pub left: u16,
+    pub top: u16,
+    pub right: u16,
     pub bottom: u16,
 }
 
@@ -588,7 +645,9 @@ impl WindowControl {
     }
 
     #[inline(always)]
-    pub fn value(&self) -> u16 { self.inner }
+    pub fn value(&self) -> u16 {
+        self.inner
+    }
 
     /// Returns true if the given background or OBJ layer (layer #4) is enabled in the given window
     /// (0 or 1). #NOTE That if this window control is for WINOUT, window 0 is the outside window
@@ -607,7 +666,7 @@ impl WindowControl {
 #[inline]
 pub fn apply_mosaic(value: u32, mosaic: u32) -> u32 {
     if mosaic > 1 {
-        return value - (value % mosaic)
+        return value - (value % mosaic);
     } else {
         return value;
     }
@@ -616,7 +675,7 @@ pub fn apply_mosaic(value: u32, mosaic: u32) -> u32 {
 #[inline]
 pub fn apply_mosaic_cond(mosaic_cond: bool, value: u16, mosaic: u16) -> u16 {
     if mosaic_cond && mosaic > 0 {
-        return value - (value % mosaic)
+        return value - (value % mosaic);
     } else {
         return value;
     }
@@ -624,11 +683,7 @@ pub fn apply_mosaic_cond(mosaic_cond: bool, value: u16, mosaic: u16) -> u16 {
 
 #[inline(always)]
 pub fn pixel_components(pixel: u16) -> (u16, u16, u16) {
-    (
-        pixel & 0x1F,
-        (pixel >> 5) & 0x1F,
-        (pixel >> 10) & 0x1F,
-    )
+    (pixel & 0x1F, (pixel >> 5) & 0x1F, (pixel >> 10) & 0x1F)
 }
 
 #[inline(always)]

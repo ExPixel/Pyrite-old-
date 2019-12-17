@@ -1,87 +1,88 @@
-use std::time::Instant;
-use glutin::{Event, WindowEvent};
 use crate::api as imgui;
 use crate::flags::*;
+use glutin::{Event, WindowEvent};
+use std::time::Instant;
 
 struct GlobalGlutinState {
     time: Option<Instant>,
     mouse_position: imgui::ImVec2,
-    mouse_pressed:  [bool; 3],
+    mouse_pressed: [bool; 3],
 }
 
 #[allow(non_upper_case_globals)]
 static mut g: GlobalGlutinState = GlobalGlutinState {
     time: None,
     mouse_position: imgui::ImVec2 { x: 0.0, y: 0.0 },
-    mouse_pressed:  [false; 3],
+    mouse_pressed: [false; 3],
 };
 
 pub fn frame_start_time() -> Option<std::time::Instant> {
-    unsafe {
-        g.time
-    }
+    unsafe { g.time }
 }
 
 pub fn process_window_event(gl_window: &glutin::Window, event: &Event) -> bool {
     let mut io = imgui::get_io().unwrap();
     match event {
-        Event::WindowEvent {event, ..} => match event {
-
+        Event::WindowEvent { event, .. } => match event {
             WindowEvent::MouseWheel { delta, .. } => {
                 let (x, y) = match delta {
-                    glutin::MouseScrollDelta::LineDelta(x, y) => { (*x, *y) },
-                    glutin::MouseScrollDelta::PixelDelta(pos) => { (pos.x as f32, pos.y as f32) }
+                    glutin::MouseScrollDelta::LineDelta(x, y) => (*x, *y),
+                    glutin::MouseScrollDelta::PixelDelta(pos) => (pos.x as f32, pos.y as f32),
                 };
-                if x > 0.0 { io.MouseWheelH += 1.0; }
-                if x < 0.0 { io.MouseWheelH -= 1.0; }
-                if y > 0.0 { io.MouseWheel  += 1.0; }
-                if y < 0.0 { io.MouseWheel  -= 1.0; }
+                if x > 0.0 {
+                    io.MouseWheelH += 1.0;
+                }
+                if x < 0.0 {
+                    io.MouseWheelH -= 1.0;
+                }
+                if y > 0.0 {
+                    io.MouseWheel += 1.0;
+                }
+                if y < 0.0 {
+                    io.MouseWheel -= 1.0;
+                }
+            }
+
+            WindowEvent::MouseInput { state, button, .. } => match (state, button) {
+                (glutin::ElementState::Pressed, glutin::MouseButton::Left) => unsafe {
+                    g.mouse_pressed[0] = true;
+                },
+                (glutin::ElementState::Pressed, glutin::MouseButton::Right) => unsafe {
+                    g.mouse_pressed[1] = true;
+                },
+                (glutin::ElementState::Pressed, glutin::MouseButton::Middle) => unsafe {
+                    g.mouse_pressed[2] = true;
+                },
+                (glutin::ElementState::Released, glutin::MouseButton::Left) => unsafe {
+                    g.mouse_pressed[0] = false;
+                },
+                (glutin::ElementState::Released, glutin::MouseButton::Right) => unsafe {
+                    g.mouse_pressed[1] = false;
+                },
+                (glutin::ElementState::Released, glutin::MouseButton::Middle) => unsafe {
+                    g.mouse_pressed[2] = false;
+                },
+                _ => {}
             },
 
-            WindowEvent::MouseInput { state, button, .. } => {
-                match (state, button) {
-                    (glutin::ElementState::Pressed, glutin::MouseButton::Left) => {
-                        unsafe { g.mouse_pressed[0] = true; }
-                    },
-                    (glutin::ElementState::Pressed, glutin::MouseButton::Right) => {
-                        unsafe { g.mouse_pressed[1] = true; }
-                    },
-                    (glutin::ElementState::Pressed, glutin::MouseButton::Middle) => {
-                        unsafe { g.mouse_pressed[2] = true; }
-                    },
-                    (glutin::ElementState::Released, glutin::MouseButton::Left) => {
-                        unsafe { g.mouse_pressed[0] = false; }
-                    },
-                    (glutin::ElementState::Released, glutin::MouseButton::Right) => {
-                        unsafe { g.mouse_pressed[1] = false; }
-                    },
-                    (glutin::ElementState::Released, glutin::MouseButton::Middle) => {
-                        unsafe { g.mouse_pressed[2] = false; }
-                    },
-                    _ => {}
-                }
-            },
-
-            WindowEvent::CursorMoved { position, .. } => {
-                unsafe {
-                    g.mouse_position.x = position.x as f32;
-                    g.mouse_position.y = position.y as f32;
-                }
+            WindowEvent::CursorMoved { position, .. } => unsafe {
+                g.mouse_position.x = position.x as f32;
+                g.mouse_position.y = position.y as f32;
             },
 
             WindowEvent::ReceivedCharacter(ch) => {
                 let io = imgui::get_io().unwrap();
                 let mut b5: [u8; 5] = [0; 5];
-                let b4: [u8; 4] = unsafe {
-                    std::mem::transmute(*ch)
-                };
+                let b4: [u8; 4] = unsafe { std::mem::transmute(*ch) };
                 let chlen = ch.len_utf8();
-                for idx in 0..chlen { b5[idx] = b4[idx]; }
+                for idx in 0..chlen {
+                    b5[idx] = b4[idx];
+                }
                 let imstr = unsafe {
                     crate::imstr::ImStr::from_bytes_with_nul_unchecked(&b5[0..(chlen + 1)])
                 };
                 io.add_input_characters_utf8(&imstr);
-            },
+            }
 
             WindowEvent::KeyboardInput { input, .. } => {
                 let state_b = match input.state {
@@ -90,25 +91,29 @@ pub fn process_window_event(gl_window: &glutin::Window, event: &Event) -> bool {
                 };
 
                 match input.virtual_keycode {
-                    Some(kc @ glutin::VirtualKeyCode::LShift) | Some(kc @ glutin::VirtualKeyCode::RShift) => {
+                    Some(kc @ glutin::VirtualKeyCode::LShift)
+                    | Some(kc @ glutin::VirtualKeyCode::RShift) => {
                         io.KeyShift = state_b;
                         io.KeysDown[glutin_vkey_index(kc) as usize] = state_b;
-                    },
+                    }
 
-                    Some(kc @ glutin::VirtualKeyCode::LControl) | Some(kc @ glutin::VirtualKeyCode::RControl) => {
+                    Some(kc @ glutin::VirtualKeyCode::LControl)
+                    | Some(kc @ glutin::VirtualKeyCode::RControl) => {
                         io.KeyCtrl = state_b;
                         io.KeysDown[glutin_vkey_index(kc) as usize] = state_b;
-                    },
+                    }
 
-                    Some(kc @ glutin::VirtualKeyCode::LAlt) | Some(kc @ glutin::VirtualKeyCode::RAlt) => {
+                    Some(kc @ glutin::VirtualKeyCode::LAlt)
+                    | Some(kc @ glutin::VirtualKeyCode::RAlt) => {
                         io.KeyAlt = state_b;
                         io.KeysDown[glutin_vkey_index(kc) as usize] = state_b;
-                    },
+                    }
 
-                    Some(kc @ glutin::VirtualKeyCode::LWin) | Some(kc @ glutin::VirtualKeyCode::RWin) => {
+                    Some(kc @ glutin::VirtualKeyCode::LWin)
+                    | Some(kc @ glutin::VirtualKeyCode::RWin) => {
                         io.KeySuper = state_b;
                         io.KeysDown[glutin_vkey_index(kc) as usize] = state_b;
-                    },
+                    }
 
                     Some(kc) => {
                         io.KeysDown[glutin_vkey_index(kc) as usize] = state_b;
@@ -116,23 +121,22 @@ pub fn process_window_event(gl_window: &glutin::Window, event: &Event) -> bool {
                         io.KeyCtrl = input.modifiers.ctrl;
                         io.KeyAlt = input.modifiers.alt;
                         io.KeySuper = input.modifiers.logo;
-                    },
+                    }
 
-                    _ => {
-                    },
+                    _ => {}
                 }
-            },
+            }
 
             WindowEvent::Resized(logical_size) => {
                 let dpi_factor = gl_window.get_hidpi_factor() as f32;
                 io.DisplaySize.x = logical_size.width as f32;
                 io.DisplaySize.y = logical_size.height as f32;
                 io.DisplayFramebufferScale = imgui::vec2(dpi_factor, dpi_factor);
-            },
+            }
 
-            _ => {},
+            _ => {}
         },
-        _ => {},
+        _ => {}
     }
     return false;
 }
@@ -161,17 +165,25 @@ pub fn init(window_size: imgui::ImVec2, dpi_factor: f32) {
     io.KeyMap[Key::Escape.bits() as usize] = glutin_vkey_index(glutin::VirtualKeyCode::Escape) as _;
     io.KeyMap[Key::Insert.bits() as usize] = glutin_vkey_index(glutin::VirtualKeyCode::Insert) as _;
     io.KeyMap[Key::PageUp.bits() as usize] = glutin_vkey_index(glutin::VirtualKeyCode::PageUp) as _;
-    io.KeyMap[Key::PageDown.bits() as usize] = glutin_vkey_index(glutin::VirtualKeyCode::PageDown) as _;
-    io.KeyMap[Key::Backspace.bits() as usize] = glutin_vkey_index(glutin::VirtualKeyCode::Back) as _;
+    io.KeyMap[Key::PageDown.bits() as usize] =
+        glutin_vkey_index(glutin::VirtualKeyCode::PageDown) as _;
+    io.KeyMap[Key::Backspace.bits() as usize] =
+        glutin_vkey_index(glutin::VirtualKeyCode::Back) as _;
     io.KeyMap[Key::UpArrow.bits() as usize] = glutin_vkey_index(glutin::VirtualKeyCode::Up) as _;
-    io.KeyMap[Key::DownArrow.bits() as usize] = glutin_vkey_index(glutin::VirtualKeyCode::Down) as _;
-    io.KeyMap[Key::LeftArrow.bits() as usize] = glutin_vkey_index(glutin::VirtualKeyCode::Left) as _;
-    io.KeyMap[Key::RightArrow.bits() as usize] = glutin_vkey_index(glutin::VirtualKeyCode::Right) as _;
+    io.KeyMap[Key::DownArrow.bits() as usize] =
+        glutin_vkey_index(glutin::VirtualKeyCode::Down) as _;
+    io.KeyMap[Key::LeftArrow.bits() as usize] =
+        glutin_vkey_index(glutin::VirtualKeyCode::Left) as _;
+    io.KeyMap[Key::RightArrow.bits() as usize] =
+        glutin_vkey_index(glutin::VirtualKeyCode::Right) as _;
 }
 
 #[inline(always)]
 fn glutin_vkey_index(vkey: glutin::VirtualKeyCode) -> usize {
-    debug_assert!((vkey as i32) < 512, "glutin_vkey_index(): VirtualKeyCode index is too high. (>= 512)");
+    debug_assert!(
+        (vkey as i32) < 512,
+        "glutin_vkey_index(): VirtualKeyCode index is too high. (>= 512)"
+    );
     vkey as i32 as usize
 }
 
@@ -216,11 +228,13 @@ pub fn update_mouse_pos_and_buttons(gl_window: &glutin::Window) {
         // g.mouse_pressed[2] = false;
     }
 
-
     if io.WantSetMousePos {
         // #TODO maybe I should be removing the HasSetMouseCursor flag from the backend support flags
         //       after this fails once (or maybe even after a certain number of times)
-        let _ = gl_window.set_cursor_position(glutin::dpi::LogicalPosition::new(io.MousePos.x as f64, io.MousePos.y as f64));
+        let _ = gl_window.set_cursor_position(glutin::dpi::LogicalPosition::new(
+            io.MousePos.x as f64,
+            io.MousePos.y as f64,
+        ));
     } else {
         unsafe {
             io.MousePos = g.mouse_position.clone();
@@ -231,7 +245,7 @@ pub fn update_mouse_pos_and_buttons(gl_window: &glutin::Window) {
 pub fn update_mouse_cursor(gl_window: &glutin::Window) {
     let io = imgui::get_io().unwrap();
     if (io.ConfigFlags & ConfigFlags::NoMouseCursorChange.bits()) != 0 {
-        return
+        return;
     }
     let imgui_cursor = imgui::get_mouse_cursor();
     if io.MouseDrawCursor || imgui_cursor == MouseCursor::None {

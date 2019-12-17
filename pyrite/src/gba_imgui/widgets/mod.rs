@@ -1,10 +1,10 @@
 pub mod disassembly;
 pub mod memory_editor;
 
-use pyrite_gba::Gba;
 use crate::platform::opengl::GbaTexture;
 use disassembly::DisassemblyWindow;
 use memory_editor::MemoryEditorWindow;
+use pyrite_gba::Gba;
 
 /// Main emulator GUI struct.
 pub struct EmulatorGUI {
@@ -31,33 +31,56 @@ impl EmulatorGUI {
 
     pub fn draw(&mut self, gba: &mut Gba, gba_texture: &GbaTexture) {
         self.draw_menu_bar();
-        if self.gba_display.open { self.gba_display.draw(&gba_texture); }
-        if self.stats_window.open { self.stats_window.draw(); }
-        if self.disassembly_window.open { self.disassembly_window.draw(&gba.cpu, &gba.hardware); }
-        if self.memory_editor_window.open { self.memory_editor_window.draw(&gba.hardware, 0x0FFFFFFF, 0x0); }
-        if self.show_demo_window { imgui::show_demo_window(&mut self.show_demo_window); }
+        if self.gba_display.open {
+            self.gba_display.draw(&gba_texture);
+        }
+        if self.stats_window.open {
+            self.stats_window.draw();
+        }
+        if self.disassembly_window.open {
+            self.disassembly_window.draw(&gba.cpu, &gba.hardware);
+        }
+        if self.memory_editor_window.open {
+            self.memory_editor_window
+                .draw(&gba.hardware, 0x0FFFFFFF, 0x0);
+        }
+        if self.show_demo_window {
+            imgui::show_demo_window(&mut self.show_demo_window);
+        }
     }
 
     fn draw_menu_bar(&mut self) {
         if imgui::begin_main_menu_bar() {
-
             if imgui::begin_menu(imgui::str!("File"), true) {
-                if imgui::menu_item(imgui::str!("Load ROM...")) {
-                    /* NOP */
-                }
+                if imgui::menu_item(imgui::str!("Load ROM...")) { /* NOP */ }
                 imgui::end_menu();
             }
 
             if imgui::begin_menu(imgui::str!("View"), true) {
-                if imgui::menu_item_ex(imgui::str!("Memory Editor"), None, self.memory_editor_window.open, true) {
+                if imgui::menu_item_ex(
+                    imgui::str!("Memory Editor"),
+                    None,
+                    self.memory_editor_window.open,
+                    true,
+                ) {
                     self.memory_editor_window.open = !self.memory_editor_window.open;
                 }
 
-                if imgui::menu_item_ex(imgui::str!("Disassembly"), None, self.disassembly_window.open, true) {
+                if imgui::menu_item_ex(
+                    imgui::str!("Disassembly"),
+                    None,
+                    self.disassembly_window.open,
+                    true,
+                ) {
                     self.disassembly_window.open = !self.disassembly_window.open;
                 }
 
-                if imgui::menu_item_ex(imgui::str!("GBA Display"), None, self.gba_display.open, true) {
+                if imgui::menu_item_ex(
+                    imgui::str!("GBA Display"),
+                    None,
+                    self.gba_display.open,
+                    true,
+                ) {
                     self.gba_display.open = !self.gba_display.open;
                 }
 
@@ -82,7 +105,12 @@ impl EmulatorGUI {
                     self.stats_window.open = !self.stats_window.open;
                 }
 
-                if imgui::menu_item_ex(imgui::str!("Demo Window"), None, self.show_demo_window, true) {
+                if imgui::menu_item_ex(
+                    imgui::str!("Demo Window"),
+                    None,
+                    self.show_demo_window,
+                    true,
+                ) {
                     self.show_demo_window = !self.show_demo_window;
                 }
 
@@ -127,7 +155,11 @@ impl GbaDisplayWindow {
         imgui::push_style_var_vec2(imgui::StyleVar::WindowPadding, imgui::vec2(0.0, 0.0));
         imgui::push_style_var_float(imgui::StyleVar::WindowRounding, 0.0);
 
-        if imgui::begin(imgui::str!("Emulator Display"), &mut self.open, imgui::WindowFlags::AlwaysAutoResize | imgui::WindowFlags::NoScrollbar) {
+        if imgui::begin(
+            imgui::str!("Emulator Display"),
+            &mut self.open,
+            imgui::WindowFlags::AlwaysAutoResize | imgui::WindowFlags::NoScrollbar,
+        ) {
             let texture_id: imgui::ImTextureID = texture.get_texture_handle() as _;
             imgui::image(texture_id, content_size);
             self.focused = imgui::is_window_focused(imgui::FocusedFlags::ChildWindows);
@@ -168,13 +200,16 @@ impl EmulatorStatsWindow {
     }
 
     pub fn draw(&mut self) {
-        if imgui::begin(imgui::str!("Stats"), &mut self.open, imgui::WindowFlags::AlwaysAutoResize | imgui::WindowFlags::NoScrollbar) {
+        if imgui::begin(
+            imgui::str!("Stats"),
+            &mut self.open,
+            imgui::WindowFlags::AlwaysAutoResize | imgui::WindowFlags::NoScrollbar,
+        ) {
             let io = imgui::get_io().expect("NO IO");
 
             let emu_frame_delay = io.DeltaTime * 1000.0;
             let gba_frame_delay = (self.gba_frame_duration.as_secs_f64() * 1000.0) as f32;
             let gui_frame_delay = (self.gui_frame_duration.as_secs_f64() * 1000.0) as f32;
-
 
             // BEGIN EMU FRAME TIMES
             // =====================
@@ -182,22 +217,52 @@ impl EmulatorStatsWindow {
             let mut emu_max_frame_delay = std::f32::MIN;
             let mut emu_min_frame_delay = std::f32::MAX;
 
-            let emu_average_frame_delay = self.emu_delay_history.get_internal_buffer().iter()
-                .fold(0.0, |acc, &x| {
-                    if x > emu_max_frame_delay { emu_max_frame_delay = x; }
-                    if x < emu_min_frame_delay { emu_min_frame_delay = x; }
-                    acc + x
-                }) / self.emu_delay_history.len() as f32;
+            let emu_average_frame_delay =
+                self.emu_delay_history
+                    .get_internal_buffer()
+                    .iter()
+                    .fold(0.0, |acc, &x| {
+                        if x > emu_max_frame_delay {
+                            emu_max_frame_delay = x;
+                        }
+                        if x < emu_min_frame_delay {
+                            emu_min_frame_delay = x;
+                        }
+                        acc + x
+                    })
+                    / self.emu_delay_history.len() as f32;
 
-            let emu_scale_max = if emu_max_frame_delay > 32.0 { emu_max_frame_delay } else { 24.0 };
+            let emu_scale_max = if emu_max_frame_delay > 32.0 {
+                emu_max_frame_delay
+            } else {
+                24.0
+            };
 
-            imgui::plot_lines_ex(imgui::str!("Emulator Frame Delay"),
-                &self.emu_delay_history.get_internal_buffer(), self.emu_delay_history.get_internal_head() as i32,
-                None, 0.0, emu_scale_max, imgui::vec2(0.0, 0.0), -1);
-            imgui::text(imgui::str_gbuf!("    Average: {:.02} ({:.02} FPS)", emu_average_frame_delay, 1000.0 / emu_average_frame_delay));
-            imgui::text(imgui::str_gbuf!("        Min: {:.02} ({:.02} FPS)", emu_min_frame_delay, 1000.0 / emu_min_frame_delay));
-            imgui::text(imgui::str_gbuf!("        Max: {:.02} ({:.02} FPS)", emu_max_frame_delay, 1000.0 / emu_max_frame_delay));
-
+            imgui::plot_lines_ex(
+                imgui::str!("Emulator Frame Delay"),
+                &self.emu_delay_history.get_internal_buffer(),
+                self.emu_delay_history.get_internal_head() as i32,
+                None,
+                0.0,
+                emu_scale_max,
+                imgui::vec2(0.0, 0.0),
+                -1,
+            );
+            imgui::text(imgui::str_gbuf!(
+                "    Average: {:.02} ({:.02} FPS)",
+                emu_average_frame_delay,
+                1000.0 / emu_average_frame_delay
+            ));
+            imgui::text(imgui::str_gbuf!(
+                "        Min: {:.02} ({:.02} FPS)",
+                emu_min_frame_delay,
+                1000.0 / emu_min_frame_delay
+            ));
+            imgui::text(imgui::str_gbuf!(
+                "        Max: {:.02} ({:.02} FPS)",
+                emu_max_frame_delay,
+                1000.0 / emu_max_frame_delay
+            ));
 
             // BEGIN GBA FRAME TIMES
             // =====================
@@ -205,21 +270,52 @@ impl EmulatorStatsWindow {
             let mut gba_max_frame_delay = std::f32::MIN;
             let mut gba_min_frame_delay = std::f32::MAX;
 
-            let gba_average_frame_delay = self.gba_delay_history.get_internal_buffer().iter()
-                .fold(0.0, |acc, &x| {
-                    if x > gba_max_frame_delay { gba_max_frame_delay = x; }
-                    if x < gba_min_frame_delay { gba_min_frame_delay = x; }
-                    acc + x
-                }) / self.gba_delay_history.len() as f32;
+            let gba_average_frame_delay =
+                self.gba_delay_history
+                    .get_internal_buffer()
+                    .iter()
+                    .fold(0.0, |acc, &x| {
+                        if x > gba_max_frame_delay {
+                            gba_max_frame_delay = x;
+                        }
+                        if x < gba_min_frame_delay {
+                            gba_min_frame_delay = x;
+                        }
+                        acc + x
+                    })
+                    / self.gba_delay_history.len() as f32;
 
-            let gba_scale_max = if emu_max_frame_delay > 32.0 { emu_max_frame_delay } else { 18.0 };
+            let gba_scale_max = if emu_max_frame_delay > 32.0 {
+                emu_max_frame_delay
+            } else {
+                18.0
+            };
 
-            imgui::plot_lines_ex(imgui::str!("GBA Frame Delay"),
-                &self.gba_delay_history.get_internal_buffer(), self.gba_delay_history.get_internal_head() as i32,
-                None, 0.0, gba_scale_max, imgui::vec2(0.0, 0.0), -1);
-            imgui::text(imgui::str_gbuf!("    Average: {:.02} ({:.02} FPS)", gba_average_frame_delay, 1000.0 / gba_average_frame_delay));
-            imgui::text(imgui::str_gbuf!("        Min: {:.02} ({:.02} FPS)", gba_min_frame_delay, 1000.0 / gba_min_frame_delay));
-            imgui::text(imgui::str_gbuf!("        Max: {:.02} ({:.02} FPS)", gba_max_frame_delay, 1000.0 / gba_max_frame_delay));
+            imgui::plot_lines_ex(
+                imgui::str!("GBA Frame Delay"),
+                &self.gba_delay_history.get_internal_buffer(),
+                self.gba_delay_history.get_internal_head() as i32,
+                None,
+                0.0,
+                gba_scale_max,
+                imgui::vec2(0.0, 0.0),
+                -1,
+            );
+            imgui::text(imgui::str_gbuf!(
+                "    Average: {:.02} ({:.02} FPS)",
+                gba_average_frame_delay,
+                1000.0 / gba_average_frame_delay
+            ));
+            imgui::text(imgui::str_gbuf!(
+                "        Min: {:.02} ({:.02} FPS)",
+                gba_min_frame_delay,
+                1000.0 / gba_min_frame_delay
+            ));
+            imgui::text(imgui::str_gbuf!(
+                "        Max: {:.02} ({:.02} FPS)",
+                gba_max_frame_delay,
+                1000.0 / gba_max_frame_delay
+            ));
             let frame_percentage = if gba_frame_delay >= emu_frame_delay {
                 100.0
             } else {
@@ -228,9 +324,13 @@ impl EmulatorStatsWindow {
             let average_frame_percentage = if gba_average_frame_delay >= emu_average_frame_delay {
                 100.0
             } else {
-                (gba_average_frame_delay * 100.0) / emu_average_frame_delay 
+                (gba_average_frame_delay * 100.0) / emu_average_frame_delay
             };
-            imgui::text(imgui::str_gbuf!("    Frame %%: {:.02}%% ({:.0}%% average)", frame_percentage, average_frame_percentage));
+            imgui::text(imgui::str_gbuf!(
+                "    Frame %%: {:.02}%% ({:.0}%% average)",
+                frame_percentage,
+                average_frame_percentage
+            ));
 
             // BEGIN IMGUI FRAME TIMES
             // =====================
@@ -238,19 +338,41 @@ impl EmulatorStatsWindow {
             let mut gui_max_frame_delay = std::f32::MIN;
             let mut gui_min_frame_delay = std::f32::MAX;
 
-            let gui_average_frame_delay = self.gui_delay_history.get_internal_buffer().iter()
-                .fold(0.0, |acc, &x| {
-                    if x > gui_max_frame_delay { gui_max_frame_delay = x; }
-                    if x < gui_min_frame_delay { gui_min_frame_delay = x; }
-                    acc + x
-                }) / self.gui_delay_history.len() as f32;
+            let gui_average_frame_delay =
+                self.gui_delay_history
+                    .get_internal_buffer()
+                    .iter()
+                    .fold(0.0, |acc, &x| {
+                        if x > gui_max_frame_delay {
+                            gui_max_frame_delay = x;
+                        }
+                        if x < gui_min_frame_delay {
+                            gui_min_frame_delay = x;
+                        }
+                        acc + x
+                    })
+                    / self.gui_delay_history.len() as f32;
 
-            let gui_scale_max = if emu_max_frame_delay > 32.0 { emu_max_frame_delay } else { 18.0 };
+            let gui_scale_max = if emu_max_frame_delay > 32.0 {
+                emu_max_frame_delay
+            } else {
+                18.0
+            };
 
-            imgui::plot_lines_ex(imgui::str!("ImGUI Frame Delay"),
-                &self.gui_delay_history.get_internal_buffer(), self.gui_delay_history.get_internal_head() as i32,
-                None, 0.0, gui_scale_max, imgui::vec2(0.0, 0.0), -1);
-            imgui::text(imgui::str_gbuf!("    Average: {:.02}", gui_average_frame_delay));
+            imgui::plot_lines_ex(
+                imgui::str!("ImGUI Frame Delay"),
+                &self.gui_delay_history.get_internal_buffer(),
+                self.gui_delay_history.get_internal_head() as i32,
+                None,
+                0.0,
+                gui_scale_max,
+                imgui::vec2(0.0, 0.0),
+                -1,
+            );
+            imgui::text(imgui::str_gbuf!(
+                "    Average: {:.02}",
+                gui_average_frame_delay
+            ));
             imgui::text(imgui::str_gbuf!("        Min: {:.02}", gui_min_frame_delay));
             imgui::text(imgui::str_gbuf!("        Max: {:.02}", gui_max_frame_delay));
             let frame_percentage = if gui_frame_delay >= emu_frame_delay {
@@ -261,9 +383,13 @@ impl EmulatorStatsWindow {
             let average_frame_percentage = if gui_average_frame_delay >= emu_average_frame_delay {
                 100.0
             } else {
-                (gui_average_frame_delay * 100.0) / emu_average_frame_delay 
+                (gui_average_frame_delay * 100.0) / emu_average_frame_delay
             };
-            imgui::text(imgui::str_gbuf!("    Frame %%: {:.02}%% ({:.0}%% average)", frame_percentage, average_frame_percentage));
+            imgui::text(imgui::str_gbuf!(
+                "    Frame %%: {:.02}%% ({:.0}%% average)",
+                frame_percentage,
+                average_frame_percentage
+            ));
         }
         imgui::end();
     }

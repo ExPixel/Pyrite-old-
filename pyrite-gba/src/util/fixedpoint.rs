@@ -6,9 +6,7 @@ pub struct FixedPoint16 {
 impl FixedPoint16 {
     #[inline]
     pub const fn wrap(value: i16) -> Self {
-        FixedPoint16 {
-            inner: value,
-        }
+        FixedPoint16 { inner: value }
     }
 
     #[inline]
@@ -94,9 +92,7 @@ pub struct FixedPoint32 {
 impl FixedPoint32 {
     #[inline]
     pub const fn wrap(value: i32) -> Self {
-        FixedPoint32 {
-            inner: value
-        }
+        FixedPoint32 { inner: value }
     }
 
     #[inline]

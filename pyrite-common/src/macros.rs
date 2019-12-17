@@ -3,77 +3,81 @@
 #[cfg(not(feature = "nightly"))]
 #[macro_export]
 macro_rules! likely {
-    ($b:expr) => ({ $b });
+    ($b:expr) => {{
+        $b
+    }};
 }
 
 #[cfg(not(feature = "nightly"))]
 #[macro_export]
 macro_rules! unlikely {
-    ($b:expr) => ({ $b });
+    ($b:expr) => {{
+        $b
+    }};
 }
 
 #[cfg(feature = "nightly")]
 #[macro_export]
 macro_rules! unlikely {
-    ($b:expr) => (unsafe {
-        std::intrinsics::unlikely($b)
-    })
+    ($b:expr) => {
+        unsafe { std::intrinsics::unlikely($b) }
+    };
 }
 
 #[cfg(feature = "nightly")]
 #[macro_export]
 macro_rules! likely {
-    ($b:expr) => (unsafe {
-        std::intrinsics::likely($b)
-    })
+    ($b:expr) => {
+        unsafe { std::intrinsics::likely($b) }
+    };
 }
 
 #[macro_export]
 macro_rules! bits {
-    ($value:expr, $start:expr) => (
+    ($value:expr, $start:expr) => {
         ($value >> $start) & 1
-    );
+    };
 
-    ($value:expr, $start:expr, $end:expr) => (
-        ($value >> $start) & ((1<<($end-$start+1)) - 1)
-    );
+    ($value:expr, $start:expr, $end:expr) => {
+        ($value >> $start) & ((1 << ($end - $start + 1)) - 1)
+    };
 }
 
 #[macro_export]
 macro_rules! bits_b {
-    ($value:expr, $start:expr) => (
+    ($value:expr, $start:expr) => {
         (($value >> $start) & 1) != 0
-    );
+    };
 
-    ($value:expr, $start:expr, $end:expr) => (
-        (($value >> $start) & ((1<<($end-$start+1)) - 1)) != 0
-    );
+    ($value:expr, $start:expr, $end:expr) => {
+        (($value >> $start) & ((1 << ($end - $start + 1)) - 1)) != 0
+    };
 }
 
 #[macro_export]
 macro_rules! bits_set {
-    ($dest:expr, $src:expr, $start:expr, $end:expr) => (
-        ($dest & !(((1<<($end-$start+1)) - 1) << $start)) |
-        (($src & ((1<<($end-$start+1)) - 1)) << $start)
-    );
+    ($dest:expr, $src:expr, $start:expr, $end:expr) => {
+        ($dest & !(((1 << ($end - $start + 1)) - 1) << $start))
+            | (($src & ((1 << ($end - $start + 1)) - 1)) << $start)
+    };
 
-    ($dest:expr, $src:expr, $start:expr) => (
+    ($dest:expr, $src:expr, $start:expr) => {
         bits_set!($dest, $src, $start, $start)
-    );
+    };
 }
 
 #[macro_export]
 macro_rules! bit_set {
-    ($dest:expr, $src:expr, $start:expr) => (
+    ($dest:expr, $src:expr, $start:expr) => {
         bits_set!($dest, $src, $start, $start)
-    );
+    };
 }
 
 #[macro_export]
 macro_rules! bit_set_b {
-    ($dest:expr, $src:expr, $start:expr) => (
+    ($dest:expr, $src:expr, $start:expr) => {
         bits_set!($dest, if $src { 1 } else { 0 }, $start, $start)
-    );
+    };
 }
 
 /// #TODO maybe I should use wrapping_shl and wrapping_shr for this
@@ -108,6 +112,5 @@ macro_rules! debug_print {
 macro_rules! gba_error {
     ($Args:tt) => {
         log::error!($Args)
-    }
+    };
 }
-
