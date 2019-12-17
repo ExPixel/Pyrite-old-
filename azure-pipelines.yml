@@ -23,6 +23,7 @@ strategy:
 
 trigger:
 - master
+- dev
 
 pool:
   vmImage: $(imageName)
