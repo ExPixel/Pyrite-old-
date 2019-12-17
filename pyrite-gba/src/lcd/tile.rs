@@ -68,11 +68,11 @@ pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, palette: &GbaPalet
         };
         let tile_number = (tile_info & 0x3FF) as u32;
         let tile_palette = ((tile_info >> 12) & 0xF) as u8;
-        let horizontal_flip = (tile_info & 0x400) != 0;
-        let vertical_flip = (tile_info & 0x800) != 0;
+        let hflip = (tile_info & 0x400) != 0;
+        let vflip = (tile_info & 0x800) != 0;
 
-        let tx = if horizontal_flip { 7 - (scx % 8) } else { scx % 8 };
-        let ty = if vertical_flip { 7 - ty } else { ty };
+        let tx = if hflip { 7 - (scx % 8) } else { scx % 8 };
+        let ty = if vflip { 7 - ty } else { ty };
 
         let tile_data_start = bg.char_base + (BYTES_PER_TILE * tile_number);
         let mut pixel_offset = tile_data_start + (ty * BYTES_PER_LINE) + tx/2;
@@ -80,7 +80,7 @@ pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, palette: &GbaPalet
 
         // try to do 8 pixels at a time if possible:
         if bg.mosaic_x <= 1 && (scx % 8) == 0 && dx <= 232 {
-            let pinc = if horizontal_flip { -1i32 as u32 } else { 1u32 };
+            let pinc = if hflip { -1i32 as u32 } else { 1u32 };
             for _ in 0..4 {
                 let palette_entry = vram[pixel_offset as usize];
                 let lo_palette_entry = palette_entry & 0xF;
