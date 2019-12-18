@@ -7,17 +7,11 @@ use criterion::Criterion;
 use pyrite_gba::Gba;
 
 fn draw_frames(gba: &mut Gba, frames: u32) {
-    let mut no_video = pyrite_gba::NoVideoOutput::new();
+    let mut no_video = pyrite_gba::NoVideoOutput;
     let mut no_audio = pyrite_gba::NoAudioOutput;
 
     for _ in 0..frames {
-        loop {
-            gba.step(&mut no_video, &mut no_audio);
-            if no_video.frame_ready {
-                break;
-            }
-        }
-        no_video.frame_ready = false;
+        gba.video_frame(&mut no_video, &mut no_audio);
     }
 
     black_box(no_video);
@@ -25,15 +19,10 @@ fn draw_frames(gba: &mut Gba, frames: u32) {
 }
 
 fn draw_single_frame(gba: &mut Gba) {
-    let mut no_video = pyrite_gba::NoVideoOutput::new();
+    let mut no_video = pyrite_gba::NoVideoOutput;
     let mut no_audio = pyrite_gba::NoAudioOutput;
 
-    loop {
-        gba.step(&mut no_video, &mut no_audio);
-        if no_video.frame_ready {
-            break;
-        }
-    }
+    gba.video_frame(&mut no_video, &mut no_audio);
 
     black_box(no_video);
     black_box(no_audio);

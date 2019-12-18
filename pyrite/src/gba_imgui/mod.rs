@@ -130,13 +130,7 @@ impl GbaImGui {
 
     fn render_gba_frame(&mut self) {
         let mut no_audio = pyrite_gba::NoAudioOutput;
-        loop {
-            self.gba.step(&mut self.gba_texture, &mut no_audio);
-            if self.gba_texture.frame_ready {
-                break;
-            }
-        }
-        self.gba_texture.frame_ready = false;
+        self.gba.video_frame(&mut self.gba_texture, &mut no_audio);
     }
 
     pub fn render_frame(&mut self, window: &glutin::Window) {

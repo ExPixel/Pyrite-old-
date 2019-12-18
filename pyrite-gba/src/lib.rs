@@ -91,17 +91,25 @@ impl Gba {
         // self.lcd.init(video);
     }
 
+    /// Returns a tuple with the first value being true if this step marked the end of a video
+    /// frame, and the second value being true if this step marked the end of an audio frame.
     #[inline]
-    pub fn step(&mut self, video: &mut dyn GbaVideoOutput, _audio: &mut dyn GbaAudioOutput) {
+    pub fn step(
+        &mut self,
+        video: &mut dyn GbaVideoOutput,
+        _audio: &mut dyn GbaAudioOutput,
+    ) -> (bool, bool) {
         // @TODO reimplement DMA and other step stuff.
         let cycles = self.cpu.step(&mut self.hardware);
-        self.hardware.lcd.step(
+        let video_frame = self.hardware.lcd.step(
             cycles,
             &self.hardware.vram,
             &self.hardware.oam,
             &self.hardware.pal,
             video,
         );
+        let audio_frame = false;
+        return (video_frame, audio_frame);
         // let cycles = if dma::is_any_dma_active(&self.memory) {
         //     dma::step_active_channels(&mut self.memory, !self.cpu.registers.getf_i())
         // } else if !self.memory.ioregs.internal_halt {
@@ -123,6 +131,12 @@ impl Gba {
         //     self.memory.ioregs.internal_halt = false;
         //     self.cpu.set_pending_exception(CpuException::IRQ);
         // }
+    }
+
+    /// Steps the GBA until the end of a video frame.
+    #[inline]
+    pub fn video_frame(&mut self, video: &mut dyn GbaVideoOutput, audio: &mut dyn GbaAudioOutput) {
+        while let (false, _) = self.step(video, audio) { /* NOP */ }
     }
 
     #[inline]
@@ -160,25 +174,18 @@ pub trait GbaAudioOutput {
     fn play_samples(&mut self);
 }
 
-pub struct NoVideoOutput {
-    pub frame_ready: bool,
-}
-
-impl NoVideoOutput {
-    pub const fn new() -> NoVideoOutput {
-        NoVideoOutput { frame_ready: false }
-    }
-}
-
+pub struct NoVideoOutput;
 pub struct NoAudioOutput;
 
 impl GbaVideoOutput for NoVideoOutput {
-    fn pre_frame(&mut self) { /* NOP */
+    fn pre_frame(&mut self) {
+        /* NOP */
     }
     fn post_frame(&mut self) {
-        self.frame_ready = true;
+        /* NOP */
     }
-    fn display_line(&mut self, _line: u32, _pixels: &[u16]) { /* NOP */
+    fn display_line(&mut self, _line: u32, _pixels: &[u16]) {
+        /* NOP */
     }
 }
 

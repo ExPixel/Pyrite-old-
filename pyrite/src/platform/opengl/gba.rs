@@ -4,7 +4,6 @@ use pyrite_gba::GbaVideoOutput;
 pub struct GbaTexture {
     texture: Texture,
     data: Box<[u16; 240 * 160]>,
-    pub frame_ready: bool,
 }
 
 impl GbaTexture {
@@ -19,7 +18,6 @@ impl GbaTexture {
                 None,
             ),
             data: Box::new([0xFFFF; 240 * 160]),
-            frame_ready: false,
         };
         x.build_texture();
         return x;
@@ -57,6 +55,6 @@ impl GbaVideoOutput for GbaTexture {
     }
 
     fn post_frame(&mut self) {
-        self.frame_ready = true;
+        /* NOP */
     }
 }

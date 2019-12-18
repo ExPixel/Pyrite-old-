@@ -40,6 +40,7 @@ impl GbaLCD {
         }
     }
 
+    /// Returns true if the end of this step was also the end of a video frame.
     #[inline]
     pub fn step(
         &mut self,
@@ -48,19 +49,20 @@ impl GbaLCD {
         oam: &OAM,
         palette: &GbaPalette,
         video: &mut dyn GbaVideoOutput,
-    ) {
+    ) -> bool {
         let original_cycles = self.next_state_cycles;
         self.next_state_cycles = self.next_state_cycles.saturating_sub(cycles);
         if self.next_state_cycles == 0 {
             self.hblank = !self.hblank;
             if self.hblank {
                 self.next_state_cycles = HDRAW_CYCLES - (cycles - original_cycles);
-                self.hblank(vram, oam, palette, video);
+                return self.hblank(vram, oam, palette, video);
             } else {
                 self.next_state_cycles = HBLANK_CYCLES - (cycles - original_cycles);
                 self.hdraw();
             }
         }
+        return false;
     }
 
     fn hdraw(&mut self) {
@@ -78,13 +80,14 @@ impl GbaLCD {
         self.registers.dispstat.set_vcounter(vcounter_match);
     }
 
+    /// Returns true if this is the end of a frame.
     fn hblank(
         &mut self,
         vram: &VRAM,
         oam: &OAM,
         palette: &GbaPalette,
         video: &mut dyn GbaVideoOutput,
-    ) {
+    ) -> bool {
         self.registers.dispstat.set_hblank(true);
 
         if self.registers.line < 160 {
@@ -100,6 +103,8 @@ impl GbaLCD {
                 self.frame_ready = true;
             }
         }
+
+        return self.registers.line == 159;
     }
 
     fn draw_line(&mut self, vram: &VRAM, oam: &OAM, palette: &GbaPalette) {

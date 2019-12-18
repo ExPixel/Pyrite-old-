@@ -457,11 +457,11 @@ impl GbaHardware {
         }
     }
 
+    // #NOTE this function assumes that the address being passed to it is aligned to multiple of 4
+    // bytes.
     fn gamepak_read32(&self, addr: u32, cart_offset: u32, display_error: bool) -> u32 {
         let offset = (addr - cart_offset) as usize;
-        if offset <= (self.gamepak.len() - 4) {
-            unsafe { read_u32_unchecked(&self.gamepak, offset) }
-        } else {
+        if offset > self.gamepak.len() {
             if display_error {
                 self.bad_read(32, addr, "out of cartridge range");
             }
@@ -469,18 +469,20 @@ impl GbaHardware {
             let hi = (lo + 1) & 0xFFFF;
             return lo | (hi << 16);
         }
+        return unsafe { read_u32_unchecked(&self.gamepak, offset) };
     }
 
+    // #NOTE this function assumes that the address being passed to it is aligned to a multiple of
+    // 2 bytes.
     fn gamepak_read16(&self, addr: u32, cart_offset: u32, display_error: bool) -> u16 {
         let offset = (addr - cart_offset) as usize;
-        if offset <= (self.gamepak.len() - 2) {
-            unsafe { read_u16_unchecked(&self.gamepak, offset) }
-        } else {
+        if offset > self.gamepak.len() {
             if display_error {
                 self.bad_read(16, addr, "out of cartridge range");
             }
             return (addr >> 1) as u16;
         }
+        return unsafe { read_u16_unchecked(&self.gamepak, offset) };
     }
 
     fn gamepak_read8(&self, addr: u32, cart_offset: u32, display_error: bool) -> u8 {
