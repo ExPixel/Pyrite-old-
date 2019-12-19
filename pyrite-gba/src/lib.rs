@@ -136,6 +136,12 @@ impl Gba {
     /// Steps the GBA until the end of a video frame.
     #[inline]
     pub fn video_frame(&mut self, video: &mut dyn GbaVideoOutput, audio: &mut dyn GbaAudioOutput) {
+        // #NOTE: this draws a blank frame without rendering:
+        // let mut cycles = 0;
+        // while cycles < 280896 {
+        //     cycles += self.cpu.step(&mut self.hardware);
+        // }
+
         while let (false, _) = self.step(video, audio) { /* NOP */ }
     }
 
