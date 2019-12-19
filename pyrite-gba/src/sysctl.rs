@@ -1,26 +1,44 @@
-// use crate::hardware::Region;
+use crate::hardware::Region;
 use pyrite_common::bits;
 
 macro_rules! set_timings {
     ($Array:expr, $Region:expr, 1, $FirstAccess:expr, $SecondAccess:expr) => {
-        $Array[$Region as usize] = (1 + $FirstAccess, 1 + $SecondAccess);
+        $Array[$Region.index()] = AccessCycles {
+            nonsequential: 1 + $FirstAccess,
+            sequential: 1 + $SecondAccess,
+        };
     };
 
     ($Array:expr, $Region:expr, 2, $FirstAccess:expr, $SecondAccess:expr) => {
-        $Array[$Region as usize] = (
-            2 + $FirstAccess + $SecondAccess,
-            2 + $SecondAccess + $SecondAccess,
-        );
+        $Array[$Region.index()] = AccessCycles {
+            nonsequential: 2 + $FirstAccess + $SecondAccess,
+            sequential: 2 + $SecondAccess + $SecondAccess,
+        };
     };
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct AccessCycles {
+    pub nonsequential: u8,
+    pub sequential: u8,
+}
+
+impl Default for AccessCycles {
+    fn default() -> AccessCycles {
+        AccessCycles {
+            nonsequential: 1,
+            sequential: 1,
+        }
+    }
 }
 
 pub struct GbaSystemControl {
     /// nonsequential and sequential (respectively) cycles for 8bit accesses.
-    cycles_byte: [(/* nonsequential */ u8, /* sequential */ u8); 16],
+    cycles_byte: [AccessCycles; Region::count()],
     /// nonsequential and sequential (respectively) cycles for 16bit accesses.
-    cycles_halfword: [(/* nonsequential */ u8, /* sequential */ u8); 16],
+    cycles_halfword: [AccessCycles; Region::count()],
     /// nonsequential and sequential (respectively) cycles for 32bit accesses.
-    cycles_word: [(/* nonsequential */ u8, /* sequential */ u8); 16],
+    cycles_word: [AccessCycles; Region::count()],
 
     pub stop: bool,
     pub halt: bool,
@@ -33,9 +51,9 @@ pub struct GbaSystemControl {
 impl GbaSystemControl {
     pub fn new() -> GbaSystemControl {
         GbaSystemControl {
-            cycles_byte: [(1, 1); 16],
-            cycles_halfword: [(1, 1); 16],
-            cycles_word: [(1, 1); 16],
+            cycles_byte: [AccessCycles::default(); Region::count()],
+            cycles_halfword: [AccessCycles::default(); Region::count()],
+            cycles_word: [AccessCycles::default(); Region::count()],
 
             stop: false,
             halt: false,
@@ -48,16 +66,28 @@ impl GbaSystemControl {
     pub fn update_ram_cycles(&mut self, internal_memory_control: u32) {
         let ram_cycles = 15 - bits!(internal_memory_control, 24, 27) as u8;
 
-        set_timings!(self.cycles_byte, REGION_EWRAM, 1, ram_cycles, ram_cycles);
+        set_timings!(
+            self.cycles_byte,
+            Region::ExternalRAM,
+            1,
+            ram_cycles,
+            ram_cycles
+        );
         set_timings!(
             self.cycles_halfword,
-            REGION_EWRAM,
+            Region::ExternalRAM,
             1,
             ram_cycles,
             ram_cycles
         );
         // 16bit bus so a 32bit access is 2 16bit accesses
-        set_timings!(self.cycles_word, REGION_EWRAM, 2, ram_cycles, ram_cycles);
+        set_timings!(
+            self.cycles_word,
+            Region::ExternalRAM,
+            2,
+            ram_cycles,
+            ram_cycles
+        );
     }
 
     pub fn set_reg_waitcnt(&mut self, waitcnt: u16) {
@@ -86,14 +116,7 @@ impl GbaSystemControl {
         // WAITSTATE 0
         set_timings!(
             self.cycles_byte,
-            REGION_CART0_L,
-            1,
-            waitstate0_first_access_halfword,
-            waitstate0_second_access_halfword
-        );
-        set_timings!(
-            self.cycles_byte,
-            REGION_CART0_H,
+            Region::GamePak0,
             1,
             waitstate0_first_access_halfword,
             waitstate0_second_access_halfword
@@ -101,14 +124,7 @@ impl GbaSystemControl {
 
         set_timings!(
             self.cycles_halfword,
-            REGION_CART0_L,
-            1,
-            waitstate0_first_access_halfword,
-            waitstate0_second_access_halfword
-        );
-        set_timings!(
-            self.cycles_halfword,
-            REGION_CART0_H,
+            Region::GamePak0,
             1,
             waitstate0_first_access_halfword,
             waitstate0_second_access_halfword
@@ -116,14 +132,7 @@ impl GbaSystemControl {
 
         set_timings!(
             self.cycles_word,
-            REGION_CART0_L,
-            2,
-            waitstate0_first_access_halfword,
-            waitstate0_second_access_halfword
-        );
-        set_timings!(
-            self.cycles_word,
-            REGION_CART0_H,
+            Region::GamePak0,
             2,
             waitstate0_first_access_halfword,
             waitstate0_second_access_halfword
@@ -132,14 +141,7 @@ impl GbaSystemControl {
         // WAITSTATE 1
         set_timings!(
             self.cycles_byte,
-            REGION_CART1_L,
-            1,
-            waitstate1_first_access_halfword,
-            waitstate1_second_access_halfword
-        );
-        set_timings!(
-            self.cycles_byte,
-            REGION_CART1_H,
+            Region::GamePak1,
             1,
             waitstate1_first_access_halfword,
             waitstate1_second_access_halfword
@@ -147,14 +149,7 @@ impl GbaSystemControl {
 
         set_timings!(
             self.cycles_halfword,
-            REGION_CART1_L,
-            1,
-            waitstate1_first_access_halfword,
-            waitstate1_second_access_halfword
-        );
-        set_timings!(
-            self.cycles_halfword,
-            REGION_CART1_H,
+            Region::GamePak1,
             1,
             waitstate1_first_access_halfword,
             waitstate1_second_access_halfword
@@ -162,14 +157,7 @@ impl GbaSystemControl {
 
         set_timings!(
             self.cycles_word,
-            REGION_CART1_L,
-            2,
-            waitstate1_first_access_halfword,
-            waitstate1_second_access_halfword
-        );
-        set_timings!(
-            self.cycles_word,
-            REGION_CART1_H,
+            Region::GamePak1,
             2,
             waitstate1_first_access_halfword,
             waitstate1_second_access_halfword
@@ -178,14 +166,7 @@ impl GbaSystemControl {
         // WAITSTATE 2
         set_timings!(
             self.cycles_byte,
-            REGION_CART2_L,
-            1,
-            waitstate2_first_access_halfword,
-            waitstate2_second_access_halfword
-        );
-        set_timings!(
-            self.cycles_byte,
-            REGION_CART2_H,
+            Region::GamePak2,
             1,
             waitstate2_first_access_halfword,
             waitstate2_second_access_halfword
@@ -193,14 +174,7 @@ impl GbaSystemControl {
 
         set_timings!(
             self.cycles_halfword,
-            REGION_CART2_L,
-            1,
-            waitstate2_first_access_halfword,
-            waitstate2_second_access_halfword
-        );
-        set_timings!(
-            self.cycles_halfword,
-            REGION_CART2_H,
+            Region::GamePak2,
             1,
             waitstate2_first_access_halfword,
             waitstate2_second_access_halfword
@@ -208,14 +182,7 @@ impl GbaSystemControl {
 
         set_timings!(
             self.cycles_word,
-            REGION_CART2_L,
-            2,
-            waitstate2_first_access_halfword,
-            waitstate2_second_access_halfword
-        );
-        set_timings!(
-            self.cycles_word,
-            REGION_CART2_H,
+            Region::GamePak2,
             2,
             waitstate2_first_access_halfword,
             waitstate2_second_access_halfword
@@ -224,21 +191,21 @@ impl GbaSystemControl {
         // SRAM
         set_timings!(
             self.cycles_byte,
-            REGION_SRAM,
+            Region::SRAM,
             1,
             sram_first_access_byte,
             sram_first_access_byte
         );
         set_timings!(
             self.cycles_halfword,
-            REGION_SRAM,
+            Region::SRAM,
             1,
             sram_first_access_byte,
             sram_first_access_byte
         );
         set_timings!(
             self.cycles_word,
-            REGION_SRAM,
+            Region::SRAM,
             1,
             sram_first_access_byte,
             sram_first_access_byte
@@ -246,61 +213,26 @@ impl GbaSystemControl {
     }
 
     pub fn get_word_cycles(&self, addr: u32, seq: bool) -> u32 {
-        match region_of(addr) {
-            region @ 0..=15 => {
-                if seq {
-                    self.cycles_word[region as usize].1 as u32
-                } else {
-                    self.cycles_word[region as usize].0 as u32
-                }
-            }
-            _ => return 1,
+        if seq {
+            self.cycles_word[Region::from_address(addr).index()].sequential as u32
+        } else {
+            self.cycles_word[Region::from_address(addr).index()].nonsequential as u32
         }
     }
 
     pub fn get_halfword_cycles(&self, addr: u32, seq: bool) -> u32 {
-        match region_of(addr) {
-            region @ 0..=15 => {
-                if seq {
-                    self.cycles_halfword[region as usize].1 as u32
-                } else {
-                    self.cycles_halfword[region as usize].0 as u32
-                }
-            }
-            _ => return 1,
+        if seq {
+            self.cycles_halfword[Region::from_address(addr).index()].sequential as u32
+        } else {
+            self.cycles_halfword[Region::from_address(addr).index()].nonsequential as u32
         }
     }
 
     pub fn get_byte_cycles(&self, addr: u32, seq: bool) -> u32 {
-        match region_of(addr) {
-            region @ 0..=15 => {
-                if seq {
-                    self.cycles_byte[region as usize].1 as u32
-                } else {
-                    self.cycles_byte[region as usize].0 as u32
-                }
-            }
-            _ => return 1,
+        if seq {
+            self.cycles_byte[Region::from_address(addr).index()].sequential as u32
+        } else {
+            self.cycles_byte[Region::from_address(addr).index()].nonsequential as u32
         }
     }
 }
-
-pub const fn region_of(addr: u32) -> u32 {
-    (addr >> 24) & 0x0F
-}
-
-// const REGION_BIOS: u32      = 0x00;
-// const REGION_UNUSED: u32    = 0x01;
-const REGION_EWRAM: u32 = 0x02;
-// const REGION_IWRAM: u32     = 0x03;
-// const REGION_IOREG: u32     = 0x04;
-// const REGION_PAL: u32       = 0x05;
-// const REGION_VRAM: u32      = 0x06;
-// const REGION_OAM: u32       = 0x07;
-const REGION_CART0_L: u32 = 0x08;
-const REGION_CART0_H: u32 = 0x09;
-const REGION_CART1_L: u32 = 0x0A;
-const REGION_CART1_H: u32 = 0x0B;
-const REGION_CART2_L: u32 = 0x0C;
-const REGION_CART2_H: u32 = 0x0D;
-const REGION_SRAM: u32 = 0x0E;
