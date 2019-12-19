@@ -91,7 +91,7 @@ impl GbaHardware {
         self.gamepak = data;
     }
 
-    pub fn read32(&self, addr: u32) -> u32 {
+    fn read32(&self, addr: u32) -> u32 {
         let addr = addr & 0xFFFFFFFC; // word align the address
 
         match Region::from_address(addr) {
@@ -179,7 +179,7 @@ impl GbaHardware {
         }
     }
 
-    pub fn read16(&self, addr: u32) -> u16 {
+    fn read16(&self, addr: u32) -> u16 {
         let addr = addr & 0xFFFFFFFE; // halfword align the address
 
         match Region::from_address(addr) {
@@ -263,7 +263,7 @@ impl GbaHardware {
         }
     }
 
-    pub fn read8(&self, addr: u32) -> u8 {
+    fn read8(&self, addr: u32) -> u8 {
         match Region::from_address(addr) {
             Region::BIOS => self.bios_read8(addr),
             Region::Unused0x1 => {
@@ -345,7 +345,7 @@ impl GbaHardware {
         }
     }
 
-    pub fn write32(&mut self, addr: u32, data: u32) -> bool {
+    fn write32(&mut self, addr: u32, data: u32) -> bool {
         let addr = addr & 0xFFFFFFFC; // word align the address
 
         match Region::from_address(addr) {
@@ -374,7 +374,7 @@ impl GbaHardware {
         return true;
     }
 
-    pub fn write16(&mut self, addr: u32, data: u16) -> bool {
+    fn write16(&mut self, addr: u32, data: u16) -> bool {
         let addr = addr & 0xFFFFFFFE; // halfword align the address
 
         match Region::from_address(addr) {
@@ -403,7 +403,7 @@ impl GbaHardware {
         return true;
     }
 
-    pub fn write8(&mut self, addr: u32, data: u8) -> bool {
+    fn write8(&mut self, addr: u32, data: u8) -> bool {
         match Region::from_address(addr) {
             Region::ExternalRAM if !self.ramctl.disabled && self.ramctl.external => {
                 self.ewram[addr as usize % (256 * 1024)] = data
@@ -1025,22 +1025,31 @@ impl GbaRAMControl {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum Region {
-    BIOS,
-    Unused0x1,
-    ExternalRAM,
-    InternalRAM,
-    IORegisters,
-    Palette,
-    VRAM,
-    OAM,
-    GamePak0,
-    GamePak1,
-    GamePak2,
-    SRAM,
-    Unused0xF,
+    BIOS = 0,
+    Unused0x1 = 1,
+    ExternalRAM = 2,
+    InternalRAM = 3,
+    IORegisters = 4,
+    Palette = 5,
+    VRAM = 6,
+    OAM = 7,
+    GamePak0 = 8,
+    GamePak1 = 9,
+    GamePak2 = 10,
+    SRAM = 11,
+    Unused0xF = 12,
 }
 
 impl Region {
+    /// Returns the total number of memory regions.
+    pub const fn count() -> usize {
+        13
+    }
+
+    pub fn index(self) -> usize {
+        self as u32 as usize
+    }
+
     pub fn from_address(address: u32) -> Region {
         match (address >> 24) & 0x0F {
             0x00 => Region::BIOS,
