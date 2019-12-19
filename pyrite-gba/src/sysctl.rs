@@ -1,4 +1,4 @@
-use crate::hardware::region_of;
+// use crate::hardware::Region;
 use pyrite_common::bits;
 
 macro_rules! set_timings {
@@ -284,6 +284,11 @@ impl GbaSystemControl {
         }
     }
 }
+
+pub const fn region_of(addr: u32) -> u32 {
+    (addr >> 24) & 0x0F
+}
+
 // const REGION_BIOS: u32      = 0x00;
 // const REGION_UNUSED: u32    = 0x01;
 const REGION_EWRAM: u32 = 0x02;

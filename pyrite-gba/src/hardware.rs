@@ -94,13 +94,13 @@ impl GbaHardware {
     pub fn read32(&self, addr: u32) -> u32 {
         let addr = addr & 0xFFFFFFFC; // word align the address
 
-        match region_of(addr) {
-            0x00 => self.bios_read32(addr),
-            0x01 => {
+        match Region::from_address(addr) {
+            Region::BIOS => self.bios_read32(addr),
+            Region::Unused0x1 => {
                 self.bad_read(32, addr, "unused region 0x01");
                 self.last_code_read
             }
-            0x02 => {
+            Region::ExternalRAM => {
                 if self.ramctl.disabled {
                     self.bad_read(32, addr, "disabled RAM");
                     self.last_code_read
@@ -111,7 +111,7 @@ impl GbaHardware {
                 }
             }
 
-            0x03 => {
+            Region::InternalRAM => {
                 if self.ramctl.disabled {
                     self.bad_read(32, addr, "disabled RAM");
                     self.last_code_read
@@ -120,19 +120,18 @@ impl GbaHardware {
                 }
             }
 
-            0x04 => self.io_read32(addr, true),
-            0x05 => self.pal.read32(addr as usize % (1 * 1024)),
-            0x06 => read_u32(&self.vram, Self::vram_off(addr)),
-            0x07 => read_u32(&self.oam, addr as usize % (1 * 1024)),
-            0x08 | 0x09 => self.gamepak_read32(addr, true),
-            0x0A | 0x0B => self.gamepak_read32(addr, true),
-            0x0C | 0x0D => self.gamepak_read32(addr, true),
-            0x0E => self.sram_read32(addr),
-            0x0F => {
+            Region::IORegisters => self.io_read32(addr, true),
+            Region::Palette => self.pal.read32(addr as usize % (1 * 1024)),
+            Region::VRAM => read_u32(&self.vram, Self::vram_off(addr)),
+            Region::OAM => read_u32(&self.oam, addr as usize % (1 * 1024)),
+            Region::GamePak0 => self.gamepak_read32(addr, true),
+            Region::GamePak1 => self.gamepak_read32(addr, true),
+            Region::GamePak2 => self.gamepak_read32(addr, true),
+            Region::SRAM => self.sram_read32(addr),
+            Region::Unused0xF => {
                 self.bad_read(32, addr, "unused region 0x0F");
                 self.last_code_read
             }
-            _ => unreachable!(),
         }
     }
 
@@ -141,16 +140,16 @@ impl GbaHardware {
 
         let addr = addr & 0xFFFFFFFC; // word align the address
 
-        match region_of(addr) {
-            0x00 => {
+        match Region::from_address(addr) {
+            Region::BIOS => {
                 if addr < 0x4000 {
                     self.bios_read32(addr)
                 } else {
                     BAD_VALUE
                 }
             }
-            0x01 => BAD_VALUE,
-            0x02 => {
+            Region::Unused0x1 => BAD_VALUE,
+            Region::ExternalRAM => {
                 if self.ramctl.disabled {
                     BAD_VALUE
                 } else if self.ramctl.external {
@@ -160,7 +159,7 @@ impl GbaHardware {
                 }
             }
 
-            0x03 => {
+            Region::InternalRAM => {
                 if self.ramctl.disabled {
                     BAD_VALUE
                 } else {
@@ -168,29 +167,28 @@ impl GbaHardware {
                 }
             }
 
-            0x04 => self.io_read32(addr, false),
-            0x05 => self.pal.read32(addr as usize % (1 * 1024)),
-            0x06 => read_u32(&self.vram, Self::vram_off(addr)),
-            0x07 => read_u32(&self.oam, addr as usize % (1 * 1024)),
-            0x08 | 0x09 => self.gamepak_read32(addr, false),
-            0x0A | 0x0B => self.gamepak_read32(addr, false),
-            0x0C | 0x0D => self.gamepak_read32(addr, false),
-            0x0E => BAD_VALUE,
-            0x0F => BAD_VALUE,
-            _ => unreachable!(),
+            Region::IORegisters => self.io_read32(addr, false),
+            Region::Palette => self.pal.read32(addr as usize % (1 * 1024)),
+            Region::VRAM => read_u32(&self.vram, Self::vram_off(addr)),
+            Region::OAM => read_u32(&self.oam, addr as usize % (1 * 1024)),
+            Region::GamePak0 => self.gamepak_read32(addr, false),
+            Region::GamePak1 => self.gamepak_read32(addr, false),
+            Region::GamePak2 => self.gamepak_read32(addr, false),
+            Region::SRAM => BAD_VALUE,
+            Region::Unused0xF => BAD_VALUE,
         }
     }
 
     pub fn read16(&self, addr: u32) -> u16 {
         let addr = addr & 0xFFFFFFFE; // halfword align the address
 
-        match region_of(addr) {
-            0x00 => self.bios_read16(addr),
-            0x01 => {
+        match Region::from_address(addr) {
+            Region::BIOS => self.bios_read16(addr),
+            Region::Unused0x1 => {
                 self.bad_read(16, addr, "unused region 0x01");
                 halfword_of_word(self.last_code_read, addr)
             }
-            0x02 => {
+            Region::ExternalRAM => {
                 if self.ramctl.disabled {
                     self.bad_read(16, addr, "disabled RAM");
                     halfword_of_word(self.last_code_read, addr)
@@ -200,7 +198,7 @@ impl GbaHardware {
                     read_u16(&self.iwram, addr as usize % (32 * 1024))
                 }
             }
-            0x03 => {
+            Region::InternalRAM => {
                 if self.ramctl.disabled {
                     self.bad_read(16, addr, "disabled RAM");
                     halfword_of_word(self.last_code_read, addr)
@@ -208,19 +206,18 @@ impl GbaHardware {
                     read_u16(&self.iwram, addr as usize % (32 * 1024))
                 }
             }
-            0x05 => self.pal.read16(addr as usize % (1 * 1024)),
-            0x06 => read_u16(&self.vram, Self::vram_off(addr)),
-            0x07 => read_u16(&self.oam, addr as usize % (1 * 1024)),
-            0x04 => self.io_read16(addr, true),
-            0x08 | 0x09 => self.gamepak_read16(addr, true),
-            0x0A | 0x0B => self.gamepak_read16(addr, true),
-            0x0C | 0x0D => self.gamepak_read16(addr, true),
-            0x0E => self.sram_read16(addr),
-            0x0F => {
+            Region::IORegisters => self.io_read16(addr, true),
+            Region::Palette => self.pal.read16(addr as usize % (1 * 1024)),
+            Region::VRAM => read_u16(&self.vram, Self::vram_off(addr)),
+            Region::OAM => read_u16(&self.oam, addr as usize % (1 * 1024)),
+            Region::GamePak0 => self.gamepak_read16(addr, true),
+            Region::GamePak1 => self.gamepak_read16(addr, true),
+            Region::GamePak2 => self.gamepak_read16(addr, true),
+            Region::SRAM => self.sram_read16(addr),
+            Region::Unused0xF => {
                 self.bad_read(16, addr, "unused region 0x0F");
                 halfword_of_word(self.last_code_read, addr)
             }
-            _ => unreachable!(),
         }
     }
 
@@ -229,16 +226,16 @@ impl GbaHardware {
 
         let addr = addr & 0xFFFFFFFE; // halfword align the address
 
-        match region_of(addr) {
-            0x00 => {
+        match Region::from_address(addr) {
+            Region::BIOS => {
                 if addr < 0x4000 {
                     self.bios_read16(addr)
                 } else {
                     BAD_VALUE
                 }
             }
-            0x01 => BAD_VALUE,
-            0x02 => {
+            Region::Unused0x1 => BAD_VALUE,
+            Region::ExternalRAM => {
                 if self.ramctl.disabled {
                     BAD_VALUE
                 } else if self.ramctl.external {
@@ -247,34 +244,33 @@ impl GbaHardware {
                     read_u16(&self.iwram, addr as usize % (32 * 1024))
                 }
             }
-            0x03 => {
+            Region::InternalRAM => {
                 if self.ramctl.disabled {
                     BAD_VALUE
                 } else {
                     read_u16(&self.iwram, addr as usize % (32 * 1024))
                 }
             }
-            0x05 => self.pal.read16(addr as usize % (1 * 1024)),
-            0x06 => read_u16(&self.vram, Self::vram_off(addr)),
-            0x07 => read_u16(&self.oam, addr as usize % (1 * 1024)),
-            0x04 => self.io_read16(addr, false),
-            0x08 | 0x09 => self.gamepak_read16(addr, false),
-            0x0A | 0x0B => self.gamepak_read16(addr, false),
-            0x0C | 0x0D => self.gamepak_read16(addr, false),
-            0x0E => BAD_VALUE,
-            0x0F => BAD_VALUE,
-            _ => unreachable!(),
+            Region::IORegisters => self.io_read16(addr, false),
+            Region::Palette => self.pal.read16(addr as usize % (1 * 1024)),
+            Region::VRAM => read_u16(&self.vram, Self::vram_off(addr)),
+            Region::OAM => read_u16(&self.oam, addr as usize % (1 * 1024)),
+            Region::GamePak0 => self.gamepak_read16(addr, false),
+            Region::GamePak1 => self.gamepak_read16(addr, false),
+            Region::GamePak2 => self.gamepak_read16(addr, false),
+            Region::SRAM => BAD_VALUE,
+            Region::Unused0xF => BAD_VALUE,
         }
     }
 
     pub fn read8(&self, addr: u32) -> u8 {
-        match region_of(addr) {
-            0x00 => self.bios_read8(addr),
-            0x01 => {
+        match Region::from_address(addr) {
+            Region::BIOS => self.bios_read8(addr),
+            Region::Unused0x1 => {
                 self.bad_read(8, addr, "unused region 0x01");
                 byte_of_word(self.last_code_read, addr)
             }
-            0x02 => {
+            Region::ExternalRAM => {
                 if self.ramctl.disabled {
                     self.bad_read(8, addr, "disabled RAM");
                     byte_of_word(self.last_code_read, addr)
@@ -284,7 +280,7 @@ impl GbaHardware {
                     self.ewram[addr as usize % (256 * 1024)]
                 }
             }
-            0x03 => {
+            Region::InternalRAM => {
                 if self.ramctl.disabled {
                     self.bad_read(8, addr, "disabled RAM");
                     byte_of_word(self.last_code_read, addr)
@@ -292,15 +288,15 @@ impl GbaHardware {
                     self.iwram[addr as usize % (32 * 1024)]
                 }
             }
-            0x05 => self.pal.read8(addr as usize % (1 * 1024)),
-            0x06 => self.vram[Self::vram_off(addr)],
-            0x07 => self.oam[addr as usize % (1 * 1024)],
-            0x04 => self.io_read8(addr, true),
-            0x08 | 0x09 => self.gamepak_read8(addr, true),
-            0x0A | 0x0B => self.gamepak_read8(addr, true),
-            0x0C | 0x0D => self.gamepak_read8(addr, true),
-            0x0E => self.sram_read8(addr),
-            0x0F => {
+            Region::IORegisters => self.io_read8(addr, true),
+            Region::Palette => self.pal.read8(addr as usize % (1 * 1024)),
+            Region::VRAM => self.vram[Self::vram_off(addr)],
+            Region::OAM => self.oam[addr as usize % (1 * 1024)],
+            Region::GamePak0 => self.gamepak_read8(addr, true),
+            Region::GamePak1 => self.gamepak_read8(addr, true),
+            Region::GamePak2 => self.gamepak_read8(addr, true),
+            Region::SRAM => self.sram_read8(addr),
+            Region::Unused0xF => {
                 self.bad_read(8, addr, "unused region 0x0F");
                 byte_of_word(self.last_code_read, addr)
             }
@@ -311,16 +307,16 @@ impl GbaHardware {
     pub fn view8(&self, addr: u32) -> u8 {
         const BAD_VALUE: u8 = 0xDE;
 
-        match region_of(addr) {
-            0x00 => {
+        match Region::from_address(addr) {
+            Region::BIOS => {
                 if addr < 0x4000 {
                     self.bios_read8(addr)
                 } else {
                     BAD_VALUE
                 }
             }
-            0x01 => BAD_VALUE,
-            0x02 => {
+            Region::Unused0x1 => BAD_VALUE,
+            Region::ExternalRAM => {
                 if self.ramctl.disabled {
                     BAD_VALUE
                 } else if self.ramctl.external {
@@ -329,22 +325,22 @@ impl GbaHardware {
                     self.iwram[addr as usize % (32 * 1024)]
                 }
             }
-            0x03 => {
+            Region::InternalRAM => {
                 if self.ramctl.disabled {
                     BAD_VALUE
                 } else {
                     self.iwram[addr as usize % (32 * 1024)]
                 }
             }
-            0x05 => self.pal.read8(addr as usize % (1 * 1024)),
-            0x06 => self.vram[Self::vram_off(addr)],
-            0x07 => self.oam[addr as usize % (1 * 1024)],
-            0x04 => self.io_read8(addr, false),
-            0x08 | 0x09 => self.gamepak_read8(addr, false),
-            0x0A | 0x0B => self.gamepak_read8(addr, false),
-            0x0C | 0x0D => self.gamepak_read8(addr, false),
-            0x0E => BAD_VALUE,
-            0x0F => BAD_VALUE,
+            Region::IORegisters => self.io_read8(addr, false),
+            Region::Palette => self.pal.read8(addr as usize % (1 * 1024)),
+            Region::VRAM => self.vram[Self::vram_off(addr)],
+            Region::OAM => self.oam[addr as usize % (1 * 1024)],
+            Region::GamePak0 => self.gamepak_read8(addr, false),
+            Region::GamePak1 => self.gamepak_read8(addr, false),
+            Region::GamePak2 => self.gamepak_read8(addr, false),
+            Region::SRAM => BAD_VALUE,
+            Region::Unused0xF => BAD_VALUE,
             _ => unreachable!(),
         }
     }
@@ -352,24 +348,24 @@ impl GbaHardware {
     pub fn write32(&mut self, addr: u32, data: u32) -> bool {
         let addr = addr & 0xFFFFFFFC; // word align the address
 
-        match region_of(addr) {
-            0x02 if !self.ramctl.disabled && self.ramctl.external => {
+        match Region::from_address(addr) {
+            Region::ExternalRAM if !self.ramctl.disabled && self.ramctl.external => {
                 write_u32(&mut self.ewram, addr as usize % (256 * 1024), data)
             }
-            0x02 if !self.ramctl.disabled => {
+            Region::ExternalRAM if !self.ramctl.disabled => {
                 write_u32(&mut self.iwram, addr as usize % (32 * 1024), data)
             }
-            0x03 if !self.ramctl.disabled => {
+            Region::InternalRAM if !self.ramctl.disabled => {
                 write_u32(&mut self.iwram, addr as usize % (32 * 1024), data)
             }
-            0x04 => return self.io_write32(addr, data, true),
-            0x05 => self.pal.write32(addr as usize % (1 * 1024), data),
-            0x06 => write_u32(&mut self.vram, Self::vram_off(addr), data),
-            0x07 => write_u32(&mut self.oam, addr as usize % (1 * 1024), data),
-            0x08 | 0x09 => return self.gamepak_write32(addr, data, true),
-            0x0A | 0x0B => return self.gamepak_write32(addr, data, true),
-            0x0C | 0x0D => return self.gamepak_write32(addr, data, true),
-            0x0E => return self.sram_write32(addr, data),
+            Region::IORegisters => return self.io_write32(addr, data, true),
+            Region::Palette => self.pal.write32(addr as usize % (1 * 1024), data),
+            Region::VRAM => write_u32(&mut self.vram, Self::vram_off(addr), data),
+            Region::OAM => write_u32(&mut self.oam, addr as usize % (1 * 1024), data),
+            Region::GamePak0 => return self.gamepak_write32(addr, data, true),
+            Region::GamePak1 => return self.gamepak_write32(addr, data, true),
+            Region::GamePak2 => return self.gamepak_write32(addr, data, true),
+            Region::SRAM => return self.sram_write32(addr, data),
             _ => {
                 self.bad_write(32, addr, data, "out of range memory address");
                 return false;
@@ -381,24 +377,24 @@ impl GbaHardware {
     pub fn write16(&mut self, addr: u32, data: u16) -> bool {
         let addr = addr & 0xFFFFFFFE; // halfword align the address
 
-        match region_of(addr) {
-            0x02 if !self.ramctl.disabled && self.ramctl.external => {
+        match Region::from_address(addr) {
+            Region::ExternalRAM if !self.ramctl.disabled && self.ramctl.external => {
                 write_u16(&mut self.ewram, addr as usize % (256 * 1024), data)
             }
-            0x02 if !self.ramctl.disabled => {
+            Region::ExternalRAM if !self.ramctl.disabled => {
                 write_u16(&mut self.iwram, addr as usize % (32 * 1024), data)
             }
-            0x03 if !self.ramctl.disabled => {
+            Region::InternalRAM if !self.ramctl.disabled => {
                 write_u16(&mut self.iwram, addr as usize % (32 * 1024), data)
             }
-            0x04 => return self.io_write16(addr, data, true),
-            0x05 => self.pal.write16(addr as usize % (1 * 1024), data),
-            0x06 => write_u16(&mut self.vram, Self::vram_off(addr), data),
-            0x07 => write_u16(&mut self.oam, addr as usize % (1 * 1024), data),
-            0x08 | 0x09 => return self.gamepak_write16(addr, data, true),
-            0x0A | 0x0B => return self.gamepak_write16(addr, data, true),
-            0x0C | 0x0D => return self.gamepak_write16(addr, data, true),
-            0x0E => return self.sram_write16(addr, data),
+            Region::IORegisters => return self.io_write16(addr, data, true),
+            Region::Palette => self.pal.write16(addr as usize % (1 * 1024), data),
+            Region::VRAM => write_u16(&mut self.vram, Self::vram_off(addr), data),
+            Region::OAM => write_u16(&mut self.oam, addr as usize % (1 * 1024), data),
+            Region::GamePak0 => return self.gamepak_write16(addr, data, true),
+            Region::GamePak1 => return self.gamepak_write16(addr, data, true),
+            Region::GamePak2 => return self.gamepak_write16(addr, data, true),
+            Region::SRAM => return self.sram_write16(addr, data),
             _ => {
                 self.bad_write(16, addr, data as u32, "out of range memory address");
                 return false;
@@ -408,20 +404,24 @@ impl GbaHardware {
     }
 
     pub fn write8(&mut self, addr: u32, data: u8) -> bool {
-        match region_of(addr) {
-            0x02 if !self.ramctl.disabled && self.ramctl.external => {
+        match Region::from_address(addr) {
+            Region::ExternalRAM if !self.ramctl.disabled && self.ramctl.external => {
                 self.ewram[addr as usize % (256 * 1024)] = data
             }
-            0x02 if !self.ramctl.disabled => self.iwram[addr as usize % (32 * 1024)] = data,
-            0x03 if !self.ramctl.disabled => self.iwram[addr as usize % (32 * 1024)] = data,
-            0x04 => return self.io_write8(addr, data, true),
-            0x05 => self.pal.write8(addr as usize % (1 * 1024), data),
-            0x06 => self.vram[Self::vram_off(addr)] = data,
-            0x07 => self.oam[addr as usize % (1 * 1024)] = data,
-            0x08 | 0x09 => return self.gamepak_write8(addr, data, true),
-            0x0A | 0x0B => return self.gamepak_write8(addr, data, true),
-            0x0C | 0x0D => return self.gamepak_write8(addr, data, true),
-            0x0E => return self.sram_write8(addr, data),
+            Region::ExternalRAM if !self.ramctl.disabled => {
+                self.iwram[addr as usize % (32 * 1024)] = data
+            }
+            Region::InternalRAM if !self.ramctl.disabled => {
+                self.iwram[addr as usize % (32 * 1024)] = data
+            }
+            Region::IORegisters => return self.io_write8(addr, data, true),
+            Region::Palette => self.pal.write8(addr as usize % (1 * 1024), data),
+            Region::VRAM => self.vram[Self::vram_off(addr)] = data,
+            Region::OAM => self.oam[addr as usize % (1 * 1024)] = data,
+            Region::GamePak0 => return self.gamepak_write8(addr, data, true),
+            Region::GamePak1 => return self.gamepak_write8(addr, data, true),
+            Region::GamePak2 => return self.gamepak_write8(addr, data, true),
+            Region::SRAM => return self.sram_write8(addr, data),
             _ => {
                 self.bad_write(8, addr, data as u32, "out of range memory address");
                 return false;
@@ -1022,7 +1022,43 @@ impl GbaRAMControl {
     }
 }
 
-#[inline(always)]
-pub const fn region_of(addr: u32) -> u32 {
-    (addr >> 24) & 0xF
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u32)]
+pub enum Region {
+    BIOS,
+    Unused0x1,
+    ExternalRAM,
+    InternalRAM,
+    IORegisters,
+    Palette,
+    VRAM,
+    OAM,
+    GamePak0,
+    GamePak1,
+    GamePak2,
+    SRAM,
+    Unused0xF,
+}
+
+impl Region {
+    pub fn from_address(address: u32) -> Region {
+        match (address >> 24) & 0x0F {
+            0x00 => Region::BIOS,
+            0x01 => Region::Unused0x1,
+            0x02 => Region::ExternalRAM,
+            0x03 => Region::InternalRAM,
+            0x04 => Region::IORegisters,
+            0x05 => Region::Palette,
+            0x06 => Region::VRAM,
+            0x07 => Region::OAM,
+            0x08 | 0x09 => Region::GamePak0,
+            0x0A | 0x0B => Region::GamePak1,
+            0x0C | 0x0D => Region::GamePak2,
+            0x0E => Region::SRAM,
+            0x0F => Region::Unused0xF,
+
+            // We cover everything in the range (0x0, 0xF)
+            _ => unsafe { std::hint::unreachable_unchecked() },
+        }
+    }
 }
