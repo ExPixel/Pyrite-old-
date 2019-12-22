@@ -207,7 +207,7 @@ impl LCDLineBuffer {
     }
 
     pub fn mix(&mut self, effect: SpecialEffect, registers: &LCDRegisters) {
-        let no_blending = effect == SpecialEffect::None
+        let no_blending = (effect == SpecialEffect::None && self.obj_semitrans.is_all_zeroes())
             || (effect == SpecialEffect::AlphaBlending
                 && self.bot_layer_second_target.is_all_zeroes())
             || self.top_layer_first_target.is_all_zeroes();
@@ -308,7 +308,21 @@ impl LCDLineBuffer {
                 }
             }
 
-            _ => unreachable!(),
+            // we would only reach here if there are semi-transparent objects.
+            SpecialEffect::None => {
+                for index in 0..240 {
+                    if !self.obj_semitrans.get(index) || !self.bot_layer_second_target.get(index) {
+                        self.mixed[index] = self.unmixed[index] as u16;
+                    } else {
+                        self.mixed[index] = Self::alpha_blend(
+                            self.unmixed[index] as u16,
+                            (self.unmixed[index] >> 16) as u16,
+                            eva,
+                            evb,
+                        );
+                    }
+                }
+            }
         }
     }
 
