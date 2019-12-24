@@ -3,13 +3,13 @@ use crate::platform::opengl::GbaTexture;
 use pyrite_gba::Gba;
 
 pub struct GbaImGui {
-    gba: Gba,
+    gba: Box<Gba>,
     main_emulator_gui: widgets::EmulatorGUI,
     gba_texture: GbaTexture,
 }
 
 impl GbaImGui {
-    pub fn new(gba: Gba, window: &glutin::Window) -> GbaImGui {
+    pub fn new(gba: Box<Gba>, window: &glutin::Window) -> GbaImGui {
         let mut ret = GbaImGui {
             gba: gba,
             main_emulator_gui: widgets::EmulatorGUI::new(),

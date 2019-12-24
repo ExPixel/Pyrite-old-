@@ -19,7 +19,7 @@ fn run_emulator() -> i32 {
         log::error!("failed to place the window in the center of the screen");
     }
 
-    let mut gba = Gba::new();
+    let mut gba = Box::new(Gba::new());
 
     const BIOS_FILE: &str = "roms/legal/gba-bios.bin";
     match load_binary(&BIOS_FILE) {
