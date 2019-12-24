@@ -3,6 +3,7 @@ mod util;
 mod hardware;
 #[allow(dead_code)]
 mod ioregs;
+pub mod irq;
 pub mod keypad;
 pub mod lcd;
 mod sysctl;
@@ -99,6 +100,11 @@ impl Gba {
         video: &mut dyn GbaVideoOutput,
         _audio: &mut dyn GbaAudioOutput,
     ) -> (bool, bool) {
+        if self.hardware.irq.pop_pending_irq() {
+            self.cpu.set_pending_exception(CpuException::IRQ);
+        }
+        self.hardware.irq.cpu_irq_enabled = !self.cpu.registers.getf_i();
+
         // @TODO reimplement DMA and other step stuff.
         let cycles = self.cpu.step(&mut self.hardware);
         let video_frame = self.hardware.lcd.step(

@@ -1,4 +1,5 @@
 use crate::ioregs;
+use crate::irq::GbaInterruptControl;
 use crate::keypad::GbaKeypad;
 use crate::lcd::palette::GbaPalette;
 use crate::lcd::GbaLCD;
@@ -35,6 +36,7 @@ pub struct GbaHardware {
     pub(crate) ramctl: GbaRAMControl,
     pub lcd: GbaLCD,
     pub keypad: GbaKeypad,
+    pub irq: GbaInterruptControl,
 
     /// This singular purpose of this is to make 8bit writes to larger IO registers consistent by
     /// storing the values that were last written to them.
@@ -68,6 +70,7 @@ impl GbaHardware {
             ramctl: GbaRAMControl::new(),
             lcd: GbaLCD::new(),
             keypad: GbaKeypad::new(),
+            irq: GbaInterruptControl::new(),
 
             ioreg_bytes: [0u8; 0x20A],
             last_code_read: 0,
