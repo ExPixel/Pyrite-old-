@@ -26,7 +26,6 @@ pub struct GbaLCD {
     pub(crate) pixels: LCDLineBuffer,
     hblank: bool,
     next_state_cycles: u32,
-    frame_ready: bool,
 }
 
 impl GbaLCD {
@@ -36,7 +35,6 @@ impl GbaLCD {
             hblank: false,
             next_state_cycles: HDRAW_CYCLES,
             pixels: LCDLineBuffer::new(),
-            frame_ready: false,
         }
     }
 
@@ -100,7 +98,6 @@ impl GbaLCD {
             video.display_line(self.registers.line as u32, &self.pixels.mixed);
             if self.registers.line == 159 {
                 video.post_frame();
-                self.frame_ready = true;
             }
         }
 
