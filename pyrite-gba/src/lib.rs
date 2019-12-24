@@ -94,18 +94,17 @@ impl Gba {
 
     /// Returns a tuple with the first value being true if this step marked the end of a video
     /// frame, and the second value being true if this step marked the end of an audio frame.
-    #[inline]
+    #[inline(never)]
     pub fn step(
         &mut self,
         video: &mut dyn GbaVideoOutput,
         _audio: &mut dyn GbaAudioOutput,
     ) -> (bool, bool) {
-        if self.hardware.irq.pop_pending_irq() {
+        if pyrite_common::unlikely!(self.hardware.irq.pop_pending_irq()) {
             self.cpu.set_pending_exception(CpuException::IRQ);
         }
         self.hardware.irq.cpu_irq_enabled = !self.cpu.registers.getf_i();
 
-        // @TODO reimplement DMA and other step stuff.
         let cycles = self.cpu.step(&mut self.hardware);
         let video_frame = self.hardware.lcd.step(
             cycles,

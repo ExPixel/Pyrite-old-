@@ -40,7 +40,7 @@ pub struct GbaHardware {
 
     /// This singular purpose of this is to make 8bit writes to larger IO registers consistent by
     /// storing the values that were last written to them.
-    ioreg_bytes: [u8; 0x20A],
+    ioreg_bytes: [u8; 0x20C],
 
     /// Last code read with read_code_halfword or read_code_word.
     last_code_read: u32,
@@ -72,7 +72,7 @@ impl GbaHardware {
             keypad: GbaKeypad::new(),
             irq: GbaInterruptControl::new(),
 
-            ioreg_bytes: [0u8; 0x20A],
+            ioreg_bytes: [0u8; 0x20C],
             last_code_read: 0,
 
             // @TODO implement
@@ -808,6 +808,13 @@ impl GbaHardware {
                 self.sysctl.update_ram_cycles(self.ramctl.reg_control);
             }
 
+            // Interrupt Control
+            ioregs::IME => {
+                self.irq.master_enable = (data & 1) != 0;
+            }
+            ioregs::IME_HI => { /* NOP */ }
+            ioregs::IE => self.irq.enabled = data,
+            ioregs::IF => self.irq.write_if(data),
             _ => {
                 return false;
             }
@@ -847,6 +854,10 @@ impl GbaHardware {
             ioregs::WAITCNT => Some(self.sysctl.reg_waitcnt),
             ioregs::IMC => getw!(self.ramctl.reg_control),
 
+            // Interrupt Control
+            ioregs::IME => Some(self.irq.master_enable as u16),
+            ioregs::IE => Some(self.irq.enabled),
+            ioregs::IF => Some(self.irq.read_if()),
             _ => None,
         }
     }

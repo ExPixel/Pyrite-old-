@@ -116,6 +116,7 @@ pub const IE: u16 = 0x0200;
 pub const IF: u16 = 0x0202;
 pub const WAITCNT: u16 = 0x0204;
 pub const IME: u16 = 0x0208;
+pub const IME_HI: u16 = 0x20A;
 pub const POSTFLG: u16 = 0x0300;
 pub const HALTCNT: u16 = 0x0301;
 pub const BUG410: u16 = 0x0410;

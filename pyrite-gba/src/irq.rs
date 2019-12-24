@@ -34,8 +34,14 @@ impl GbaInterruptControl {
         return ret;
     }
 
+    #[inline]
+    pub fn read_if(&self) -> u16 {
+        self.request_ack
+    }
+
     /// Handles writing to the IF register. Writing a 1 to any bit in the IF register actually
     /// clears it.
+    #[inline]
     pub fn write_if(&mut self, value: u16) {
         self.request_ack &= !value;
     }
