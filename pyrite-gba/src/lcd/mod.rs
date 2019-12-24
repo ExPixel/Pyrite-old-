@@ -207,9 +207,12 @@ impl LCDLineBuffer {
     }
 
     pub fn mix(&mut self, effect: SpecialEffect, registers: &LCDRegisters) {
+        let eva = bits!(registers.alpha, 0, 4); // EVA * 16
+        let evb = bits!(registers.alpha, 8, 12); // EVB * 16
+
         let no_blending = (effect == SpecialEffect::None && self.obj_semitrans.is_all_zeroes())
             || (effect == SpecialEffect::AlphaBlending
-                && self.bot_layer_second_target.is_all_zeroes())
+                && (self.bot_layer_second_target.is_all_zeroes() || eva == 16))
             || self.top_layer_first_target.is_all_zeroes();
 
         if no_blending {
@@ -223,9 +226,6 @@ impl LCDLineBuffer {
                 });
             return;
         }
-
-        let eva = bits!(registers.alpha, 0, 4); // EVA * 16
-        let evb = bits!(registers.alpha, 8, 12); // EVB * 16
 
         match effect {
             SpecialEffect::AlphaBlending => {
