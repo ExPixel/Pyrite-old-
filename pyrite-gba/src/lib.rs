@@ -94,7 +94,7 @@ impl Gba {
 
     /// Returns a tuple with the first value being true if this step marked the end of a video
     /// frame, and the second value being true if this step marked the end of an audio frame.
-    #[inline(never)]
+    #[inline]
     pub fn step(
         &mut self,
         video: &mut dyn GbaVideoOutput,
