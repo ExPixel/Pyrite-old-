@@ -2,15 +2,15 @@ use crate::hardware::Region;
 use pyrite_common::bits;
 
 macro_rules! set_timings {
-    ($Array:expr, $Region:expr, 1, $FirstAccess:expr, $SecondAccess:expr) => {
-        $Array[$Region.index()] = AccessCycles {
+    ($Width:ident, $Region:expr, 1, $FirstAccess:expr, $SecondAccess:expr) => {
+        $Region.$Width = AccessCycles {
             nonsequential: 1 + $FirstAccess,
             sequential: 1 + $SecondAccess,
         };
     };
 
-    ($Array:expr, $Region:expr, 2, $FirstAccess:expr, $SecondAccess:expr) => {
-        $Array[$Region.index()] = AccessCycles {
+    ($Width:ident, $Region:expr, 2, $FirstAccess:expr, $SecondAccess:expr) => {
+        $Region.$Width = AccessCycles {
             nonsequential: 2 + $FirstAccess + $SecondAccess,
             sequential: 2 + $SecondAccess + $SecondAccess,
         };
@@ -32,13 +32,16 @@ impl Default for AccessCycles {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy)]
+pub struct RegionCycles {
+    word: AccessCycles,
+    halfword: AccessCycles,
+    byte: AccessCycles,
+}
+
 pub struct GbaSystemControl {
-    /// nonsequential and sequential (respectively) cycles for 8bit accesses.
-    cycles_byte: [AccessCycles; Region::count()],
-    /// nonsequential and sequential (respectively) cycles for 16bit accesses.
-    cycles_halfword: [AccessCycles; Region::count()],
-    /// nonsequential and sequential (respectively) cycles for 32bit accesses.
-    cycles_word: [AccessCycles; Region::count()],
+    pub ram_cycles: RegionCycles,
+    pub gamepak_cycles: [RegionCycles; 3],
 
     pub stop: bool,
     pub halt: bool,
@@ -51,9 +54,12 @@ pub struct GbaSystemControl {
 impl GbaSystemControl {
     pub fn new() -> GbaSystemControl {
         GbaSystemControl {
-            cycles_byte: [AccessCycles::default(); Region::count()],
-            cycles_halfword: [AccessCycles::default(); Region::count()],
-            cycles_word: [AccessCycles::default(); Region::count()],
+            ram_cycles: RegionCycles::default(),
+            gamepak_cycles: [
+                RegionCycles::default(),
+                RegionCycles::default(),
+                RegionCycles::default(),
+            ],
 
             stop: false,
             halt: false,
@@ -66,28 +72,10 @@ impl GbaSystemControl {
     pub fn update_ram_cycles(&mut self, internal_memory_control: u32) {
         let ram_cycles = 15 - bits!(internal_memory_control, 24, 27) as u8;
 
-        set_timings!(
-            self.cycles_byte,
-            Region::ExternalRAM,
-            1,
-            ram_cycles,
-            ram_cycles
-        );
-        set_timings!(
-            self.cycles_halfword,
-            Region::ExternalRAM,
-            1,
-            ram_cycles,
-            ram_cycles
-        );
+        set_timings!(byte, self.ram_cycles, 1, ram_cycles, ram_cycles);
+        set_timings!(halfword, self.ram_cycles, 1, ram_cycles, ram_cycles);
         // 16bit bus so a 32bit access is 2 16bit accesses
-        set_timings!(
-            self.cycles_word,
-            Region::ExternalRAM,
-            2,
-            ram_cycles,
-            ram_cycles
-        );
+        set_timings!(word, self.ram_cycles, 2, ram_cycles, ram_cycles);
     }
 
     pub fn set_reg_waitcnt(&mut self, waitcnt: u16) {
@@ -115,24 +103,24 @@ impl GbaSystemControl {
 
         // WAITSTATE 0
         set_timings!(
-            self.cycles_byte,
-            Region::GamePak0,
+            byte,
+            self.gamepak_cycles[0],
             1,
             waitstate0_first_access_halfword,
             waitstate0_second_access_halfword
         );
 
         set_timings!(
-            self.cycles_halfword,
-            Region::GamePak0,
+            halfword,
+            self.gamepak_cycles[0],
             1,
             waitstate0_first_access_halfword,
             waitstate0_second_access_halfword
         );
 
         set_timings!(
-            self.cycles_word,
-            Region::GamePak0,
+            word,
+            self.gamepak_cycles[0],
             2,
             waitstate0_first_access_halfword,
             waitstate0_second_access_halfword
@@ -140,24 +128,24 @@ impl GbaSystemControl {
 
         // WAITSTATE 1
         set_timings!(
-            self.cycles_byte,
-            Region::GamePak1,
+            byte,
+            self.gamepak_cycles[1],
             1,
             waitstate1_first_access_halfword,
             waitstate1_second_access_halfword
         );
 
         set_timings!(
-            self.cycles_halfword,
-            Region::GamePak1,
+            halfword,
+            self.gamepak_cycles[1],
             1,
             waitstate1_first_access_halfword,
             waitstate1_second_access_halfword
         );
 
         set_timings!(
-            self.cycles_word,
-            Region::GamePak1,
+            word,
+            self.gamepak_cycles[1],
             2,
             waitstate1_first_access_halfword,
             waitstate1_second_access_halfword
@@ -165,24 +153,24 @@ impl GbaSystemControl {
 
         // WAITSTATE 2
         set_timings!(
-            self.cycles_byte,
-            Region::GamePak2,
+            byte,
+            self.gamepak_cycles[2],
             1,
             waitstate2_first_access_halfword,
             waitstate2_second_access_halfword
         );
 
         set_timings!(
-            self.cycles_halfword,
-            Region::GamePak2,
+            halfword,
+            self.gamepak_cycles[2],
             1,
             waitstate2_first_access_halfword,
             waitstate2_second_access_halfword
         );
 
         set_timings!(
-            self.cycles_word,
-            Region::GamePak2,
+            word,
+            self.gamepak_cycles[2],
             2,
             waitstate2_first_access_halfword,
             waitstate2_second_access_halfword
@@ -190,49 +178,25 @@ impl GbaSystemControl {
 
         // SRAM
         set_timings!(
-            self.cycles_byte,
-            Region::SRAM,
+            byte,
+            self.gamepak_cycles[2],
             1,
             sram_first_access_byte,
             sram_first_access_byte
         );
         set_timings!(
-            self.cycles_halfword,
-            Region::SRAM,
+            halfword,
+            self.gamepak_cycles[2],
             1,
             sram_first_access_byte,
             sram_first_access_byte
         );
         set_timings!(
-            self.cycles_word,
-            Region::SRAM,
+            word,
+            self.gamepak_cycles[2],
             1,
             sram_first_access_byte,
             sram_first_access_byte
         );
-    }
-
-    pub fn get_word_cycles(&self, addr: u32, seq: bool) -> u32 {
-        if seq {
-            self.cycles_word[Region::from_address(addr).index()].sequential as u32
-        } else {
-            self.cycles_word[Region::from_address(addr).index()].nonsequential as u32
-        }
-    }
-
-    pub fn get_halfword_cycles(&self, addr: u32, seq: bool) -> u32 {
-        if seq {
-            self.cycles_halfword[Region::from_address(addr).index()].sequential as u32
-        } else {
-            self.cycles_halfword[Region::from_address(addr).index()].nonsequential as u32
-        }
-    }
-
-    pub fn get_byte_cycles(&self, addr: u32, seq: bool) -> u32 {
-        if seq {
-            self.cycles_byte[Region::from_address(addr).index()].sequential as u32
-        } else {
-            self.cycles_byte[Region::from_address(addr).index()].nonsequential as u32
-        }
     }
 }
