@@ -15,12 +15,6 @@ pub const BD_LAYER: u16 = 5;
 pub const HDRAW_CYCLES: u32 = 960;
 pub const HBLANK_CYCLES: u32 = 272;
 
-#[inline(always)]
-const fn set_halfword_of_word(word: u32, value: u16, off: u32) -> u32 {
-    let shift = (off as u32 & 0x10) << 3;
-    (word & !(0xFFFF << shift)) | ((value as u32) << shift)
-}
-
 pub struct GbaLCD {
     pub(crate) registers: LCDRegisters,
     pub(crate) pixels: LCDLineBuffer,

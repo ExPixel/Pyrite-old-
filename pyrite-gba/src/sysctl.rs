@@ -23,6 +23,18 @@ pub struct AccessCycles {
     pub sequential: u8,
 }
 
+impl AccessCycles {
+    /// Get sequential or non-sequential timing as a u32.
+    #[inline]
+    pub fn get(&self, seq: bool) -> u32 {
+        if seq {
+            self.sequential as u32
+        } else {
+            self.nonsequential as u32
+        }
+    }
+}
+
 impl Default for AccessCycles {
     fn default() -> AccessCycles {
         AccessCycles {
@@ -34,14 +46,15 @@ impl Default for AccessCycles {
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RegionCycles {
-    word: AccessCycles,
-    halfword: AccessCycles,
-    byte: AccessCycles,
+    pub word: AccessCycles,
+    pub halfword: AccessCycles,
+    pub byte: AccessCycles,
 }
 
 pub struct GbaSystemControl {
     pub ram_cycles: RegionCycles,
     pub gamepak_cycles: [RegionCycles; 3],
+    pub sram_cycles: RegionCycles,
 
     pub stop: bool,
     pub halt: bool,
@@ -60,6 +73,7 @@ impl GbaSystemControl {
                 RegionCycles::default(),
                 RegionCycles::default(),
             ],
+            sram_cycles: RegionCycles::default(),
 
             stop: false,
             halt: false,
@@ -179,21 +193,21 @@ impl GbaSystemControl {
         // SRAM
         set_timings!(
             byte,
-            self.gamepak_cycles[2],
+            self.sram_cycles,
             1,
             sram_first_access_byte,
             sram_first_access_byte
         );
         set_timings!(
             halfword,
-            self.gamepak_cycles[2],
+            self.sram_cycles,
             1,
             sram_first_access_byte,
             sram_first_access_byte
         );
         set_timings!(
             word,
-            self.gamepak_cycles[2],
+            self.sram_cycles,
             1,
             sram_first_access_byte,
             sram_first_access_byte
