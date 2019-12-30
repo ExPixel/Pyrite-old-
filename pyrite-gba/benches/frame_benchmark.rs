@@ -57,15 +57,15 @@ fn gba_mode0_benchmark(c: &mut Criterion) {
     black_box(gba);
 }
 
-// fn gba_mode0_simple_blending_benchmark(c: &mut Criterion) {
-//     let mut gba = setup_gba("../roms/tonc/cbb_demo.gba");
-//     draw_frames(&mut gba, 256);
+fn gba_mode0_simple_blending_benchmark(c: &mut Criterion) {
+    let mut gba = setup_gba("../roms/tonc/cbb_demo.gba");
+    draw_frames(&mut gba, 256);
 
-//     c.bench_function("mode0 simple blending frame", |b| {
-//         b.iter(|| draw_single_frame(&mut gba))
-//     });
-//     black_box(gba);
-// }
+    c.bench_function("mode0 simple blending frame", |b| {
+        b.iter(|| draw_single_frame(&mut gba))
+    });
+    black_box(gba);
+}
 
 fn gba_obj_benchmark(c: &mut Criterion) {
     let mut gba = setup_gba("../roms/tonc/obj_demo.gba");
