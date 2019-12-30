@@ -714,15 +714,14 @@ impl ArmMemory for GbaHardware {
     }
 
     fn read_code_word(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u32 {
-        // get rid of last_code_read somehow
+        // TODO get rid of last_code_read somehow
         self.last_code_read = self.read_data_word(addr, seq, cycles);
         return self.last_code_read;
     }
 
     fn read_code_halfword(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u16 {
-        let value = self.read_data_halfword(addr, seq, cycles);
-        self.last_code_read = set_halfword_of_word(self.last_code_read, value, addr);
-        return value;
+        self.last_code_read = self.read_data_word(addr, seq, cycles);
+        return halfword_of_word(self.last_code_read, addr);
     }
 
     fn read_data_word(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u32 {
