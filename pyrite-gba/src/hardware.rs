@@ -130,9 +130,12 @@ impl GbaHardware {
             Region::Palette => self.pal.read32(addr as usize % (1 * 1024)),
             Region::VRAM => read_u32(&*self.vram, Self::vram_off(addr)),
             Region::OAM => read_u32(&*self.oam, addr as usize % (1 * 1024)),
-            Region::GamePak0 => self.gamepak_read32(addr, false),
-            Region::GamePak1 => self.gamepak_read32(addr, false),
-            Region::GamePak2 => self.gamepak_read32(addr, false),
+            Region::GamePak0Lo
+            | Region::GamePak0Hi
+            | Region::GamePak1Lo
+            | Region::GamePak1Hi
+            | Region::GamePak2Lo
+            | Region::GamePak2Hi => self.gamepak_read32(addr, false),
             Region::SRAM => BAD_VALUE,
             Region::Unused0xF => BAD_VALUE,
         }
@@ -172,9 +175,12 @@ impl GbaHardware {
             Region::Palette => self.pal.read16(addr as usize % (1 * 1024)),
             Region::VRAM => read_u16(&*self.vram, Self::vram_off(addr)),
             Region::OAM => read_u16(&*self.oam, addr as usize % (1 * 1024)),
-            Region::GamePak0 => self.gamepak_read16(addr, false),
-            Region::GamePak1 => self.gamepak_read16(addr, false),
-            Region::GamePak2 => self.gamepak_read16(addr, false),
+            Region::GamePak0Lo
+            | Region::GamePak0Hi
+            | Region::GamePak1Lo
+            | Region::GamePak1Hi
+            | Region::GamePak2Lo
+            | Region::GamePak2Hi => self.gamepak_read16(addr, false),
             Region::SRAM => BAD_VALUE,
             Region::Unused0xF => BAD_VALUE,
         }
@@ -212,9 +218,12 @@ impl GbaHardware {
             Region::Palette => self.pal.read8(addr as usize % (1 * 1024)),
             Region::VRAM => self.vram[Self::vram_off(addr)],
             Region::OAM => self.oam[addr as usize % (1 * 1024)],
-            Region::GamePak0 => self.gamepak_read8(addr, false),
-            Region::GamePak1 => self.gamepak_read8(addr, false),
-            Region::GamePak2 => self.gamepak_read8(addr, false),
+            Region::GamePak0Lo
+            | Region::GamePak0Hi
+            | Region::GamePak1Lo
+            | Region::GamePak1Hi
+            | Region::GamePak2Lo
+            | Region::GamePak2Hi => self.gamepak_read8(addr, false),
             Region::SRAM => BAD_VALUE,
             Region::Unused0xF => BAD_VALUE,
             _ => unreachable!(),
@@ -769,15 +778,15 @@ impl ArmMemory for GbaHardware {
                 *cycles += 1;
                 read_u32(&*self.oam, addr as usize % (1 * 1024))
             }
-            Region::GamePak0 => {
+            Region::GamePak0Lo | Region::GamePak0Hi => {
                 *cycles += self.sysctl.gamepak_cycles[0].word.get(seq);
                 self.gamepak_read32(addr, true)
             }
-            Region::GamePak1 => {
+            Region::GamePak1Lo | Region::GamePak1Hi => {
                 *cycles += self.sysctl.gamepak_cycles[1].word.get(seq);
                 self.gamepak_read32(addr, true)
             }
-            Region::GamePak2 => {
+            Region::GamePak2Lo | Region::GamePak2Hi => {
                 *cycles += self.sysctl.gamepak_cycles[2].word.get(seq);
                 self.gamepak_read32(addr, true)
             }
@@ -844,15 +853,15 @@ impl ArmMemory for GbaHardware {
                 *cycles += 1;
                 read_u16(&*self.oam, addr as usize % (1 * 1024))
             }
-            Region::GamePak0 => {
+            Region::GamePak0Lo | Region::GamePak0Hi => {
                 *cycles += self.sysctl.gamepak_cycles[0].halfword.get(seq);
                 self.gamepak_read16(addr, true)
             }
-            Region::GamePak1 => {
+            Region::GamePak1Lo | Region::GamePak1Hi => {
                 *cycles += self.sysctl.gamepak_cycles[1].halfword.get(seq);
                 self.gamepak_read16(addr, true)
             }
-            Region::GamePak2 => {
+            Region::GamePak2Lo | Region::GamePak2Hi => {
                 *cycles += self.sysctl.gamepak_cycles[2].halfword.get(seq);
                 self.gamepak_read16(addr, true)
             }
@@ -917,15 +926,15 @@ impl ArmMemory for GbaHardware {
                 *cycles += 1;
                 self.oam[addr as usize % (1 * 1024)]
             }
-            Region::GamePak0 => {
+            Region::GamePak0Lo | Region::GamePak0Hi => {
                 *cycles += self.sysctl.gamepak_cycles[0].byte.get(seq);
                 self.gamepak_read8(addr, true)
             }
-            Region::GamePak1 => {
+            Region::GamePak1Lo | Region::GamePak1Hi => {
                 *cycles += self.sysctl.gamepak_cycles[1].byte.get(seq);
                 self.gamepak_read8(addr, true)
             }
-            Region::GamePak2 => {
+            Region::GamePak2Lo | Region::GamePak2Hi => {
                 *cycles += self.sysctl.gamepak_cycles[2].byte.get(seq);
                 self.gamepak_read8(addr, true)
             }
@@ -981,15 +990,15 @@ impl ArmMemory for GbaHardware {
                 *cycles += 1;
                 write_u32(&mut *self.oam, addr as usize % (1 * 1024), data)
             }
-            Region::GamePak0 => {
+            Region::GamePak0Lo | Region::GamePak0Hi => {
                 *cycles += self.sysctl.gamepak_cycles[0].word.get(seq);
                 self.gamepak_write32(addr, data, true);
             }
-            Region::GamePak1 => {
+            Region::GamePak1Lo | Region::GamePak1Hi => {
                 *cycles += self.sysctl.gamepak_cycles[1].word.get(seq);
                 self.gamepak_write32(addr, data, true);
             }
-            Region::GamePak2 => {
+            Region::GamePak2Lo | Region::GamePak2Hi => {
                 *cycles += self.sysctl.gamepak_cycles[2].word.get(seq);
                 self.gamepak_write32(addr, data, true);
             }
@@ -1044,15 +1053,15 @@ impl ArmMemory for GbaHardware {
                 *cycles += 1;
                 write_u16(&mut *self.oam, addr as usize % (1 * 1024), data)
             }
-            Region::GamePak0 => {
+            Region::GamePak0Lo | Region::GamePak0Hi => {
                 *cycles += self.sysctl.gamepak_cycles[0].halfword.get(seq);
                 self.gamepak_write16(addr, data, true);
             }
-            Region::GamePak1 => {
+            Region::GamePak1Lo | Region::GamePak1Hi => {
                 *cycles += self.sysctl.gamepak_cycles[1].halfword.get(seq);
                 self.gamepak_write16(addr, data, true);
             }
-            Region::GamePak2 => {
+            Region::GamePak2Lo | Region::GamePak2Hi => {
                 *cycles += self.sysctl.gamepak_cycles[2].halfword.get(seq);
                 self.gamepak_write16(addr, data, true);
             }
@@ -1124,15 +1133,15 @@ impl ArmMemory for GbaHardware {
                 self.bad_write(8, addr, data as u32, "8-bit OAM write");
                 // self.oam[addr as usize % (1 * 1024)] = data
             }
-            Region::GamePak0 => {
+            Region::GamePak0Lo | Region::GamePak0Hi => {
                 *cycles += self.sysctl.gamepak_cycles[0].byte.get(seq);
                 self.gamepak_write8(addr, data, true);
             }
-            Region::GamePak1 => {
+            Region::GamePak1Lo | Region::GamePak1Hi => {
                 *cycles += self.sysctl.gamepak_cycles[1].byte.get(seq);
                 self.gamepak_write8(addr, data, true);
             }
-            Region::GamePak2 => {
+            Region::GamePak2Lo | Region::GamePak2Hi => {
                 *cycles += self.sysctl.gamepak_cycles[2].byte.get(seq);
                 self.gamepak_write8(addr, data, true);
             }
@@ -1175,9 +1184,9 @@ impl ArmMemory for GbaHardware {
             Region::Palette => 2,
             Region::VRAM => 2,
             Region::OAM => 1,
-            Region::GamePak0 => self.sysctl.gamepak_cycles[0].word.get(seq),
-            Region::GamePak1 => self.sysctl.gamepak_cycles[1].word.get(seq),
-            Region::GamePak2 => self.sysctl.gamepak_cycles[2].word.get(seq),
+            Region::GamePak0Lo | Region::GamePak0Hi => self.sysctl.gamepak_cycles[0].word.get(seq),
+            Region::GamePak1Lo | Region::GamePak1Hi => self.sysctl.gamepak_cycles[1].word.get(seq),
+            Region::GamePak2Lo | Region::GamePak2Hi => self.sysctl.gamepak_cycles[2].word.get(seq),
             Region::SRAM => self.sysctl.sram_cycles.word.get(true), // same for seq and nonseq
             Region::Unused0xF => 1,
         }
@@ -1200,9 +1209,15 @@ impl ArmMemory for GbaHardware {
             Region::Palette => 1,
             Region::VRAM => 1,
             Region::OAM => 1,
-            Region::GamePak0 => self.sysctl.gamepak_cycles[0].halfword.get(seq),
-            Region::GamePak1 => self.sysctl.gamepak_cycles[1].halfword.get(seq),
-            Region::GamePak2 => self.sysctl.gamepak_cycles[2].halfword.get(seq),
+            Region::GamePak0Lo | Region::GamePak0Hi => {
+                self.sysctl.gamepak_cycles[0].halfword.get(seq)
+            }
+            Region::GamePak1Lo | Region::GamePak1Hi => {
+                self.sysctl.gamepak_cycles[1].halfword.get(seq)
+            }
+            Region::GamePak2Lo | Region::GamePak2Hi => {
+                self.sysctl.gamepak_cycles[2].halfword.get(seq)
+            }
             Region::SRAM => self.sysctl.sram_cycles.word.get(true), // same for seq and nonseq
             Region::Unused0xF => 1,
         }
@@ -1272,19 +1287,22 @@ impl GbaRAMControl {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum Region {
-    BIOS = 0,
-    Unused0x1 = 1,
-    ExternalRAM = 2,
-    InternalRAM = 3,
-    IORegisters = 4,
-    Palette = 5,
-    VRAM = 6,
-    OAM = 7,
-    GamePak0 = 8,
-    GamePak1 = 9,
-    GamePak2 = 10,
-    SRAM = 11,
-    Unused0xF = 12,
+    BIOS = 0x0,
+    Unused0x1 = 0x1,
+    ExternalRAM = 0x2,
+    InternalRAM = 0x3,
+    IORegisters = 0x4,
+    Palette = 0x5,
+    VRAM = 0x6,
+    OAM = 0x7,
+    GamePak0Lo = 0x8,
+    GamePak0Hi = 0x9,
+    GamePak1Lo = 0xA,
+    GamePak1Hi = 0xB,
+    GamePak2Lo = 0xC,
+    GamePak2Hi = 0xD,
+    SRAM = 0xE,
+    Unused0xF = 0xF,
 }
 
 impl Region {
@@ -1307,9 +1325,12 @@ impl Region {
             0x05 => Region::Palette,
             0x06 => Region::VRAM,
             0x07 => Region::OAM,
-            0x08 | 0x09 => Region::GamePak0,
-            0x0A | 0x0B => Region::GamePak1,
-            0x0C | 0x0D => Region::GamePak2,
+            0x08 => Region::GamePak0Lo,
+            0x09 => Region::GamePak0Hi,
+            0x0A => Region::GamePak1Lo,
+            0x0B => Region::GamePak1Hi,
+            0x0C => Region::GamePak2Lo,
+            0x0D => Region::GamePak2Hi,
             0x0E => Region::SRAM,
             0x0F => Region::Unused0xF,
 
