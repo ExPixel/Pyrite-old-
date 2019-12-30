@@ -41,37 +41,35 @@ fn setup_gba(rom_file: &str) -> Gba {
     return gba;
 }
 
-fn gba_mode3_benchmark(c: &mut Criterion) {
+fn tonc_m3_demo(c: &mut Criterion) {
     let mut gba = setup_gba("../roms/tonc/m3_demo.gba");
     draw_frames(&mut gba, 256); // used to get into the correct mode
 
-    c.bench_function("mode3 frame", |b| b.iter(|| draw_single_frame(&mut gba)));
+    c.bench_function("tonc/m3_demo", |b| b.iter(|| draw_single_frame(&mut gba)));
     black_box(gba);
 }
 
-fn gba_mode0_benchmark(c: &mut Criterion) {
+fn tonc_brin_demo(c: &mut Criterion) {
     let mut gba = setup_gba("../roms/tonc/brin_demo.gba");
     draw_frames(&mut gba, 256);
 
-    c.bench_function("mode0 frame", |b| b.iter(|| draw_single_frame(&mut gba)));
+    c.bench_function("tonc/brin_demo", |b| b.iter(|| draw_single_frame(&mut gba)));
     black_box(gba);
 }
 
-fn gba_mode0_simple_blending_benchmark(c: &mut Criterion) {
+fn tonc_cbb_demo(c: &mut Criterion) {
     let mut gba = setup_gba("../roms/tonc/cbb_demo.gba");
     draw_frames(&mut gba, 256);
 
-    c.bench_function("mode0 simple blending frame", |b| {
-        b.iter(|| draw_single_frame(&mut gba))
-    });
+    c.bench_function("tonc/cbb_demo", |b| b.iter(|| draw_single_frame(&mut gba)));
     black_box(gba);
 }
 
-fn gba_obj_benchmark(c: &mut Criterion) {
+fn tonc_obj_demo(c: &mut Criterion) {
     let mut gba = setup_gba("../roms/tonc/obj_demo.gba");
     draw_frames(&mut gba, 256);
 
-    c.bench_function("obj frame", |b| b.iter(|| draw_single_frame(&mut gba)));
+    c.bench_function("tonc/obj_demo", |b| b.iter(|| draw_single_frame(&mut gba)));
     black_box(gba);
 }
 
@@ -87,10 +85,9 @@ fn gba_obj_benchmark(c: &mut Criterion) {
 
 criterion_group!(
     benches,
-    gba_mode3_benchmark,
-    gba_mode0_benchmark,
-    // gba_mode0_simple_blending_benchmark,
-    gba_obj_benchmark,
-    // gba_affine_bg_benchmark
+    tonc_m3_demo,
+    tonc_brin_demo,
+    tonc_cbb_demo,
+    tonc_obj_demo,
 );
 criterion_main!(benches);
