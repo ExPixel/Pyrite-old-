@@ -170,7 +170,81 @@ pub fn draw_text_bg_8bpp(
     palette: &GbaPalette,
     dest: &mut LCDLineBuffer,
 ) {
-    unimplemented!("8bpp tiles");
+    pub const BYTES_PER_TILE: u32 = 64;
+    pub const BYTES_PER_LINE: u32 = 8;
+
+    let start_scx = bg.xoffset & (bg.width - 1);
+    let scy = if bg.mosaic_y > 0 {
+        let original_scy = (bg.yoffset + line) & (bg.height - 1);
+        original_scy - (original_scy % bg.mosaic_y)
+    } else {
+        (bg.yoffset + line) & (bg.height - 1)
+    };
+    let ty = scy % 8;
+
+    let mut mdx = 0;
+    let mut dx = 0;
+
+    while dx < 240 {
+        let scx = start_scx + dx - mdx;
+
+        mdx += 1;
+        if mdx >= bg.mosaic_x {
+            mdx = 0;
+        }
+
+        let tile_info_offset = bg.get_tile_info_offset(scx, scy);
+        if tile_info_offset > 0x10000 {
+            dx += 1;
+            continue;
+        }
+        let tile_info = unsafe { read_u16_unchecked(vram, tile_info_offset as usize) };
+        let tile_number = (tile_info & 0x3FF) as u32;
+        let tile_palette = ((tile_info >> 12) & 0xF) as u8;
+        let hflip = (tile_info & 0x400) != 0;
+        let vflip = (tile_info & 0x800) != 0;
+
+        let tx = if hflip { 7 - (scx % 8) } else { scx % 8 };
+        let ty = if vflip { 7 - ty } else { ty };
+
+        let tile_data_start = bg.char_base + (BYTES_PER_TILE * tile_number);
+        let mut pixel_offset = tile_data_start + (ty * BYTES_PER_LINE) + tx / 2;
+        if pixel_offset > 0x10000 {
+            dx += 1;
+            continue;
+        }
+
+        // try to do 8 pixels at a time if possible:
+        if bg.mosaic_x <= 1 && (scx % 8) == 0 && dx <= 232 {
+            let pinc = if hflip { -1i32 as u32 } else { 1u32 };
+            for _ in 0..8 {
+                let palette_entry = vram[pixel_offset as usize];
+                if palette_entry != 0 {
+                    dest.push_pixel(
+                        dx as usize,
+                        palette.bg256(palette_entry as usize),
+                        bg.first_target,
+                        bg.second_target,
+                        false,
+                    );
+                }
+                dx += 1;
+                pixel_offset = pixel_offset.wrapping_add(pinc);
+            }
+        } else {
+            let palette_entry = vram[pixel_offset as usize];
+            if palette_entry != 0 {
+                dest.push_pixel(
+                    dx as usize,
+                    palette.bg256(palette_entry as usize),
+                    bg.first_target,
+                    bg.second_target,
+                    false,
+                );
+            }
+            dx += 1;
+        }
+    }
 }
 
 pub struct TextBG {
