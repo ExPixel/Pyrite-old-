@@ -73,6 +73,14 @@ fn tonc_obj_demo(c: &mut Criterion) {
     black_box(gba);
 }
 
+fn tonc_bld_demo(c: &mut Criterion) {
+    let mut gba = setup_gba("../roms/tonc/bld_demo.gba");
+    draw_frames(&mut gba, 256);
+
+    c.bench_function("tonc/bld_demo", |b| b.iter(|| draw_single_frame(&mut gba)));
+    black_box(gba);
+}
+
 // fn gba_affine_bg_benchmark(c: &mut Criterion) {
 //     let mut gba = setup_gba("../roms/tonc/sbb_aff.gba");
 //     draw_frames(&mut gba, 256);
@@ -89,5 +97,6 @@ criterion_group!(
     tonc_brin_demo,
     tonc_cbb_demo,
     tonc_obj_demo,
+    tonc_bld_demo,
 );
 criterion_main!(benches);
