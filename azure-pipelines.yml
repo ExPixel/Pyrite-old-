@@ -82,5 +82,5 @@ steps:
     displayName: Clippy Lint
   - script: cargo test -- --ignored
     displayName: Cargo Test (Expensive)
-  - scriot: cargo bench
+  - script: cargo bench
     displayName: Cargo Bench
