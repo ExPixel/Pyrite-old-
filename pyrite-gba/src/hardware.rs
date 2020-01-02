@@ -1170,9 +1170,7 @@ impl ArmMemory for GbaHardware {
             Region::BIOS => 1,
             Region::Unused0x1 => 1,
             Region::ExternalRAM => {
-                if self.ramctl.disabled {
-                    1
-                } else if !self.ramctl.external {
+                if self.ramctl.disabled || !self.ramctl.external {
                     1
                 } else {
                     self.sysctl.ram_cycles.word.get(true) // sequential and non-sequential are the same
@@ -1195,9 +1193,7 @@ impl ArmMemory for GbaHardware {
             Region::BIOS => 1,
             Region::Unused0x1 => 1,
             Region::ExternalRAM => {
-                if self.ramctl.disabled {
-                    1
-                } else if !self.ramctl.external {
+                if self.ramctl.disabled || !self.ramctl.external {
                     1
                 } else {
                     self.sysctl.ram_cycles.halfword.get(true) // sequential and non-sequential are the same
