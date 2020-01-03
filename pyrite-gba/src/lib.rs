@@ -115,27 +115,6 @@ impl Gba {
         );
         let audio_frame = false;
         return (video_frame, audio_frame);
-        // let cycles = if dma::is_any_dma_active(&self.memory) {
-        //     dma::step_active_channels(&mut self.memory, !self.cpu.registers.getf_i())
-        // } else if !self.memory.ioregs.internal_halt {
-        //     self.cpu.step(&mut self.memory)
-        // } else {
-        //     8 // number of cycles that we advance each step while halted
-        // };
-
-        // @TODO reimplement timers
-        // if timers::is_any_timer_active(&self.memory) {
-        //     timers::step_active_timers(cycles, &mut self.memory, !self.cpu.registers.getf_i());
-        // }
-
-        // reimplement lcd step
-        // self.lcd.step(cycles, &mut self.memory, video, !self.cpu.registers.getf_i());
-
-        // @TODO reimplement IRQ
-        // if !self.cpu.registers.getf_i() && self.memory.ioregs.interrupt_request.inner != 0 {
-        //     self.memory.ioregs.internal_halt = false;
-        //     self.cpu.set_pending_exception(CpuException::IRQ);
-        // }
     }
 
     /// Steps the GBA until the end of a video frame.
