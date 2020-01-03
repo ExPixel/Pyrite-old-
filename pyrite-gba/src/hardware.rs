@@ -1303,7 +1303,7 @@ pub enum Region {
 impl Region {
     /// Returns the total number of memory regions.
     pub const fn count() -> usize {
-        13
+        16
     }
 
     pub fn index(self) -> usize {
