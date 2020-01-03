@@ -23,12 +23,12 @@ pub type OAM = [u8; 1 * 1024];
 
 pub struct GbaHardware {
     // garden variety memory:
-    pub(crate) bios: Box<BIOS>,
-    pub(crate) ewram: Box<EWRAM>,
-    pub(crate) iwram: Box<IWRAM>,
-    pub(crate) vram: Box<VRAM>,
-    pub(crate) oam: Box<OAM>,
-    pub(crate) pal: Box<GbaPalette>,
+    pub(crate) bios: BIOS,
+    pub(crate) ewram: EWRAM,
+    pub(crate) iwram: IWRAM,
+    pub(crate) vram: VRAM,
+    pub(crate) oam: OAM,
+    pub(crate) pal: GbaPalette,
     pub(crate) gamepak: Vec<u8>,
 
     // :o
@@ -58,12 +58,12 @@ pub struct GbaHardware {
 impl GbaHardware {
     pub fn new() -> GbaHardware {
         GbaHardware {
-            bios: Box::new([0u8; 16 * 1024]),
-            ewram: Box::new([0u8; 256 * 1024]),
-            iwram: Box::new([0u8; 32 * 1024]),
-            vram: Box::new([0u8; 96 * 1024]),
-            oam: Box::new([0u8; 1 * 1024]),
-            pal: Box::new(GbaPalette::new()),
+            bios: [0u8; 16 * 1024],
+            ewram: [0u8; 256 * 1024],
+            iwram: [0u8; 32 * 1024],
+            vram: [0u8; 96 * 1024],
+            oam: [0u8; 1 * 1024],
+            pal: GbaPalette::new(),
             gamepak: Vec::new(),
 
             sysctl: GbaSystemControl::new(),
@@ -112,9 +112,9 @@ impl GbaHardware {
                 if self.ramctl.disabled {
                     BAD_VALUE
                 } else if self.ramctl.external {
-                    read_u32(&*self.ewram, addr as usize % (256 * 1024))
+                    read_u32(&self.ewram, addr as usize % (256 * 1024))
                 } else {
-                    read_u32(&*self.iwram, addr as usize % (32 * 1024))
+                    read_u32(&self.iwram, addr as usize % (32 * 1024))
                 }
             }
 
@@ -122,14 +122,14 @@ impl GbaHardware {
                 if self.ramctl.disabled {
                     BAD_VALUE
                 } else {
-                    read_u32(&*self.iwram, addr as usize % (32 * 1024))
+                    read_u32(&self.iwram, addr as usize % (32 * 1024))
                 }
             }
 
             Region::IORegisters => self.io_read32(addr, false),
             Region::Palette => self.pal.read32(addr as usize % (1 * 1024)),
-            Region::VRAM => read_u32(&*self.vram, Self::vram_off(addr)),
-            Region::OAM => read_u32(&*self.oam, addr as usize % (1 * 1024)),
+            Region::VRAM => read_u32(&self.vram, Self::vram_off(addr)),
+            Region::OAM => read_u32(&self.oam, addr as usize % (1 * 1024)),
             Region::GamePak0Lo
             | Region::GamePak0Hi
             | Region::GamePak1Lo
@@ -159,22 +159,22 @@ impl GbaHardware {
                 if self.ramctl.disabled {
                     BAD_VALUE
                 } else if self.ramctl.external {
-                    read_u16(&*self.ewram, addr as usize % (256 * 1024))
+                    read_u16(&self.ewram, addr as usize % (256 * 1024))
                 } else {
-                    read_u16(&*self.iwram, addr as usize % (32 * 1024))
+                    read_u16(&self.iwram, addr as usize % (32 * 1024))
                 }
             }
             Region::InternalRAM => {
                 if self.ramctl.disabled {
                     BAD_VALUE
                 } else {
-                    read_u16(&*self.iwram, addr as usize % (32 * 1024))
+                    read_u16(&self.iwram, addr as usize % (32 * 1024))
                 }
             }
             Region::IORegisters => self.io_read16(addr, false),
             Region::Palette => self.pal.read16(addr as usize % (1 * 1024)),
-            Region::VRAM => read_u16(&*self.vram, Self::vram_off(addr)),
-            Region::OAM => read_u16(&*self.oam, addr as usize % (1 * 1024)),
+            Region::VRAM => read_u16(&self.vram, Self::vram_off(addr)),
+            Region::OAM => read_u16(&self.oam, addr as usize % (1 * 1024)),
             Region::GamePak0Lo
             | Region::GamePak0Hi
             | Region::GamePak1Lo
@@ -232,7 +232,7 @@ impl GbaHardware {
 
     fn bios_read32(&self, addr: u32) -> u32 {
         if self.allow_bios_access && addr <= (16 * 1024 - 4) {
-            read_u32(&*self.bios, addr as usize)
+            read_u32(&self.bios, addr as usize)
         } else {
             self.bad_read(32, addr, "out of BIOS range or no permission");
             self.last_code_read
@@ -241,7 +241,7 @@ impl GbaHardware {
 
     fn bios_read16(&self, addr: u32) -> u16 {
         if self.allow_bios_access && addr <= (16 * 1024 - 4) {
-            read_u16(&*self.bios, addr as usize)
+            read_u16(&self.bios, addr as usize)
         } else {
             self.bad_read(16, addr, "out of BIOS range or no permission");
             halfword_of_word(self.last_code_read, addr)
@@ -744,10 +744,10 @@ impl ArmMemory for GbaHardware {
                     self.last_code_read
                 } else if !self.ramctl.external {
                     *cycles += 1;
-                    read_u32(&*self.iwram, addr as usize % (32 * 1024))
+                    read_u32(&self.iwram, addr as usize % (32 * 1024))
                 } else {
                     *cycles += self.sysctl.ram_cycles.word.get(true); // sequential and non-sequential are the same
-                    read_u32(&*self.ewram, addr as usize % (256 * 1024))
+                    read_u32(&self.ewram, addr as usize % (256 * 1024))
                 }
             }
 
@@ -757,7 +757,7 @@ impl ArmMemory for GbaHardware {
                     self.bad_read(32, addr, "disabled RAM");
                     self.last_code_read
                 } else {
-                    read_u32(&*self.iwram, addr as usize % (32 * 1024))
+                    read_u32(&self.iwram, addr as usize % (32 * 1024))
                 }
             }
 
@@ -771,11 +771,11 @@ impl ArmMemory for GbaHardware {
             }
             Region::VRAM => {
                 *cycles += 2;
-                read_u32(&*self.vram, Self::vram_off(addr))
+                read_u32(&self.vram, Self::vram_off(addr))
             }
             Region::OAM => {
                 *cycles += 1;
-                read_u32(&*self.oam, addr as usize % (1 * 1024))
+                read_u32(&self.oam, addr as usize % (1 * 1024))
             }
             Region::GamePak0Lo | Region::GamePak0Hi => {
                 *cycles += self.sysctl.gamepak_cycles[0].word.get(seq);
@@ -821,10 +821,10 @@ impl ArmMemory for GbaHardware {
                     halfword_of_word(self.last_code_read, addr)
                 } else if self.ramctl.external {
                     *cycles += 1;
-                    read_u16(&*self.ewram, addr as usize % (256 * 1024))
+                    read_u16(&self.ewram, addr as usize % (256 * 1024))
                 } else {
                     *cycles += self.sysctl.ram_cycles.halfword.get(true); // same timing for seq and nonseq
-                    read_u16(&*self.iwram, addr as usize % (32 * 1024))
+                    read_u16(&self.iwram, addr as usize % (32 * 1024))
                 }
             }
             Region::InternalRAM => {
@@ -833,7 +833,7 @@ impl ArmMemory for GbaHardware {
                     self.bad_read(16, addr, "disabled RAM");
                     halfword_of_word(self.last_code_read, addr)
                 } else {
-                    read_u16(&*self.iwram, addr as usize % (32 * 1024))
+                    read_u16(&self.iwram, addr as usize % (32 * 1024))
                 }
             }
             Region::IORegisters => {
@@ -846,11 +846,11 @@ impl ArmMemory for GbaHardware {
             }
             Region::VRAM => {
                 *cycles += 1;
-                read_u16(&*self.vram, Self::vram_off(addr))
+                read_u16(&self.vram, Self::vram_off(addr))
             }
             Region::OAM => {
                 *cycles += 1;
-                read_u16(&*self.oam, addr as usize % (1 * 1024))
+                read_u16(&self.oam, addr as usize % (1 * 1024))
             }
             Region::GamePak0Lo | Region::GamePak0Hi => {
                 *cycles += self.sysctl.gamepak_cycles[0].halfword.get(seq);
@@ -959,10 +959,10 @@ impl ArmMemory for GbaHardware {
                     self.bad_write(32, addr, data, "disabled RAM");
                 } else if !self.ramctl.external {
                     *cycles += 1;
-                    write_u32(&mut *self.iwram, addr as usize % (32 * 1024), data)
+                    write_u32(&mut self.iwram, addr as usize % (32 * 1024), data)
                 } else {
                     *cycles += self.sysctl.ram_cycles.word.get(true); // same for seq and nonseq
-                    write_u32(&mut *self.ewram, addr as usize % (256 * 1024), data)
+                    write_u32(&mut self.ewram, addr as usize % (256 * 1024), data)
                 }
             }
             Region::InternalRAM => {
@@ -970,7 +970,7 @@ impl ArmMemory for GbaHardware {
                 if self.ramctl.disabled {
                     self.bad_write(32, addr, data, "disabled RAM");
                 } else {
-                    write_u32(&mut *self.iwram, addr as usize % (32 * 1024), data)
+                    write_u32(&mut self.iwram, addr as usize % (32 * 1024), data)
                 }
             }
             Region::IORegisters => {
@@ -983,11 +983,11 @@ impl ArmMemory for GbaHardware {
             }
             Region::VRAM => {
                 *cycles += 2;
-                write_u32(&mut *self.vram, Self::vram_off(addr), data)
+                write_u32(&mut self.vram, Self::vram_off(addr), data)
             }
             Region::OAM => {
                 *cycles += 1;
-                write_u32(&mut *self.oam, addr as usize % (1 * 1024), data)
+                write_u32(&mut self.oam, addr as usize % (1 * 1024), data)
             }
             Region::GamePak0Lo | Region::GamePak0Hi => {
                 *cycles += self.sysctl.gamepak_cycles[0].word.get(seq);
@@ -1022,10 +1022,10 @@ impl ArmMemory for GbaHardware {
                     self.bad_write(16, addr, data as u32, "disabled RAM");
                 } else if !self.ramctl.external {
                     *cycles += 1;
-                    write_u16(&mut *self.iwram, addr as usize % (32 * 1024), data);
+                    write_u16(&mut self.iwram, addr as usize % (32 * 1024), data);
                 } else {
                     *cycles += self.sysctl.ram_cycles.halfword.get(true); // same for seq and nonseq
-                    write_u16(&mut *self.ewram, addr as usize % (256 * 1024), data);
+                    write_u16(&mut self.ewram, addr as usize % (256 * 1024), data);
                 }
             }
             Region::InternalRAM => {
@@ -1033,7 +1033,7 @@ impl ArmMemory for GbaHardware {
                 if self.ramctl.disabled {
                     self.bad_write(16, addr, data as u32, "disabled RAM");
                 } else {
-                    write_u16(&mut *self.iwram, addr as usize % (32 * 1024), data)
+                    write_u16(&mut self.iwram, addr as usize % (32 * 1024), data)
                 }
             }
             Region::IORegisters => {
@@ -1046,11 +1046,11 @@ impl ArmMemory for GbaHardware {
             }
             Region::VRAM => {
                 *cycles += 1;
-                write_u16(&mut *self.vram, Self::vram_off(addr), data)
+                write_u16(&mut self.vram, Self::vram_off(addr), data)
             }
             Region::OAM => {
                 *cycles += 1;
-                write_u16(&mut *self.oam, addr as usize % (1 * 1024), data)
+                write_u16(&mut self.oam, addr as usize % (1 * 1024), data)
             }
             Region::GamePak0Lo | Region::GamePak0Hi => {
                 *cycles += self.sysctl.gamepak_cycles[0].halfword.get(seq);
@@ -1118,7 +1118,7 @@ impl ArmMemory for GbaHardware {
                 // lower 8bits of the addressed halfword, ie. "[addr AND NOT 1]=data*101h".
                 if addr < 0x6014000 {
                     write_u16(
-                        &mut *self.vram,
+                        &mut self.vram,
                         Self::vram_off(addr) & 0xFFFFFFFE,
                         data as u16 * 0x101, // same as (data << 8) | data
                     );
