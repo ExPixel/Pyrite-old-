@@ -22,11 +22,11 @@ fn draw_single_frame(gba: &mut Gba) {
     gba.video_frame(&mut no_video, &mut no_audio);
 }
 
-fn setup_gba(rom_file: &str) -> Gba {
+fn setup_gba(rom_file: &str) -> Box<Gba> {
     use std::fs::File;
     use std::io::prelude::*;
 
-    let mut gba = Gba::new();
+    let mut gba = Box::new(Gba::new());
 
     let mut rom = Vec::new();
     {
