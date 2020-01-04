@@ -445,6 +445,31 @@ impl LCDRegisters {
         self.dispstat.value =
             (self.dispstat.value & !DISPSTAT_WRITEABLE) | (value & DISPSTAT_WRITEABLE);
     }
+
+    pub fn get_window_info(&self) -> WindowInfo {
+        WindowInfo {
+            win0_bounds: self.win0_bounds,
+            win1_bounds: self.win1_bounds,
+            winin: self.winin,
+            winout: self.winout,
+        }
+    }
+}
+
+pub struct WindowInfo {
+    pub win0_bounds: WindowBounds,
+    pub win1_bounds: WindowBounds,
+    pub winin: WindowControl,
+    pub winout: WindowControl,
+}
+
+impl WindowInfo {
+    /// Checks if a pixel is within the bounds of window 0 or window 1.
+    /// If it is within bounds, this will return Some(special_effects_enabled).
+    /// If it is not without bounds, this will return None.
+    pub fn check_pixel(&self, layer: u16, x: u16, y: u16) -> Option<bool> {
+        todo!();
+    }
 }
 
 bitfields! (DisplayStatus: u16 {
@@ -614,37 +639,41 @@ impl AffineBGParams {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct WindowBounds {
+    /// Left-most coordinate of the window.
     pub left: u16,
+    /// Top-most coordinate of the window.
     pub top: u16,
+    /// Right-most coordinate of the window, plus 1.
     pub right: u16,
+    /// Bottom-most coordinate of the window, plus 1.
     pub bottom: u16,
 }
 
 impl WindowBounds {
-    #[inline(always)]
-    pub fn set_left(&mut self, left: u16) {
-        self.left = std::cmp::min(left, 240);
+    pub fn set_h(&mut self, h: u16) {
+        self.left = std::cmp::min(h >> 8, 240);
+        self.right = h & 0xFF;
+
+        // Garbage values of R>240 or L>R are interpreted as R=240.
+        if self.right > 240 || self.left > self.right {
+            self.right = 240;
+        }
     }
 
-    #[inline(always)]
-    pub fn set_right(&mut self, right: u16) {
-        self.right = std::cmp::min(right, 240);
-    }
+    pub fn set_v(&mut self, v: u16) {
+        self.top = std::cmp::min(v >> 8, 160);
+        self.bottom = v & 0xFF;
 
-    #[inline(always)]
-    pub fn set_top(&mut self, top: u16) {
-        self.top = std::cmp::min(top, 160);
-    }
-
-    #[inline(always)]
-    pub fn set_bottom(&mut self, bottom: u16) {
-        self.bottom = std::cmp::min(bottom, 160);
+        // Garbage values of B>160 or T>B are interpreted as B=160.
+        if self.bottom > 160 || self.top > self.bottom {
+            self.bottom = 160;
+        }
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct WindowControl {
     inner: u16,
 }

@@ -585,6 +585,14 @@ impl GbaHardware {
             ioregs::BG3PC => self.lcd.registers.bg3_affine_params.set_c(data),
             ioregs::BG3PD => self.lcd.registers.bg3_affine_params.set_d(data),
 
+            // Windows
+            ioregs::WIN0H => self.lcd.registers.win0_bounds.set_h(data),
+            ioregs::WIN1H => self.lcd.registers.win1_bounds.set_h(data),
+            ioregs::WIN0V => self.lcd.registers.win0_bounds.set_v(data),
+            ioregs::WIN1V => self.lcd.registers.win1_bounds.set_v(data),
+            ioregs::WININ => self.lcd.registers.winin.set_value(data),
+            ioregs::WINOUT => self.lcd.registers.winout.set_value(data),
+
             // Special Effects
             ioregs::MOSAIC => {
                 self.lcd.registers.mosaic.set_value(data);
