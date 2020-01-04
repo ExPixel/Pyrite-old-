@@ -41,25 +41,53 @@ pub fn render_objects(
             (obj_width, obj_height)
         };
 
-        let obj_screen_left = attrs.1.x();
-        let obj_screen_right = (obj_screen_left + obj_display_width - 1) % 512;
+        let mut obj_screen_left = attrs.1.x();
         let obj_screen_top = attrs.0.y();
         let obj_screen_bottom = (obj_screen_top + obj_display_height - 1) % 256;
 
-        let in_bounds_horizontal = obj_screen_left < 240 || obj_screen_right < 240;
         let in_bounds_vertical = obj_screen_top <= obj_screen_bottom
             && obj_screen_top <= registers.line
             && obj_screen_bottom >= registers.line;
         let in_bounds_vertical_wrapped = obj_screen_top > obj_screen_bottom
             && (obj_screen_top <= registers.line || obj_screen_bottom >= registers.line);
 
-        if !in_bounds_horizontal || (!in_bounds_vertical && !in_bounds_vertical_wrapped) {
+        if !in_bounds_vertical && !in_bounds_vertical_wrapped {
             continue;
         }
 
-        // need to start mutating these here:
-        let mut obj_screen_left = obj_screen_left;
-        let mut obj_screen_right = obj_screen_right;
+        let mut obj_screen_right;
+
+        // horizontally offscreen objects still take cycles so we process those before horizontal
+        // occlusion.
+        if attrs.0.affine() {
+            // affine objects require 10 cycles to start
+            if pixels.obj_cycles > 10 {
+                pixels.obj_cycles -= 10;
+                if (obj_display_width * 2) > pixels.obj_cycles {
+                    obj_screen_right = (obj_screen_left + (pixels.obj_cycles / 2) - 1) % 512;
+                    pixels.obj_cycles = 0;
+                } else {
+                    obj_screen_right = (obj_screen_left + obj_display_width - 1) % 512;
+                    pixels.obj_cycles -= obj_display_width * 2;
+                }
+            } else {
+                pixels.obj_cycles = 0;
+                return;
+            }
+        } else {
+            if obj_display_width > pixels.obj_cycles {
+                obj_screen_right = (obj_screen_left + pixels.obj_cycles - 1) % 512;
+                pixels.obj_cycles = 0;
+            } else {
+                obj_screen_right = (obj_screen_left + obj_display_width - 1) % 512;
+                pixels.obj_cycles -= obj_display_width;
+            }
+        }
+
+        let in_bounds_horizontal = obj_screen_left < 240 || obj_screen_right < 240;
+        if !in_bounds_horizontal {
+            continue;
+        }
 
         let (obj_xdraw_start, _obj_xdraw_end) = if obj_screen_left < obj_screen_right {
             (
@@ -81,30 +109,6 @@ pub fn render_objects(
                 obj_display_width - 1,
             )
         };
-
-        let pixels_drawn = obj_screen_right - obj_screen_left + 1;
-        if attrs.0.affine() {
-            // affine objects require 10 cycles to start
-            if pixels.obj_cycles > 10 {
-                pixels.obj_cycles -= 10;
-                if (pixels_drawn * 2) > pixels.obj_cycles {
-                    obj_screen_right = obj_screen_left + (pixels.obj_cycles / 2) - 1;
-                    pixels.obj_cycles = 0;
-                } else {
-                    pixels.obj_cycles -= pixels_drawn * 2;
-                }
-            } else {
-                pixels.obj_cycles = 0;
-                return;
-            }
-        } else {
-            if pixels_drawn > pixels.obj_cycles {
-                obj_screen_right = obj_screen_left + pixels.obj_cycles - 1;
-                pixels.obj_cycles = 0;
-            } else {
-                pixels.obj_cycles -= pixels_drawn;
-            }
-        }
 
         let semi_transparent = attrs.0.mode() == ObjMode::SemiTransparent;
 
