@@ -507,12 +507,12 @@ impl GbaHardware {
         /// Sets the 16bit value in a word.
         macro_rules! setw {
             ($Word:expr, $Value:expr) => {{
-                let shift = (offset as u32 & 0x3) << 3;
+                let shift = (offset as u32 & 0x2) << 3;
                 ($Word & !(0xFFFF << shift)) | (($Value as u32) << shift)
             }};
 
             ($Word:expr) => {{
-                let shift = (offset as u32 & 0x3) << 3;
+                let shift = (offset as u32 & 0x2) << 3;
                 ($Word & !(0xFFFF << shift)) | ((data as u32) << shift)
             }};
         }
@@ -621,10 +621,9 @@ impl GbaHardware {
     }
 
     fn io_read_reg(&self, offset: u16) -> Option<u16> {
-        /// Sets the 16bit value in a word.
         macro_rules! getw {
             ($Word:expr) => {{
-                let shift = (offset & 0x3) << 3;
+                let shift = (offset & 0x2) << 3;
                 Some(($Word >> shift) as u16)
             }};
         }
