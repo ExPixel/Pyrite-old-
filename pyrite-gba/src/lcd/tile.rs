@@ -128,41 +128,14 @@ pub fn draw_text_bg_4bpp(
                 let palette_entry = vram[pixel_offset as usize];
                 let lo_palette_entry = palette_entry & 0xF;
                 let hi_palette_entry = palette_entry >> 4;
-                // if lo_palette_entry != 0 {
                 buffer[dx as usize] = (tile_palette * 16) + lo_palette_entry;
-                // dest.push_pixel(
-                //     dx as usize,
-                //     palette.bg16(tile_palette as usize, lo_palette_entry as usize),
-                //     bg.first_target,
-                //     bg.second_target,
-                //     false,
-                // );
-                // }
-                // if hi_palette_entry != 0 {
                 buffer[dx as usize + 1] = (tile_palette * 16) + hi_palette_entry;
-                // dest.push_pixel(
-                //     dx as usize + 1,
-                //     palette.bg16(tile_palette as usize, hi_palette_entry as usize),
-                //     bg.first_target,
-                //     bg.second_target,
-                //     false,
-                // );
-                // }
                 dx += 2;
                 pixel_offset = pixel_offset.wrapping_add(pinc);
             }
         } else {
             let palette_entry = (vram[pixel_offset as usize] >> ((tx % 2) << 2)) & 0xF;
-            // if palette_entry != 0 {
             buffer[dx as usize] = (tile_palette * 16) + palette_entry;
-            // dest.push_pixel(
-            //     dx as usize,
-            //     palette.bg16(tile_palette as usize, palette_entry as usize),
-            //     bg.first_target,
-            //     bg.second_target,
-            //     false,
-            // );
-            // }
             dx += 1;
         }
     }
@@ -206,6 +179,8 @@ pub fn draw_text_bg_8bpp(
     let mut mdx = 0;
     let mut dx = 0;
 
+    let mut buffer = [0u8; 240];
+
     while dx < 240 {
         let scx = start_scx + dx - mdx;
 
@@ -225,11 +200,11 @@ pub fn draw_text_bg_8bpp(
         let hflip = (tile_info & 0x400) != 0;
         let vflip = (tile_info & 0x800) != 0;
 
-        let tx = if hflip { 7 - (scx % 8) } else { scx % 8 };
+        let tx = scx % 8; // not yet accounting for hflip
         let ty = if vflip { 7 - ty } else { ty };
 
         let tile_data_start = bg.char_base + (BYTES_PER_TILE * tile_number);
-        let mut pixel_offset = tile_data_start + (ty * BYTES_PER_LINE) + tx / 2;
+        let mut pixel_offset = tile_data_start + (ty * BYTES_PER_LINE); // without X offset
         if pixel_offset > 0x10000 {
             dx += 1;
             continue;
@@ -237,35 +212,40 @@ pub fn draw_text_bg_8bpp(
 
         // try to do 8 pixels at a time if possible:
         if bg.mosaic_x <= 1 && (scx % 8) == 0 && dx <= 232 {
-            let pinc = if hflip { -1i32 as u32 } else { 1u32 };
-            for _ in 0..8 {
-                let palette_entry = vram[pixel_offset as usize];
-                if palette_entry != 0 {
-                    dest.push_pixel(
-                        dx as usize,
-                        palette.bg256(palette_entry as usize),
-                        bg.first_target,
-                        bg.second_target,
-                        false,
-                    );
-                }
-                dx += 1;
-                pixel_offset = pixel_offset.wrapping_add(pinc);
+            buffer[dx as usize..(dx as usize + 8)]
+                .copy_from_slice(&vram[pixel_offset as usize..(pixel_offset as usize + 8)]);
+            if hflip {
+                buffer[dx as usize..(dx as usize + 8)].reverse();
             }
+            dx += 8;
         } else {
-            let palette_entry = vram[pixel_offset as usize];
-            if palette_entry != 0 {
-                dest.push_pixel(
-                    dx as usize,
-                    palette.bg256(palette_entry as usize),
-                    bg.first_target,
-                    bg.second_target,
-                    false,
-                );
+            if hflip {
+                pixel_offset += (7 - (scx % 8));
+            } else {
+                pixel_offset += scx % 8;
             }
+
+            let palette_entry = vram[pixel_offset as usize];
+            buffer[dx as usize] = palette_entry;
             dx += 1;
         }
     }
+
+    buffer
+        .iter()
+        .enumerate()
+        // Filter out pixels that should be transparent:
+        .filter(|(x, &entry)| (entry & 0xF) != 0)
+        // Push pixels to the LCD line buffer:
+        .for_each(|(x, &entry)| {
+            dest.push_pixel(
+                x,
+                palette.bg256(entry as usize),
+                bg.first_target,
+                bg.second_target,
+                false,
+            )
+        });
 }
 
 pub struct TextBG {
