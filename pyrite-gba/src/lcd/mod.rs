@@ -3,6 +3,9 @@ pub mod obj;
 pub mod palette;
 pub mod tile;
 
+pub const WINOUT: u16 = 0;
+pub const WINOBJ: u16 = 1;
+
 use self::palette::GbaPalette;
 use crate::hardware::{OAM, VRAM};
 use crate::util::fixedpoint::{FixedPoint16, FixedPoint32};
@@ -130,7 +133,6 @@ impl GbaLCD {
 pub struct LCDLineBuffer {
     mixed: [u16; 240],
     unmixed: [u32; 240],
-    obj_window: LCDPixelBits,
     obj_semitrans: LCDPixelBits,
 
     top_layer_first_target: LCDPixelBits,
@@ -146,7 +148,6 @@ impl LCDLineBuffer {
         LCDLineBuffer {
             mixed: [0xFFFF; 240],
             unmixed: [0x0000; 240],
-            obj_window: LCDPixelBits::new(),
             obj_semitrans: LCDPixelBits::new(),
             obj_cycles: 1210,
 
@@ -158,7 +159,6 @@ impl LCDLineBuffer {
 
     #[inline]
     pub fn clear_flags(&mut self) {
-        self.obj_window.clear_all();
         self.top_layer_first_target.clear_all();
         self.bot_layer_second_target.clear_all();
         self.bot_layer_second_target.clear_all();
@@ -467,8 +467,49 @@ impl WindowInfo {
     /// Checks if a pixel is within the bounds of window 0 or window 1.
     /// If it is within bounds, this will return Some(special_effects_enabled).
     /// If it is not without bounds, this will return None.
-    pub fn check_pixel(&self, layer: u16, x: u16, y: u16) -> Option<bool> {
-        todo!();
+    /// ##NOTE: This will not check the OBJ window. For that, use `check_pixel_obj_window` instead,
+    /// which will do the same checks as this function but will also check the OBJ window as well.
+    pub(crate) fn check_pixel(&self, layer: u16, x: u16, y: u16) -> Option<bool> {
+        if self.winin.layer_enabled(0, layer) && self.win0_bounds.contains(x, y) {
+            return Some(self.winin.effects_enabled(0));
+        }
+
+        if self.winin.layer_enabled(1, layer) && self.win1_bounds.contains(x, y) {
+            return Some(self.winin.effects_enabled(1));
+        }
+
+        if self.winout.layer_enabled(WINOUT, layer) {
+            return Some(self.winout.effects_enabled(WINOUT));
+        }
+
+        return None;
+    }
+
+    /// see `check_pixel`
+    pub(crate) fn check_pixel_obj_window(
+        &self,
+        layer: u16,
+        x: u16,
+        y: u16,
+        obj_mask: &LCDPixelBits,
+    ) -> Option<bool> {
+        if self.winin.layer_enabled(0, layer) && self.win0_bounds.contains(x, y) {
+            return Some(self.winin.effects_enabled(0));
+        }
+
+        if self.winin.layer_enabled(1, layer) && self.win1_bounds.contains(x, y) {
+            return Some(self.winin.effects_enabled(1));
+        }
+
+        if self.winout.layer_enabled(WINOBJ, layer) && obj_mask.get(x as usize) {
+            return Some(self.winout.effects_enabled(WINOBJ));
+        }
+
+        if self.winout.layer_enabled(WINOUT, layer) {
+            return Some(self.winout.effects_enabled(WINOUT));
+        }
+
+        return None;
     }
 }
 
@@ -652,7 +693,12 @@ pub struct WindowBounds {
 }
 
 impl WindowBounds {
-    pub fn set_h(&mut self, h: u16) {
+    #[inline]
+    pub fn contains(&self, x: u16, y: u16) -> bool {
+        x >= self.left && x < self.right && y >= self.top && y < self.bottom
+    }
+
+    pub(crate) fn set_h(&mut self, h: u16) {
         self.left = std::cmp::min(h >> 8, 240);
         self.right = h & 0xFF;
 
@@ -662,7 +708,7 @@ impl WindowBounds {
         }
     }
 
-    pub fn set_v(&mut self, v: u16) {
+    pub(crate) fn set_v(&mut self, v: u16) {
         self.top = std::cmp::min(v >> 8, 160);
         self.bottom = v & 0xFF;
 
@@ -688,15 +734,17 @@ impl WindowControl {
         self.inner
     }
 
-    /// Returns true if the given background or OBJ layer (layer #4) is enabled in the given window
+    /// Returns true if the given layer (layer #4) is enabled in the given window
     /// (0 or 1). #NOTE That if this window control is for WINOUT, window 0 is the outside window
     /// and window 1 is the OBJ window.
     #[inline(always)]
-    pub fn enabled(&self, window: u16, background: u16) -> bool {
-        (self.inner & (self.inner << (background + (window * 8)))) != 0
+    pub fn layer_enabled(&self, window: u16, layer: u16) -> bool {
+        (self.inner & (self.inner << (layer + (window * 8)))) != 0
     }
 
     /// Returns true if color special effects is enabled for a given window.
+    /// #NOTE That if this window control is for WINOUT, window 0 is the outside window
+    /// and window 1 is the OBJ window.
     pub fn effects_enabled(&self, window: u16) -> bool {
         (self.inner & (self.inner << (5 + (window * 8)))) != 0
     }
