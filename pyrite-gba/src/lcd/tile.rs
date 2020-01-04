@@ -90,6 +90,8 @@ pub fn draw_text_bg_4bpp(
     let mut mdx = 0;
     let mut dx = 0;
 
+    let mut buffer = [0u8; 240];
+
     while dx < 240 {
         let scx = start_scx + dx - mdx;
 
@@ -126,41 +128,60 @@ pub fn draw_text_bg_4bpp(
                 let palette_entry = vram[pixel_offset as usize];
                 let lo_palette_entry = palette_entry & 0xF;
                 let hi_palette_entry = palette_entry >> 4;
-                if lo_palette_entry != 0 {
-                    dest.push_pixel(
-                        dx as usize,
-                        palette.bg16(tile_palette as usize, lo_palette_entry as usize),
-                        bg.first_target,
-                        bg.second_target,
-                        false,
-                    );
-                }
-                if hi_palette_entry != 0 {
-                    dest.push_pixel(
-                        dx as usize + 1,
-                        palette.bg16(tile_palette as usize, hi_palette_entry as usize),
-                        bg.first_target,
-                        bg.second_target,
-                        false,
-                    );
-                }
+                // if lo_palette_entry != 0 {
+                buffer[dx as usize] = (tile_palette * 16) + lo_palette_entry;
+                // dest.push_pixel(
+                //     dx as usize,
+                //     palette.bg16(tile_palette as usize, lo_palette_entry as usize),
+                //     bg.first_target,
+                //     bg.second_target,
+                //     false,
+                // );
+                // }
+                // if hi_palette_entry != 0 {
+                buffer[dx as usize + 1] = (tile_palette * 16) + hi_palette_entry;
+                // dest.push_pixel(
+                //     dx as usize + 1,
+                //     palette.bg16(tile_palette as usize, hi_palette_entry as usize),
+                //     bg.first_target,
+                //     bg.second_target,
+                //     false,
+                // );
+                // }
                 dx += 2;
                 pixel_offset = pixel_offset.wrapping_add(pinc);
             }
         } else {
             let palette_entry = (vram[pixel_offset as usize] >> ((tx % 2) << 2)) & 0xF;
-            if palette_entry != 0 {
-                dest.push_pixel(
-                    dx as usize,
-                    palette.bg16(tile_palette as usize, palette_entry as usize),
-                    bg.first_target,
-                    bg.second_target,
-                    false,
-                );
-            }
+            // if palette_entry != 0 {
+            buffer[dx as usize] = (tile_palette * 16) + palette_entry;
+            // dest.push_pixel(
+            //     dx as usize,
+            //     palette.bg16(tile_palette as usize, palette_entry as usize),
+            //     bg.first_target,
+            //     bg.second_target,
+            //     false,
+            // );
+            // }
             dx += 1;
         }
     }
+
+    buffer
+        .iter()
+        .enumerate()
+        // Filter out pixels that should be transparent:
+        .filter(|(_, &entry)| (entry & 0xF) != 0)
+        // Push pixels to the LCD line buffer:
+        .for_each(|(x, &entry)| {
+            dest.push_pixel(
+                x,
+                palette.bg256(entry as usize),
+                bg.first_target,
+                bg.second_target,
+                false,
+            )
+        });
 }
 
 pub fn draw_text_bg_8bpp(
