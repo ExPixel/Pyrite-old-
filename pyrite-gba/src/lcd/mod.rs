@@ -448,6 +448,10 @@ impl LCDRegisters {
 
     pub fn get_window_info(&self) -> WindowInfo {
         WindowInfo {
+            enabled: self.dispcnt.windows_enabled(),
+            win0_enabled: self.dispcnt.display_window0(),
+            win1_enabled: self.dispcnt.display_window1(),
+            win_obj_enabled: self.dispcnt.display_window_obj(),
             win0_bounds: self.win0_bounds,
             win1_bounds: self.win1_bounds,
             winin: self.winin,
@@ -457,6 +461,11 @@ impl LCDRegisters {
 }
 
 pub struct WindowInfo {
+    /// This flag is set to true of any of the three windows are enabled.
+    pub enabled: bool,
+    pub win0_enabled: bool,
+    pub win1_enabled: bool,
+    pub win_obj_enabled: bool,
     pub win0_bounds: WindowBounds,
     pub win1_bounds: WindowBounds,
     pub winin: WindowControl,
@@ -470,11 +479,17 @@ impl WindowInfo {
     /// ##NOTE: This will not check the OBJ window. For that, use `check_pixel_obj_window` instead,
     /// which will do the same checks as this function but will also check the OBJ window as well.
     pub(crate) fn check_pixel(&self, layer: u16, x: u16, y: u16) -> Option<bool> {
-        if self.winin.layer_enabled(0, layer) && self.win0_bounds.contains(x, y) {
+        if self.win0_enabled
+            && self.winin.layer_enabled(0, layer)
+            && self.win0_bounds.contains(x, y)
+        {
             return Some(self.winin.effects_enabled(0));
         }
 
-        if self.winin.layer_enabled(1, layer) && self.win1_bounds.contains(x, y) {
+        if self.win1_enabled
+            && self.winin.layer_enabled(1, layer)
+            && self.win1_bounds.contains(x, y)
+        {
             return Some(self.winin.effects_enabled(1));
         }
 
@@ -493,15 +508,24 @@ impl WindowInfo {
         y: u16,
         obj_mask: &LCDPixelBits,
     ) -> Option<bool> {
-        if self.winin.layer_enabled(0, layer) && self.win0_bounds.contains(x, y) {
+        if self.win0_enabled
+            && self.winin.layer_enabled(0, layer)
+            && self.win0_bounds.contains(x, y)
+        {
             return Some(self.winin.effects_enabled(0));
         }
 
-        if self.winin.layer_enabled(1, layer) && self.win1_bounds.contains(x, y) {
+        if self.win1_enabled
+            && self.winin.layer_enabled(1, layer)
+            && self.win1_bounds.contains(x, y)
+        {
             return Some(self.winin.effects_enabled(1));
         }
 
-        if self.winout.layer_enabled(WINOBJ, layer) && obj_mask.get(x as usize) {
+        if self.win_obj_enabled
+            && self.winout.layer_enabled(WINOBJ, layer)
+            && obj_mask.get(x as usize)
+        {
             return Some(self.winout.effects_enabled(WINOBJ));
         }
 
