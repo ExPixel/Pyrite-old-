@@ -90,57 +90,104 @@ pub fn draw_text_bg_4bpp(
     let mut mdx = 0;
     let mut dx = 0;
 
-    let mut buffer = [0u8; 240];
+    // TODO: Temporary. Merge with the definition above.
+    let start_scx = if bg.mosaic_x > 1 {
+        start_scx - (start_scx % bg.mosaic_x)
+    } else {
+        start_scx
+    };
 
-    while dx < 240 {
-        let scx = start_scx + dx - mdx;
+    let aligned_start_scx = start_scx - (start_scx % 8);
 
-        mdx += 1;
-        if mdx >= bg.mosaic_x {
-            mdx = 0;
-        }
-
+    // TODO maybe I can create a 'by tile' version of this loop here instead :P
+    let mut tidx = 0;
+    let mut tile_buffer = [0u16; 32];
+    for scx in (aligned_start_scx..(aligned_start_scx + 256)).step_by(8) {
         let tile_info_offset = bg.get_tile_info_offset(scx, scy);
-        if tile_info_offset > 0x10000 {
-            dx += 1;
-            continue;
+        if tile_info_offset < 0x10000 {
+            tile_buffer[tidx] = unsafe { read_u16_unchecked(vram, tile_info_offset as usize) };
         }
-        let tile_info = unsafe { read_u16_unchecked(vram, tile_info_offset as usize) };
-        let tile_number = (tile_info & 0x3FF) as u32;
-        let tile_palette = ((tile_info >> 12) & 0xF) as u8;
-        let hflip = (tile_info & 0x400) != 0;
-        let vflip = (tile_info & 0x800) != 0;
+        tidx += 1;
+    }
 
-        let tx = if hflip { 7 - (scx % 8) } else { scx % 8 };
-        let ty = if vflip { 7 - ty } else { ty };
+    let mut pixel_buffer = [0u8; 256];
 
-        let tile_data_start = bg.char_base + (BYTES_PER_TILE * tile_number);
-        let mut pixel_offset = tile_data_start + (ty * BYTES_PER_LINE) + tx / 2;
-        if pixel_offset > 0x10000 {
-            dx += 1;
-            continue;
-        }
-
-        // try to do 8 pixels at a time if possible:
-        if bg.mosaic_x <= 1 && (scx % 8) == 0 && dx <= 232 {
+    if bg.mosaic_x <= 1 {
+        // NO MOSAIC FAST PATH
+        for tidx in 0..32 {
+            let tile_info = tile_buffer[tidx];
+            let tile_number = (tile_info & 0x3FF) as u32;
+            let tile_palette = ((tile_info >> 12) & 0xF) as u8;
+            let hflip = (tile_info & 0x400) != 0;
+            let vflip = (tile_info & 0x800) != 0;
+            let ty = if vflip { 7 - ty } else { ty };
+            let tile_data_start = bg.char_base + (BYTES_PER_TILE * tile_number);
+            let mut pixel_offset = tile_data_start + (ty * BYTES_PER_LINE);
             let pinc = if hflip { -1i32 as u32 } else { 1u32 };
             for _ in 0..4 {
                 let palette_entry = vram[pixel_offset as usize];
                 let lo_palette_entry = palette_entry & 0xF;
                 let hi_palette_entry = palette_entry >> 4;
-                buffer[dx as usize] = (tile_palette * 16) + lo_palette_entry;
-                buffer[dx as usize + 1] = (tile_palette * 16) + hi_palette_entry;
+                pixel_buffer[dx as usize] = (tile_palette * 16) + lo_palette_entry;
+                pixel_buffer[dx as usize + 1] = (tile_palette * 16) + hi_palette_entry;
                 dx += 2;
                 pixel_offset = pixel_offset.wrapping_add(pinc);
             }
-        } else {
-            let palette_entry = (vram[pixel_offset as usize] >> ((tx % 2) << 2)) & 0xF;
-            buffer[dx as usize] = (tile_palette * 16) + palette_entry;
-            dx += 1;
         }
+    } else {
+        // MOSAIC SLOW PATH
+        todo!("Mosaic >:(");
     }
 
-    buffer
+    //     while dx < 240 {
+    //         let scx = start_scx + dx - mdx;
+
+    //         mdx += 1;
+    //         if mdx >= bg.mosaic_x {
+    //             mdx = 0;
+    //         }
+
+    //         let tile_info_offset = bg.get_tile_info_offset(scx, scy);
+    //         if tile_info_offset > 0x10000 {
+    //             dx += 1;
+    //             continue;
+    //         }
+    //         let tile_info = unsafe { read_u16_unchecked(vram, tile_info_offset as usize) };
+    //         let tile_number = (tile_info & 0x3FF) as u32;
+    //         let tile_palette = ((tile_info >> 12) & 0xF) as u8;
+    //         let hflip = (tile_info & 0x400) != 0;
+    //         let vflip = (tile_info & 0x800) != 0;
+
+    //         let tx = if hflip { 7 - (scx % 8) } else { scx % 8 };
+    //         let ty = if vflip { 7 - ty } else { ty };
+
+    //         let tile_data_start = bg.char_base + (BYTES_PER_TILE * tile_number);
+    //         let mut pixel_offset = tile_data_start + (ty * BYTES_PER_LINE) + tx / 2;
+    //         if pixel_offset > 0x10000 {
+    //             dx += 1;
+    //             continue;
+    //         }
+
+    //         // try to do 8 pixels at a time if possible:
+    //         if bg.mosaic_x <= 1 && (scx % 8) == 0 && dx <= 232 {
+    //             let pinc = if hflip { -1i32 as u32 } else { 1u32 };
+    //             for _ in 0..4 {
+    //                 let palette_entry = vram[pixel_offset as usize];
+    //                 let lo_palette_entry = palette_entry & 0xF;
+    //                 let hi_palette_entry = palette_entry >> 4;
+    //                 pixel_buffer[dx as usize] = (tile_palette * 16) + lo_palette_entry;
+    //                 pixel_buffer[dx as usize + 1] = (tile_palette * 16) + hi_palette_entry;
+    //                 dx += 2;
+    //                 pixel_offset = pixel_offset.wrapping_add(pinc);
+    //             }
+    //         } else {
+    //             let palette_entry = (vram[pixel_offset as usize] >> ((tx % 2) << 2)) & 0xF;
+    //             pixel_buffer[dx as usize] = (tile_palette * 16) + palette_entry;
+    //             dx += 1;
+    //         }
+    //     }
+
+    pixel_buffer[0..240]
         .iter()
         .enumerate()
         // Filter out pixels that should be transparent:
