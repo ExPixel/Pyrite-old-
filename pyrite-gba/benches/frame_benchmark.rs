@@ -41,44 +41,32 @@ fn setup_gba(rom_file: &str) -> Box<Gba> {
     return gba;
 }
 
-fn tonc_m3_demo(c: &mut Criterion) {
-    let mut gba = setup_gba("../roms/tonc/m3_demo.gba");
-    draw_frames(&mut gba, 256); // used to get into the correct mode
+fn tonc_benchmarks(c: &mut Criterion) {
+    let tonc_benchmarks: &[(usize, &'static str, &'static str)] = &[
+        (60, "m3_demo", "../roms/tonc/m3_demo.gba"),
+        (50, "brin_demo", "../roms/tonc/brin_demo.gba"),
+        (50, "cbb_demo", "../roms/tonc/cbb_demo.gba"),
+        (50, "obj_demo", "../roms/tonc/obj_demo.gba"),
+        (40, "bld_demo", "../roms/tonc/bld_demo.gba"),
+        (40, "win_demo", "../roms/tonc/win_demo.gba"),
+    ];
 
-    c.bench_function("tonc/m3_demo", |b| b.iter(|| draw_single_frame(&mut gba)));
-    black_box(gba);
-}
+    let mut group = c.benchmark_group("tonc");
+    for (sample_count, name, filepath) in tonc_benchmarks.iter() {
+        if *sample_count == 0 {
+            group.sample_size(100);
+        } else {
+            group.sample_size(*sample_count);
+        }
 
-fn tonc_brin_demo(c: &mut Criterion) {
-    let mut gba = setup_gba("../roms/tonc/brin_demo.gba");
-    draw_frames(&mut gba, 256);
+        let mut gba = setup_gba(*filepath);
+        draw_frames(&mut gba, 256); // used to get into the correct mode
 
-    c.bench_function("tonc/brin_demo", |b| b.iter(|| draw_single_frame(&mut gba)));
-    black_box(gba);
-}
+        group.bench_function(*name, |b| b.iter(|| draw_single_frame(&mut gba)));
 
-fn tonc_cbb_demo(c: &mut Criterion) {
-    let mut gba = setup_gba("../roms/tonc/cbb_demo.gba");
-    draw_frames(&mut gba, 256);
-
-    c.bench_function("tonc/cbb_demo", |b| b.iter(|| draw_single_frame(&mut gba)));
-    black_box(gba);
-}
-
-fn tonc_obj_demo(c: &mut Criterion) {
-    let mut gba = setup_gba("../roms/tonc/obj_demo.gba");
-    draw_frames(&mut gba, 256);
-
-    c.bench_function("tonc/obj_demo", |b| b.iter(|| draw_single_frame(&mut gba)));
-    black_box(gba);
-}
-
-fn tonc_bld_demo(c: &mut Criterion) {
-    let mut gba = setup_gba("../roms/tonc/bld_demo.gba");
-    draw_frames(&mut gba, 256);
-
-    c.bench_function("tonc/bld_demo", |b| b.iter(|| draw_single_frame(&mut gba)));
-    black_box(gba);
+        black_box(gba);
+    }
+    group.finish();
 }
 
 // fn gba_affine_bg_benchmark(c: &mut Criterion) {
@@ -91,12 +79,5 @@ fn tonc_bld_demo(c: &mut Criterion) {
 //     black_box(gba);
 // }
 
-criterion_group!(
-    benches,
-    tonc_m3_demo,
-    tonc_brin_demo,
-    tonc_cbb_demo,
-    tonc_obj_demo,
-    tonc_bld_demo,
-);
+criterion_group!(benches, tonc_benchmarks,);
 criterion_main!(benches);
