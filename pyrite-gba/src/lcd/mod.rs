@@ -117,11 +117,45 @@ impl GbaLCD {
         }
 
         let mode = self.registers.dispcnt.mode();
+        let window_info = WindowInfo {
+            enabled: self.registers.dispcnt.windows_enabled(),
+            win0_enabled: self.registers.dispcnt.display_window0(),
+            win1_enabled: self.registers.dispcnt.display_window1(),
+            win_obj_enabled: self.registers.dispcnt.display_window_obj(),
+            win0_bounds: self.registers.win0_bounds,
+            win1_bounds: self.registers.win1_bounds,
+            winin: self.registers.winin,
+            winout: self.registers.winout,
+
+            // @TODO
+            obj_window: LCDPixelBits::new(),
+        };
 
         match mode {
-            0 => tile::render_mode0(&self.registers, vram, oam, palette, &mut self.pixels),
-            1 => tile::render_mode1(&self.registers, vram, oam, palette, &mut self.pixels),
-            2 => tile::render_mode2(&self.registers, vram, oam, palette, &mut self.pixels),
+            0 => tile::render_mode0(
+                &self.registers,
+                vram,
+                oam,
+                palette,
+                &mut self.pixels,
+                &window_info,
+            ),
+            1 => tile::render_mode1(
+                &self.registers,
+                vram,
+                oam,
+                palette,
+                &mut self.pixels,
+                &window_info,
+            ),
+            2 => tile::render_mode2(
+                &self.registers,
+                vram,
+                oam,
+                palette,
+                &mut self.pixels,
+                &window_info,
+            ),
             3 => bitmap::render_mode3(&self.registers, vram, oam, palette, &mut self.pixels),
             4 => bitmap::render_mode4(&self.registers, vram, oam, palette, &mut self.pixels),
             5 => bitmap::render_mode5(&self.registers, vram, oam, palette, &mut self.pixels),
@@ -350,7 +384,7 @@ impl LCDLineBuffer {
 }
 
 /// A bit vector with a bit associated with each pixel of the LCD.
-pub(crate) struct LCDPixelBits {
+pub struct LCDPixelBits {
     bits: [u64; 4],
 }
 
@@ -394,6 +428,13 @@ impl LCDPixelBits {
     pub fn clear_all(&mut self) {
         for b in self.bits.iter_mut() {
             *b = 0
+        }
+    }
+
+    #[inline]
+    pub fn set_all(&mut self) {
+        for b in self.bits.iter_mut() {
+            *b = !0;
         }
     }
 
@@ -445,19 +486,6 @@ impl LCDRegisters {
         self.dispstat.value =
             (self.dispstat.value & !DISPSTAT_WRITEABLE) | (value & DISPSTAT_WRITEABLE);
     }
-
-    pub fn get_window_info(&self) -> WindowInfo {
-        WindowInfo {
-            enabled: self.dispcnt.windows_enabled(),
-            win0_enabled: self.dispcnt.display_window0(),
-            win1_enabled: self.dispcnt.display_window1(),
-            win_obj_enabled: self.dispcnt.display_window_obj(),
-            win0_bounds: self.win0_bounds,
-            win1_bounds: self.win1_bounds,
-            winin: self.winin,
-            winout: self.winout,
-        }
-    }
 }
 
 pub struct WindowInfo {
@@ -470,6 +498,7 @@ pub struct WindowInfo {
     pub win1_bounds: WindowBounds,
     pub winin: WindowControl,
     pub winout: WindowControl,
+    pub obj_window: LCDPixelBits,
 }
 
 impl WindowInfo {
@@ -479,17 +508,17 @@ impl WindowInfo {
     /// ##NOTE: This will not check the OBJ window. For that, use `check_pixel_obj_window` instead,
     /// which will do the same checks as this function but will also check the OBJ window as well.
     pub(crate) fn check_pixel(&self, layer: u16, x: u16, y: u16) -> Option<bool> {
-        if self.win0_enabled
-            && self.winin.layer_enabled(0, layer)
-            && self.win0_bounds.contains(x, y)
-        {
+        if self.win0_enabled && self.win0_bounds.contains(x, y) {
+            if !self.winin.layer_enabled(0, layer) {
+                return None;
+            }
             return Some(self.winin.effects_enabled(0));
         }
 
-        if self.win1_enabled
-            && self.winin.layer_enabled(1, layer)
-            && self.win1_bounds.contains(x, y)
-        {
+        if self.win1_enabled && self.win1_bounds.contains(x, y) {
+            if !self.winin.layer_enabled(1, layer) {
+                return None;
+            }
             return Some(self.winin.effects_enabled(1));
         }
 
@@ -501,31 +530,25 @@ impl WindowInfo {
     }
 
     /// see `check_pixel`
-    pub(crate) fn check_pixel_obj_window(
-        &self,
-        layer: u16,
-        x: u16,
-        y: u16,
-        obj_mask: &LCDPixelBits,
-    ) -> Option<bool> {
-        if self.win0_enabled
-            && self.winin.layer_enabled(0, layer)
-            && self.win0_bounds.contains(x, y)
-        {
+    pub(crate) fn check_pixel_obj_window(&self, layer: u16, x: u16, y: u16) -> Option<bool> {
+        if self.win0_enabled && self.win0_bounds.contains(x, y) {
+            if !self.winin.layer_enabled(0, layer) {
+                return None;
+            }
             return Some(self.winin.effects_enabled(0));
         }
 
-        if self.win1_enabled
-            && self.winin.layer_enabled(1, layer)
-            && self.win1_bounds.contains(x, y)
-        {
+        if self.win1_enabled && self.win1_bounds.contains(x, y) {
+            if !self.winin.layer_enabled(1, layer) {
+                return None;
+            }
             return Some(self.winin.effects_enabled(1));
         }
 
-        if self.win_obj_enabled
-            && self.winout.layer_enabled(WINOBJ, layer)
-            && obj_mask.get(x as usize)
-        {
+        if self.win_obj_enabled && self.obj_window.get(x as usize) {
+            if !self.winout.layer_enabled(WINOBJ, layer) {
+                return None;
+            }
             return Some(self.winout.effects_enabled(WINOBJ));
         }
 
@@ -536,6 +559,29 @@ impl WindowInfo {
         return None;
     }
 }
+
+// pub(crate) fn get_window_bits(
+//     layer: u16,
+//     line: u16,
+//     window_info: &WindowInfo,
+//     obj_window: &LCDPixelBits,
+// ) -> LCDPixelBits {
+//     let mut bits = LCDPixelBits::new();
+
+//     if !window_info.enabled {
+//         bits.set_all();
+//         return bits;
+//     }
+
+//     // TODO: maybe create a seprate loop for `check_pixel` when obj_window is not enabled?
+//     for x in 0..240 {
+//         if window_info.check_pixel_obj_window(layer, x, line, obj_window) {
+//             bits.set(x);
+//         }
+//     }
+
+//     return bits;
+// }
 
 bitfields! (DisplayStatus: u16 {
     vblank, set_vblank: bool = [0, 0],
@@ -763,14 +809,14 @@ impl WindowControl {
     /// and window 1 is the OBJ window.
     #[inline(always)]
     pub fn layer_enabled(&self, window: u16, layer: u16) -> bool {
-        (self.inner & (self.inner << (layer + (window * 8)))) != 0
+        ((self.inner >> (layer + (window * 8))) & 1) != 0
     }
 
     /// Returns true if color special effects is enabled for a given window.
     /// #NOTE That if this window control is for WINOUT, window 0 is the outside window
     /// and window 1 is the OBJ window.
     pub fn effects_enabled(&self, window: u16) -> bool {
-        (self.inner & (self.inner << (5 + (window * 8)))) != 0
+        ((self.inner >> (5 + (window * 8))) & 1) != 0
     }
 }
 
