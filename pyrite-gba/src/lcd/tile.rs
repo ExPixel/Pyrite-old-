@@ -62,6 +62,7 @@ pub fn render_mode0(
                 oam,
                 pal,
                 pixels,
+                window_info,
             );
         }
     }
@@ -85,6 +86,20 @@ pub fn render_mode2(
     pixels: &mut LCDLineBuffer,
     window_info: &WindowInfo,
 ) {
+}
+
+fn map_tiles_to_screen(
+    tx: usize,
+    ty: usize,
+    offset: usize,
+    width: usize,
+    height: usize,
+    tiles: &mut [u16; 32],
+) {
+    // We can have at most two regions mapped into the tile array. They will either be two parts of
+    // a single screen that wrapped around horizontally, or a part of two screens that the output
+    // spans across.
+    todo!();
 }
 
 pub fn draw_text_bg_4bpp(

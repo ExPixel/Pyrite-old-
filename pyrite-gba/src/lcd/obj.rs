@@ -1,5 +1,5 @@
 use super::palette::GbaPalette;
-use super::{apply_mosaic_cond, LCDLineBuffer, LCDRegisters};
+use super::{apply_mosaic_cond, LCDLineBuffer, LCDRegisters, WindowInfo};
 use crate::hardware::{OAM, VRAM};
 use crate::util::fixedpoint::{FixedPoint16, FixedPoint32};
 use crate::util::memory::{read_u16, read_u16_unchecked};
@@ -11,6 +11,7 @@ pub fn render_objects(
     oam: &OAM,
     pal: &GbaPalette,
     pixels: &mut LCDLineBuffer,
+    window_info: &WindowInfo,
 ) {
     let bitmap_mode = match registers.dispcnt.mode() {
         3 | 4 | 5 => true,

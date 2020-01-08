@@ -156,9 +156,30 @@ impl GbaLCD {
                 &mut self.pixels,
                 &window_info,
             ),
-            3 => bitmap::render_mode3(&self.registers, vram, oam, palette, &mut self.pixels),
-            4 => bitmap::render_mode4(&self.registers, vram, oam, palette, &mut self.pixels),
-            5 => bitmap::render_mode5(&self.registers, vram, oam, palette, &mut self.pixels),
+            3 => bitmap::render_mode3(
+                &self.registers,
+                vram,
+                oam,
+                palette,
+                &mut self.pixels,
+                &window_info,
+            ),
+            4 => bitmap::render_mode4(
+                &self.registers,
+                vram,
+                oam,
+                palette,
+                &mut self.pixels,
+                &window_info,
+            ),
+            5 => bitmap::render_mode5(
+                &self.registers,
+                vram,
+                oam,
+                palette,
+                &mut self.pixels,
+                &window_info,
+            ),
             _ => eprintln!("bad mode {}", mode),
         }
     }
