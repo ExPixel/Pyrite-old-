@@ -13,6 +13,10 @@ pub fn render_objects(
     pixels: &mut LCDLineBuffer,
     window_info: &WindowInfo,
 ) {
+    if objects.len() == 0 {
+        return;
+    }
+
     let bitmap_mode = match registers.dispcnt.mode() {
         3 | 4 | 5 => true,
         _ => false,
