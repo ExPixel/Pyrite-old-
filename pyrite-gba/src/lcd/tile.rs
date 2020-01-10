@@ -136,6 +136,8 @@ pub fn draw_text_bg_4bpp(
         }
 
         let tile_info_offset = bg.get_tile_info_offset(scx, scy);
+        // @TODO I'm not sure if this condition is even possible given how screen areas are
+        // addressed. I should check that later.
         if tile_info_offset >= 0x10000 {
             dx += 1;
             continue;
