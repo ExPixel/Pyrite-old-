@@ -114,7 +114,7 @@ impl GbaLCD {
         self.pixels.clear(backdrop);
 
         let mode = self.registers.dispcnt.mode();
-        let window_info = WindowInfo {
+        self.pixels.windows = WindowInfo {
             enabled: self.registers.dispcnt.windows_enabled(),
             win0_enabled: self.registers.dispcnt.display_window0(),
             win1_enabled: self.registers.dispcnt.display_window1(),
@@ -129,12 +129,12 @@ impl GbaLCD {
         };
 
         match mode {
-            0 => tile::render_mode0(&self.registers, vram, oam, &mut self.pixels, &window_info),
-            1 => tile::render_mode1(&self.registers, vram, oam, &mut self.pixels, &window_info),
-            2 => tile::render_mode2(&self.registers, vram, oam, &mut self.pixels, &window_info),
-            3 => bitmap::render_mode3(&self.registers, vram, oam, &mut self.pixels, &window_info),
-            4 => bitmap::render_mode4(&self.registers, vram, oam, &mut self.pixels, &window_info),
-            5 => bitmap::render_mode5(&self.registers, vram, oam, &mut self.pixels, &window_info),
+            0 => tile::render_mode0(&self.registers, vram, oam, &mut self.pixels),
+            1 => tile::render_mode1(&self.registers, vram, oam, &mut self.pixels),
+            2 => tile::render_mode2(&self.registers, vram, oam, &mut self.pixels),
+            3 => bitmap::render_mode3(&self.registers, vram, oam, &mut self.pixels),
+            4 => bitmap::render_mode4(&self.registers, vram, oam, &mut self.pixels),
+            5 => bitmap::render_mode5(&self.registers, vram, oam, &mut self.pixels),
             _ => eprintln!("bad mode {}", mode),
         }
     }
@@ -144,6 +144,7 @@ pub struct LCDLineBuffer {
     mixed: [u16; 240],
     unmixed: [Pixels2; 240],
     bitmap_palette: [u16; 240],
+    windows: WindowInfo,
     /// Cycles remaining for drawing objects.
     pub(crate) obj_cycles: u16,
 }
@@ -155,6 +156,7 @@ impl LCDLineBuffer {
             unmixed: [Pixels2::zero(); 240],
             bitmap_palette: [0; 240],
             obj_cycles: 1210,
+            windows: WindowInfo::new(),
         }
     }
 
@@ -646,6 +648,20 @@ pub struct WindowInfo {
 }
 
 impl WindowInfo {
+    pub const fn new() -> WindowInfo {
+        WindowInfo {
+            enabled: false,
+            win0_enabled: false,
+            win1_enabled: false,
+            win_obj_enabled: false,
+            win0_bounds: WindowBounds::zero(),
+            win1_bounds: WindowBounds::zero(),
+            winin: WindowControl { inner: 0 },
+            winout: WindowControl { inner: 0 },
+            obj_window: LCDPixelBits::new(),
+        }
+    }
+
     /// Returns Some(window) if a pixel is contained inside of a given window.
     pub(crate) fn check_pixel(&self, layer: Layer, x: u16, y: u16) -> Option<Window> {
         if self.win0_enabled && self.win0_bounds.contains(x, y) {
@@ -883,6 +899,15 @@ pub struct WindowBounds {
 }
 
 impl WindowBounds {
+    pub const fn zero() -> WindowBounds {
+        WindowBounds {
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+        }
+    }
+
     pub fn contains(&self, x: u16, y: u16) -> bool {
         let h1 = (self.left <= self.right) & ((x >= self.left) & (x < self.right));
         let h2 = (self.left > self.right) & ((x >= self.left) | (x < self.right));

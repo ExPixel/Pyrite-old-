@@ -1,5 +1,5 @@
 use super::palette::GbaPalette;
-use super::{apply_mosaic_cond, LCDLineBuffer, LCDRegisters, Layer, Pixel, WindowInfo};
+use super::{apply_mosaic_cond, LCDLineBuffer, LCDRegisters, Layer, Pixel};
 use crate::hardware::{OAM, VRAM};
 use crate::util::fixedpoint::{FixedPoint16, FixedPoint32};
 use crate::util::memory::{read_u16, read_u16_unchecked};
@@ -10,7 +10,6 @@ pub fn render_objects(
     vram: &VRAM,
     oam: &OAM,
     pixels: &mut LCDLineBuffer,
-    window_info: &WindowInfo,
 ) {
     if objects.len() == 0 {
         return;
@@ -208,10 +207,12 @@ pub fn render_objects(
             const BYTES_PER_LINE: usize = 8;
 
             for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize) {
-                let pflags_w = if window_info.enabled {
-                    if let Some(window_mask) =
-                        window_info.check_pixel(Layer::OBJ, obj_screen_draw as u16, registers.line)
-                    {
+                let pflags_w = if pixels.windows.enabled {
+                    if let Some(window_mask) = pixels.windows.check_pixel(
+                        Layer::OBJ,
+                        obj_screen_draw as u16,
+                        registers.line,
+                    ) {
                         pflags | Pixel::window_mask(window_mask)
                     } else {
                         obj_x += obj_dx;
@@ -260,10 +261,12 @@ pub fn render_objects(
             const BYTES_PER_LINE: usize = 4;
 
             for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize) {
-                let pflags_w = if window_info.enabled {
-                    if let Some(window_mask) =
-                        window_info.check_pixel(Layer::OBJ, obj_screen_draw as u16, registers.line)
-                    {
+                let pflags_w = if pixels.windows.enabled {
+                    if let Some(window_mask) = pixels.windows.check_pixel(
+                        Layer::OBJ,
+                        obj_screen_draw as u16,
+                        registers.line,
+                    ) {
                         pflags | Pixel::window_mask(window_mask)
                     } else {
                         obj_x += obj_dx;

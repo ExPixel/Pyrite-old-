@@ -1,18 +1,10 @@
 use super::obj::{render_objects, ObjectPriority};
 use super::palette::GbaPalette;
-use super::{
-    apply_mosaic, BGControl, BGOffset, LCDLineBuffer, LCDRegisters, Layer, Pixel, WindowInfo,
-};
+use super::{apply_mosaic, BGControl, BGOffset, LCDLineBuffer, LCDRegisters, Layer, Pixel};
 use crate::hardware::{OAM, VRAM};
 use crate::util::memory::read_u16_unchecked;
 
-pub fn render_mode0(
-    registers: &LCDRegisters,
-    vram: &VRAM,
-    oam: &OAM,
-    pixels: &mut LCDLineBuffer,
-    window_info: &WindowInfo,
-) {
+pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &mut LCDLineBuffer) {
     let object_priorities = ObjectPriority::sorted(oam);
 
     for priority in (0usize..=3).rev() {
@@ -38,7 +30,6 @@ pub fn render_mode0(
                         &textbg,
                         vram,
                         pixels,
-                        window_info,
                     );
                 } else {
                     draw_text_bg_4bpp(
@@ -47,7 +38,6 @@ pub fn render_mode0(
                         &textbg,
                         vram,
                         pixels,
-                        window_info,
                     );
                 }
             }
@@ -60,37 +50,21 @@ pub fn render_mode0(
                 vram,
                 oam,
                 pixels,
-                window_info,
             );
         }
     }
 }
 
-pub fn render_mode1(
-    registers: &LCDRegisters,
-    vram: &VRAM,
-    oam: &OAM,
-    pixels: &mut LCDLineBuffer,
-    window_info: &WindowInfo,
-) {
-}
+pub fn render_mode1(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &mut LCDLineBuffer) {}
 
-pub fn render_mode2(
-    registers: &LCDRegisters,
-    vram: &VRAM,
-    oam: &OAM,
-    pixels: &mut LCDLineBuffer,
-    window_info: &WindowInfo,
-) {
-}
+pub fn render_mode2(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &mut LCDLineBuffer) {}
 
 pub fn draw_text_bg_4bpp(
     layer: Layer,
     line: u32,
     bg: &TextBG,
     vram: &VRAM,
-    dest: &mut LCDLineBuffer,
-    window_info: &WindowInfo,
+    pixels: &mut LCDLineBuffer,
 ) {
     pub const BYTES_PER_TILE: u32 = 32;
     pub const BYTES_PER_LINE: u32 = 4;
@@ -172,13 +146,13 @@ pub fn draw_text_bg_4bpp(
 
     let pixel_mask = Pixel::layer_mask(layer) | first_target_mask | second_target_mask;
 
-    if !window_info.enabled {
+    if !pixels.windows.enabled {
         for x in 0..240 {
             let entry = pixel_buffer[x];
             if (entry & 0xF) == 0 {
                 continue;
             }
-            dest.push_pixel(x, Pixel(pixel_mask | (entry as u16)));
+            pixels.push_pixel(x, Pixel(pixel_mask | (entry as u16)));
         }
     } else {
         for x in 0..240 {
@@ -186,8 +160,11 @@ pub fn draw_text_bg_4bpp(
             if (entry & 0xF) == 0 {
                 continue;
             }
-            if let Some(mask) = window_info.check_pixel(layer, x as u16, line as u16) {
-                dest.push_pixel(x, Pixel(pixel_mask | (entry as u16)));
+            if let Some(win) = pixels.windows.check_pixel(layer, x as u16, line as u16) {
+                pixels.push_pixel(
+                    x,
+                    Pixel(pixel_mask | Pixel::window_mask(win) | (entry as u16)),
+                );
             }
         }
     }
@@ -198,8 +175,7 @@ pub fn draw_text_bg_8bpp(
     line: u32,
     bg: &TextBG,
     vram: &VRAM,
-    dest: &mut LCDLineBuffer,
-    window_info: &WindowInfo,
+    pixels: &mut LCDLineBuffer,
 ) {
     pub const BYTES_PER_TILE: u32 = 64;
     pub const BYTES_PER_LINE: u32 = 8;
@@ -282,13 +258,13 @@ pub fn draw_text_bg_8bpp(
 
     let pixel_mask = Pixel::layer_mask(layer) | first_target_mask | second_target_mask;
 
-    if !window_info.enabled {
+    if !pixels.windows.enabled {
         for x in 0..240 {
             let entry = pixel_buffer[x];
             if entry == 0 {
                 continue;
             }
-            dest.push_pixel(x, Pixel(pixel_mask | (entry as u16)));
+            pixels.push_pixel(x, Pixel(pixel_mask | (entry as u16)));
         }
     } else {
         for x in 0..240 {
@@ -296,8 +272,11 @@ pub fn draw_text_bg_8bpp(
             if entry == 0 {
                 continue;
             }
-            if let Some(mask) = window_info.check_pixel(layer, x as u16, line as u16) {
-                dest.push_pixel(x, Pixel(pixel_mask | (entry as u16)));
+            if let Some(win) = pixels.windows.check_pixel(layer, x as u16, line as u16) {
+                pixels.push_pixel(
+                    x,
+                    Pixel(pixel_mask | Pixel::window_mask(win) | (entry as u16)),
+                );
             }
         }
     }
