@@ -112,10 +112,7 @@ impl GbaLCD {
         self.pixels.clear_flags();
         // setting up the backdrop:
         let backdrop = Pixel(Pixel::layer_mask(Layer::Backdrop) | 0);
-
-        for x in 0..240 {
-            self.pixels.push_pixel(x, backdrop);
-        }
+        self.pixels.clear(backdrop);
 
         let mode = self.registers.dispcnt.mode();
         let window_info = WindowInfo {
@@ -215,6 +212,10 @@ impl LCDLineBuffer {
         }
     }
 
+    pub fn clear(&mut self, clear_pixel: Pixel) {
+        self.unmixed.iter_mut().for_each(|p| p.set(clear_pixel));
+    }
+
     #[inline]
     pub fn clear_flags(&mut self) {
         self.top_layer_first_target.clear_all();
@@ -245,10 +246,46 @@ impl LCDLineBuffer {
         }
     }
 
+    #[inline(always)]
     pub fn mix(&mut self, palette: &GbaPalette, effect: SpecialEffect, registers: &LCDRegisters) {
+        let bm_color = registers.dispcnt.mode() == 3 || registers.dispcnt.mode() == 5;
+        if bm_color {
+            self.internal_mix_bitmap(palette, effect, registers);
+        } else {
+            self.internal_mix_tile(palette, effect, registers);
+        }
+    }
+
+    fn internal_mix_bitmap(
+        &mut self,
+        palette: &GbaPalette,
+        effect: SpecialEffect,
+        registers: &LCDRegisters,
+    ) {
+        self.internal_mix(palette, effect, registers, true)
+    }
+
+    fn internal_mix_tile(
+        &mut self,
+        palette: &GbaPalette,
+        effect: SpecialEffect,
+        registers: &LCDRegisters,
+    ) {
+        self.internal_mix(palette, effect, registers, false)
+    }
+
+    // This is inlined into `internal_mix_bitmap` and `internal_mix_tile` in order to simplify the
+    // lookup color calls where possible.
+    #[inline(always)]
+    fn internal_mix(
+        &mut self,
+        palette: &GbaPalette,
+        effect: SpecialEffect,
+        registers: &LCDRegisters,
+        bm_color: bool,
+    ) {
         let eva = bits!(registers.alpha, 0, 4); // EVA * 16
         let evb = bits!(registers.alpha, 8, 12); // EVB * 16
-        let bm_color = registers.dispcnt.mode() == 3 || registers.dispcnt.mode() == 5;
 
         match effect {
             SpecialEffect::AlphaBlending => {
@@ -431,9 +468,16 @@ impl Pixels2 {
         }
     }
 
+    #[inline(always)]
     pub fn push(&mut self, new_top: Pixel) {
         self.bot = self.top;
         self.top = new_top;
+    }
+
+    #[inline(always)]
+    pub fn set(&mut self, p: Pixel) {
+        self.top = p;
+        self.bot = Pixel(0);
     }
 }
 
