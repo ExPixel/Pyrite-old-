@@ -1042,9 +1042,16 @@ pub struct WindowBounds {
 }
 
 impl WindowBounds {
-    #[inline]
     pub fn contains(&self, x: u16, y: u16) -> bool {
-        x >= self.left && x < self.right && y >= self.top && y < self.bottom
+        let h1 = (self.left <= self.right) & ((x >= self.left) & (x < self.right));
+        let h2 = (self.left > self.right) & ((x >= self.left) | (x < self.right));
+        if !(h1 | h2) {
+            return false;
+        }
+
+        let v1 = (self.top <= self.bottom) & ((y >= self.top) & (y < self.bottom));
+        let v2 = (self.top > self.bottom) & ((y >= self.top) | (y < self.bottom));
+        return (v1 | v2);
     }
 
     pub(crate) fn set_h(&mut self, h: u16) {
@@ -1052,7 +1059,7 @@ impl WindowBounds {
         self.right = h & 0xFF;
 
         // Garbage values of R>240 or L>R are interpreted as R=240.
-        if self.right > 240 || self.left > self.right {
+        if self.right > 240 {
             self.right = 240;
         }
     }
@@ -1062,7 +1069,7 @@ impl WindowBounds {
         self.bottom = v & 0xFF;
 
         // Garbage values of B>160 or T>B are interpreted as B=160.
-        if self.bottom > 160 || self.top > self.bottom {
+        if self.bottom > 160 {
             self.bottom = 160;
         }
     }
