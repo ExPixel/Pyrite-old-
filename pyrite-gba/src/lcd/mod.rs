@@ -91,7 +91,7 @@ impl GbaLCD {
             }
             self.draw_line(vram, oam, palette);
             self.pixels
-                .mix(self.registers.effects.effect(), &self.registers);
+                .mix(palette, self.registers.effects.effect(), &self.registers);
             video.display_line(self.registers.line as u32, &self.pixels.mixed);
             if self.registers.line == 159 {
                 video.post_frame();
@@ -111,9 +111,10 @@ impl GbaLCD {
 
         self.pixels.clear_flags();
         // setting up the backdrop:
-        let backdrop = palette.backdrop();
+        let backdrop = Pixel(Pixel::layer_mask(Layer::Backdrop) | 0);
+
         for x in 0..240 {
-            self.pixels.push_pixel_fast(x, backdrop);
+            self.pixels.push_pixel(x, backdrop);
         }
 
         let mode = self.registers.dispcnt.mode();
@@ -187,7 +188,7 @@ impl GbaLCD {
 
 pub struct LCDLineBuffer {
     mixed: [u16; 240],
-    unmixed: [u32; 240],
+    unmixed: [Pixels2; 240],
     bitmap_palette: [u16; 240],
     obj_semitrans: LCDPixelBits,
 
@@ -203,7 +204,7 @@ impl LCDLineBuffer {
     pub const fn new() -> LCDLineBuffer {
         LCDLineBuffer {
             mixed: [0xFFFF; 240],
-            unmixed: [0x0000; 240],
+            unmixed: [Pixels2::zero(); 240],
             bitmap_palette: [0; 240],
             obj_semitrans: LCDPixelBits::new(),
             obj_cycles: 1210,
@@ -214,38 +215,6 @@ impl LCDLineBuffer {
         }
     }
 
-    pub const fn create_layer_mask(layer: u16) -> u16 {
-        return (layer & 0b0111) << 8;
-    }
-
-    pub fn create_semi_transparent_obj_mask(is_semi_transparent: bool) -> u16 {
-        if is_semi_transparent {
-            0x0800
-        } else {
-            0x0000
-        }
-    }
-
-    pub fn create_first_target_mask(first_target: bool) -> u16 {
-        if first_target {
-            0x1000
-        } else {
-            0x0000
-        }
-    }
-
-    pub fn create_second_target_mask(second_target: bool) -> u16 {
-        if second_target {
-            0x2000
-        } else {
-            0x0000
-        }
-    }
-
-    pub const fn create_window_index_mask(window: u16) -> u16 {
-        return (window & 0b11) << 14;
-    }
-
     #[inline]
     pub fn clear_flags(&mut self) {
         self.top_layer_first_target.clear_all();
@@ -253,163 +222,147 @@ impl LCDLineBuffer {
         self.bot_layer_second_target.clear_all();
     }
 
-    // @TODO remove this
-    #[deprecated]
-    #[inline]
-    pub fn push_pixel_fast(&mut self, index: usize, color: u16) {
-        self.unmixed[index] = (self.unmixed[index] << 16) | (color as u32);
-        // self.pixels[index] = color;
-    }
-
     // @TODO rename this to push_pixel when ready:
     #[inline]
-    pub fn push_pixel_ex(&mut self, index: usize, pixel: u16) {
-        self.unmixed[index] = (self.unmixed[index] << 16) | (pixel as u32);
+    pub fn push_pixel(&mut self, index: usize, pix: Pixel) {
+        self.unmixed[index].push(pix);
     }
 
-    #[inline]
-    pub fn push_pixel(
-        &mut self,
-        index: usize,
-        color: u16,
-        first_target: bool,
-        second_target: bool,
-        semi_trans: bool,
-    ) {
-        if self.top_layer_second_target.get(index) {
-            self.unmixed[index] = (self.unmixed[index] << 16) | (color as u32);
-            self.bot_layer_second_target.set(index);
+    #[inline(always)]
+    pub fn lookup_color(&self, palette: &GbaPalette, bitmap16: bool, pixel: Pixel) -> u16 {
+        if bitmap16 && pixel.layer() == Layer::BG2 {
+            self.bitmap_palette[pixel.pal_index()]
+        } else if pixel.layer() != Layer::OBJ {
+            palette.bg256(pixel.pal_index())
         } else {
-            // Since this for sure overwrites the bottom pixel anyway with no mixing, there's no
-            // point in doing the above.
-            self.unmixed[index] = color as u32;
-            self.bot_layer_second_target.clear(index);
+            palette.obj256(pixel.pal_index())
         }
-
-        self.top_layer_first_target
-            .put(index, first_target | semi_trans);
-        self.top_layer_second_target.put(index, second_target);
-        self.obj_semitrans.put(index, semi_trans);
     }
 
-    pub fn mix(&mut self, effect: SpecialEffect, registers: &LCDRegisters) {
-        let eva = bits!(registers.alpha, 0, 4); // EVA * 16
-        let evb = bits!(registers.alpha, 8, 12); // EVB * 16
-
-        let no_blending = (effect == SpecialEffect::None && self.obj_semitrans.is_all_zeroes())
-            || (effect == SpecialEffect::AlphaBlending
-                && (self.bot_layer_second_target.is_all_zeroes() || eva == 16))
-            || self.top_layer_first_target.is_all_zeroes();
-
-        if no_blending {
-            // if we're not blending be can just copy the top most pixel into the mixed line
-            // buffer.
-            self.unmixed
-                .iter()
-                .zip(self.mixed.iter_mut())
-                .for_each(|(&s, d)| {
-                    *d = s as u16;
-                });
-            return;
+    pub fn mix(&mut self, palette: &GbaPalette, effect: SpecialEffect, registers: &LCDRegisters) {
+        let bm_color = registers.dispcnt.mode() == 3 || registers.dispcnt.mode() == 5;
+        for x in 0..240 {
+            let Pixels2 { top, bot } = self.unmixed[x];
+            self.mixed[x] = self.lookup_color(palette, bm_color, top);
         }
 
-        match effect {
-            SpecialEffect::AlphaBlending => {
-                for index in 0..240 {
-                    // for alpha blending, we only blend if there is both a first and second
-                    // target:
-                    if !self.top_layer_first_target.get(index)
-                        || !self.bot_layer_second_target.get(index)
-                    {
-                        self.mixed[index] = self.unmixed[index] as u16;
-                        continue;
-                    }
+        // let eva = bits!(registers.alpha, 0, 4); // EVA * 16
+        // let evb = bits!(registers.alpha, 8, 12); // EVB * 16
 
-                    self.mixed[index] = Self::alpha_blend(
-                        self.unmixed[index] as u16,
-                        (self.unmixed[index] >> 16) as u16,
-                        eva,
-                        evb,
-                    );
-                }
-            }
+        // let no_blending = (effect == SpecialEffect::None && self.obj_semitrans.is_all_zeroes())
+        //     || (effect == SpecialEffect::AlphaBlending
+        //         && (self.bot_layer_second_target.is_all_zeroes() || eva == 16))
+        //     || self.top_layer_first_target.is_all_zeroes();
 
-            SpecialEffect::BrightnessIncrease => {
-                let evy = bits!(registers.brightness, 0, 4); // EVY * 16
+        // if no_blending {
+        //     // if we're not blending be can just copy the top most pixel into the mixed line
+        //     // buffer.
+        //     self.unmixed
+        //         .iter()
+        //         .zip(self.mixed.iter_mut())
+        //         .for_each(|(&s, d)| {
+        //             *d = s as u16;
+        //         });
+        //     return;
+        // }
 
-                for index in 0..240 {
-                    // for brightness blending, we only blend if there is a first target pixel in
-                    // the top layer:
-                    if !self.top_layer_first_target.get(index) {
-                        self.mixed[index] = self.unmixed[index] as u16;
-                        continue;
-                    }
+        // match effect {
+        //     SpecialEffect::AlphaBlending => {
+        //         for index in 0..240 {
+        //             // for alpha blending, we only blend if there is both a first and second
+        //             // target:
+        //             if !self.top_layer_first_target.get(index)
+        //                 || !self.bot_layer_second_target.get(index)
+        //             {
+        //                 self.mixed[index] = self.unmixed[index] as u16;
+        //                 continue;
+        //             }
 
-                    if self.obj_semitrans.get(index) {
-                        // implies first target
-                        if self.bot_layer_second_target.get(index) {
-                            self.mixed[index] = Self::alpha_blend(
-                                self.unmixed[index] as u16,
-                                (self.unmixed[index] >> 16) as u16,
-                                eva,
-                                evb,
-                            );
-                        } else {
-                            self.mixed[index] = self.unmixed[index] as u16;
-                        }
-                        continue;
-                    }
+        //             self.mixed[index] = Self::alpha_blend(
+        //                 self.unmixed[index] as u16,
+        //                 (self.unmixed[index] >> 16) as u16,
+        //                 eva,
+        //                 evb,
+        //             );
+        //         }
+        //     }
 
-                    self.mixed[index] = Self::brightness_increase(self.unmixed[index] as u16, evy);
-                }
-            }
+        //     SpecialEffect::BrightnessIncrease => {
+        //         let evy = bits!(registers.brightness, 0, 4); // EVY * 16
 
-            SpecialEffect::BrightnessDecrease => {
-                let evy = bits!(registers.brightness, 0, 4); // EVY * 16
+        //         for index in 0..240 {
+        //             // for brightness blending, we only blend if there is a first target pixel in
+        //             // the top layer:
+        //             if !self.top_layer_first_target.get(index) {
+        //                 self.mixed[index] = self.unmixed[index] as u16;
+        //                 continue;
+        //             }
 
-                for index in 0..240 {
-                    // for brightness blending, we only blend if there is a first target pixel in
-                    // the top layer:
-                    if !self.top_layer_first_target.get(index) {
-                        self.mixed[index] = self.unmixed[index] as u16;
-                        continue;
-                    }
+        //             if self.obj_semitrans.get(index) {
+        //                 // implies first target
+        //                 if self.bot_layer_second_target.get(index) {
+        //                     self.mixed[index] = Self::alpha_blend(
+        //                         self.unmixed[index] as u16,
+        //                         (self.unmixed[index] >> 16) as u16,
+        //                         eva,
+        //                         evb,
+        //                     );
+        //                 } else {
+        //                     self.mixed[index] = self.unmixed[index] as u16;
+        //                 }
+        //                 continue;
+        //             }
 
-                    if self.obj_semitrans.get(index) {
-                        // implies first target
-                        if self.bot_layer_second_target.get(index) {
-                            self.mixed[index] = Self::alpha_blend(
-                                self.unmixed[index] as u16,
-                                (self.unmixed[index] >> 16) as u16,
-                                eva,
-                                evb,
-                            );
-                        } else {
-                            self.mixed[index] = self.unmixed[index] as u16;
-                        }
-                        continue;
-                    }
+        //             self.mixed[index] = Self::brightness_increase(self.unmixed[index] as u16, evy);
+        //         }
+        //     }
 
-                    self.mixed[index] = Self::brightness_decrease(self.unmixed[index] as u16, evy);
-                }
-            }
+        //     SpecialEffect::BrightnessDecrease => {
+        //         let evy = bits!(registers.brightness, 0, 4); // EVY * 16
 
-            // we would only reach here if there are semi-transparent objects.
-            SpecialEffect::None => {
-                for index in 0..240 {
-                    if !self.obj_semitrans.get(index) || !self.bot_layer_second_target.get(index) {
-                        self.mixed[index] = self.unmixed[index] as u16;
-                    } else {
-                        self.mixed[index] = Self::alpha_blend(
-                            self.unmixed[index] as u16,
-                            (self.unmixed[index] >> 16) as u16,
-                            eva,
-                            evb,
-                        );
-                    }
-                }
-            }
-        }
+        //         for index in 0..240 {
+        //             // for brightness blending, we only blend if there is a first target pixel in
+        //             // the top layer:
+        //             if !self.top_layer_first_target.get(index) {
+        //                 self.mixed[index] = self.unmixed[index] as u16;
+        //                 continue;
+        //             }
+
+        //             if self.obj_semitrans.get(index) {
+        //                 // implies first target
+        //                 if self.bot_layer_second_target.get(index) {
+        //                     self.mixed[index] = Self::alpha_blend(
+        //                         self.unmixed[index] as u16,
+        //                         (self.unmixed[index] >> 16) as u16,
+        //                         eva,
+        //                         evb,
+        //                     );
+        //                 } else {
+        //                     self.mixed[index] = self.unmixed[index] as u16;
+        //                 }
+        //                 continue;
+        //             }
+
+        //             self.mixed[index] = Self::brightness_decrease(self.unmixed[index] as u16, evy);
+        //         }
+        //     }
+
+        //     // we would only reach here if there are semi-transparent objects.
+        //     SpecialEffect::None => {
+        //         for index in 0..240 {
+        //             if !self.obj_semitrans.get(index) || !self.bot_layer_second_target.get(index) {
+        //                 self.mixed[index] = self.unmixed[index] as u16;
+        //             } else {
+        //                 self.mixed[index] = Self::alpha_blend(
+        //                     self.unmixed[index] as u16,
+        //                     (self.unmixed[index] >> 16) as u16,
+        //                     eva,
+        //                     evb,
+        //                 );
+        //             }
+        //         }
+        //     }
+        // }
     }
 
     fn alpha_blend(first: u16, second: u16, eva: u16, evb: u16) -> u16 {
@@ -441,6 +394,77 @@ impl LCDLineBuffer {
         let g = std::cmp::min(31, g1 - (g1 * evy) / 16);
         let b = std::cmp::min(31, b1 - (b1 * evy) / 16);
         rgb16(r, g, b)
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Pixels2 {
+    top: Pixel,
+    bot: Pixel,
+}
+
+impl Pixels2 {
+    pub const fn zero() -> Pixels2 {
+        Pixels2 {
+            top: Pixel(0),
+            bot: Pixel(0),
+        }
+    }
+
+    pub fn push(&mut self, new_top: Pixel) {
+        self.bot = self.top;
+        self.top = new_top;
+    }
+}
+
+impl Default for Pixels2 {
+    fn default() -> Pixels2 {
+        Self::zero()
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Pixel(pub u16);
+
+impl Pixel {
+    pub const FIRST_TARGET: u16 = 0x0800;
+    pub const SECOND_TARGET: u16 = 0x1000;
+    pub const SEMI_TRANSPARENT: u16 = 0x2000;
+
+    #[inline(always)]
+    pub const fn layer_mask(layer: Layer) -> u16 {
+        ((layer as u16) & 0b0111) << 8
+    }
+
+    #[inline(always)]
+    pub const fn window_mask(window: Window) -> u16 {
+        ((window as u16) & 0b11) << 14
+    }
+
+    pub const fn pal_index(self) -> usize {
+        self.0 as u8 as usize
+    }
+
+    #[inline(always)]
+    pub const fn first_target(self) -> bool {
+        (self.0 & Self::FIRST_TARGET) != 0
+    }
+
+    #[inline(always)]
+    pub const fn second_target(self) -> bool {
+        (self.0 & Self::SECOND_TARGET) != 0
+    }
+
+    // @TODO mark this as const when `Layer::from_index` becomes const.
+    #[inline(always)]
+    pub fn layer(self) -> Layer {
+        Layer::from_index((self.0 >> 8) & 0b0111)
+    }
+
+    // @TODO mark this as const when `Window::from_index` becomes const.
+    #[inline(always)]
+    pub fn window(self) -> Window {
+        Window::from_index((self.0 >> 14) & 0b11)
     }
 }
 
@@ -549,6 +573,74 @@ impl LCDRegisters {
     }
 }
 
+#[repr(u16)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Layer {
+    BG0 = 0,
+    BG1 = 1,
+    BG2 = 2,
+    BG3 = 3,
+    OBJ = 4,
+    Backdrop = 5,
+}
+
+impl Layer {
+    pub const fn index(self) -> u16 {
+        self as u16
+    }
+
+    // @TODO this can be made const when `match` is enabled in const fns in stable Rust.
+    pub fn from_bg(bg_index: u16) -> Layer {
+        match bg_index {
+            0 => Layer::BG0,
+            1 => Layer::BG1,
+            2 => Layer::BG2,
+            3 => Layer::BG3,
+            _ => panic!("Invalid BG layer."),
+        }
+    }
+
+    // @TODO this can be made const when `match` is enabled in const fns in stable Rust.
+    pub fn from_index(index: u16) -> Layer {
+        match index {
+            0 => Layer::BG0,
+            1 => Layer::BG1,
+            2 => Layer::BG2,
+            3 => Layer::BG3,
+            4 => Layer::OBJ,
+            5 => Layer::Backdrop,
+            _ => panic!("Invalid layer."),
+        }
+    }
+}
+
+#[repr(u16)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Window {
+    Win0 = 0,
+    Win1 = 1,
+    Outside = 2,
+    OBJ = 3,
+}
+
+impl Window {
+    // @TODO this can be made const when `match` is enabled in const fns in stable Rust.
+    pub fn from_index(index: u16) -> Window {
+        match index {
+            0 => Window::Win0,
+            1 => Window::Win1,
+            2 => Window::Outside,
+            3 => Window::OBJ,
+            _ => panic!("Invalid window."),
+        }
+    }
+
+    #[inline(always)]
+    pub const fn reg_index(self) -> u16 {
+        (self as u16) & 1
+    }
+}
+
 pub struct WindowInfo {
     /// This flag is set to true of any of the three windows are enabled.
     pub enabled: bool,
@@ -563,58 +655,34 @@ pub struct WindowInfo {
 }
 
 impl WindowInfo {
-    /// Checks if a pixel is within the bounds of window 0 or window 1.
-    /// If it is within bounds, this will return Some(special_effects_enabled).
-    /// If it is not without bounds, this will return None.
-    /// ##NOTE: This will not check the OBJ window. For that, use `check_pixel_obj_window` instead,
-    /// which will do the same checks as this function but will also check the OBJ window as well.
-    pub(crate) fn check_pixel(&self, layer: u16, x: u16, y: u16) -> Option<bool> {
+    /// Returns Some(window) if a pixel is contained inside of a given window.
+    pub(crate) fn check_pixel(&self, layer: Layer, x: u16, y: u16) -> Option<Window> {
         if self.win0_enabled && self.win0_bounds.contains(x, y) {
-            if !self.winin.layer_enabled(0, layer) {
+            if self.winin.layer_enabled(Window::Win0, layer) {
+                return Some(Window::Win0);
+            } else {
                 return None;
             }
-            return Some(self.winin.effects_enabled(0));
         }
 
         if self.win1_enabled && self.win1_bounds.contains(x, y) {
-            if !self.winin.layer_enabled(1, layer) {
+            if self.winin.layer_enabled(Window::Win1, layer) {
+                return Some(Window::Win1);
+            } else {
                 return None;
             }
-            return Some(self.winin.effects_enabled(1));
-        }
-
-        if self.winout.layer_enabled(WINOUT, layer) {
-            return Some(self.winout.effects_enabled(WINOUT));
-        }
-
-        return None;
-    }
-
-    /// see `check_pixel`
-    pub(crate) fn check_pixel_obj_window(&self, layer: u16, x: u16, y: u16) -> Option<bool> {
-        if self.win0_enabled && self.win0_bounds.contains(x, y) {
-            if !self.winin.layer_enabled(0, layer) {
-                return None;
-            }
-            return Some(self.winin.effects_enabled(0));
-        }
-
-        if self.win1_enabled && self.win1_bounds.contains(x, y) {
-            if !self.winin.layer_enabled(1, layer) {
-                return None;
-            }
-            return Some(self.winin.effects_enabled(1));
         }
 
         if self.win_obj_enabled && self.obj_window.get(x as usize) {
-            if !self.winout.layer_enabled(WINOBJ, layer) {
+            if self.winout.layer_enabled(Window::OBJ, layer) {
+                return Some(Window::OBJ);
+            } else {
                 return None;
             }
-            return Some(self.winout.effects_enabled(WINOBJ));
         }
 
-        if self.winout.layer_enabled(WINOUT, layer) {
-            return Some(self.winout.effects_enabled(WINOUT));
+        if self.winout.layer_enabled(Window::Outside, layer) {
+            return Some(Window::Outside);
         }
 
         return None;
@@ -869,15 +937,15 @@ impl WindowControl {
     /// (0 or 1). #NOTE That if this window control is for WINOUT, window 0 is the outside window
     /// and window 1 is the OBJ window.
     #[inline(always)]
-    pub fn layer_enabled(&self, window: u16, layer: u16) -> bool {
-        ((self.inner >> (layer + (window * 8))) & 1) != 0
+    pub fn layer_enabled(&self, window: Window, layer: Layer) -> bool {
+        ((self.inner >> (layer.index() + (window.reg_index() * 8))) & 1) != 0
     }
 
     /// Returns true if color special effects is enabled for a given window.
     /// #NOTE That if this window control is for WINOUT, window 0 is the outside window
     /// and window 1 is the OBJ window.
-    pub fn effects_enabled(&self, window: u16) -> bool {
-        ((self.inner >> (5 + (window * 8))) & 1) != 0
+    pub fn effects_enabled(&self, window: Window) -> bool {
+        ((self.inner >> (5 + (window.reg_index() * 8))) & 1) != 0
     }
 }
 
