@@ -1,6 +1,6 @@
 use super::obj::{render_objects, ObjectPriority};
 use super::palette::GbaPalette;
-use super::{LCDLineBuffer, LCDRegisters, WindowInfo};
+use super::{LCDLineBuffer, LCDRegisters, Layer, Pixel, WindowInfo};
 use crate::hardware::{OAM, VRAM};
 use crate::util::memory::read_u16_unchecked;
 
@@ -78,31 +78,34 @@ fn render_mode3_bitmap(
     pixels: &mut LCDLineBuffer,
     window_info: &WindowInfo,
 ) {
-    // assert!(line < 160);
+    assert!(line < 160);
 
-    // let line_offset = 480 * line;
-    // for x in 0..240 {
-    //     let effects = if !window_info.enabled {
-    //         true
-    //     } else {
-    //         if let Some(effects) = window_info.check_pixel_obj_window(2, x as u16, line as u16) {
-    //             effects
-    //         } else {
-    //             continue;
-    //         }
-    //     };
+    let pflags = Pixel::layer_mask(Layer::BG2)
+        | (if first_target { Pixel::FIRST_TARGET } else { 0 })
+        | (if second_target {
+            Pixel::SECOND_TARGET
+        } else {
+            0
+        });
 
-    //     // Bounds check at the top of the function ensures that we never go above 75KB (max address
-    //     // is actually 0x12BFE).  The compiler just doesn't seem to be able to optimize the checks
-    //     // away here though.  Doing it this way removes bounds checks and allows auto vectorization :o
-    //     pixels.push_pixel(
-    //         x,
-    //         unsafe { read_u16_unchecked(vram, line_offset + x * 2) } | 0x8000,
-    //         effects & first_target,
-    //         effects & second_target,
-    //         false,
-    //     );
-    // }
+    let line_offset = 480 * line;
+    for x in 0..240 {
+        let pixel_metadata = if window_info.enabled {
+            if let Some(window) = window_info.check_pixel(Layer::BG2, x as u16, line as u16) {
+                Pixel(Pixel::window_mask(window) | pflags)
+            } else {
+                continue;
+            }
+        } else {
+            Pixel(pflags)
+        };
+
+        // Bounds check at the top of the function ensures that we never go above 75KB (max address
+        // is actually 0x12BFE).  The compiler just doesn't seem to be able to optimize the checks
+        // away here though.  Doing it this way removes bounds checks and allows auto vectorization :o
+        let color = unsafe { read_u16_unchecked(vram, line_offset + x * 2) } | 0x8000;
+        pixels.push_bitmap_pixel(x, pixel_metadata, color);
+    }
 }
 
 pub fn render_mode4(
@@ -151,26 +154,36 @@ fn render_mode4_bitmap(
     pixels: &mut LCDLineBuffer,
     window_info: &WindowInfo,
 ) {
-    // assert!(line < 160);
+    assert!(line < 160);
 
-    // let line_offset = 240 * line;
-    // for x in 0..240 {
-    //     if let Some(effects) = window_info.check_pixel_obj_window(2, x as u16, line as u16) {
-    //         // Bounds check at the top of the function ensures that we never go above 75KB (max address
-    //         // is actually 0x12BFE).  The compiler just doesn't seem to be able to optimize the checks
-    //         // away here though.  Doing it this way removes bounds checks and allows auto vectorization :o
-    //         let palette_entry = framebuffer[line_offset + x];
-    //         if palette_entry != 0 {
-    //             pixels.push_pixel(
-    //                 x,
-    //                 pal.bg256(palette_entry as usize),
-    //                 effects & first_target,
-    //                 effects & second_target,
-    //                 false,
-    //             );
-    //         }
-    //     }
-    // }
+    let pflags = Pixel::layer_mask(Layer::BG2)
+        | (if first_target { Pixel::FIRST_TARGET } else { 0 })
+        | (if second_target {
+            Pixel::SECOND_TARGET
+        } else {
+            0
+        });
+
+    let line_offset = 240 * line;
+    for x in 0..240 {
+        let pixel_metadata = if window_info.enabled {
+            if let Some(window) = window_info.check_pixel(Layer::BG2, x as u16, line as u16) {
+                Pixel::window_mask(window) | pflags
+            } else {
+                continue;
+            }
+        } else {
+            pflags
+        };
+
+        // Bounds check at the top of the function ensures that we never go above 75KB (max address
+        // is actually 0x12BFE).  The compiler just doesn't seem to be able to optimize the checks
+        // away here though.  Doing it this way removes bounds checks and allows auto vectorization :o
+        let palette_entry = framebuffer[line_offset + x];
+        if palette_entry != 0 {
+            pixels.push_pixel(x, Pixel(pixel_metadata | palette_entry as u16));
+        }
+    }
 }
 
 pub fn render_mode5(
@@ -219,22 +232,33 @@ fn render_mode5_bitmap(
     pixels: &mut LCDLineBuffer,
     window_info: &WindowInfo,
 ) {
-    // assert!(line < 160);
+    assert!(line < 160);
 
-    // let line_offset = 480 * line;
-    // for x in 0..160 {
-    //     if let Some(effects) = window_info.check_pixel_obj_window(2, x as u16, line as u16) {
-    //         // Bounds checks are basically done at the top of the function using the asserts.
-    //         // This ensures that we never go above 75KB (max address is actually 0x12BFE).
-    //         // The compiler just doesn't seem to be able to optimize the checks away here though.
-    //         // Doing it this way removes bounds checks and allows auto vectorization :o
-    //         pixels.push_pixel(
-    //             x,
-    //             unsafe { read_u16_unchecked(framebuffer, line_offset + x * 2) } | 0x8000,
-    //             effects & first_target,
-    //             effects & second_target,
-    //             false,
-    //         );
-    //     }
-    // }
+    let pflags = Pixel::layer_mask(Layer::BG2)
+        | (if first_target { Pixel::FIRST_TARGET } else { 0 })
+        | (if second_target {
+            Pixel::SECOND_TARGET
+        } else {
+            0
+        });
+
+    let line_offset = 480 * line;
+    for x in 0..160 {
+        let pixel_metadata = if window_info.enabled {
+            if let Some(window) = window_info.check_pixel(Layer::BG2, x as u16, line as u16) {
+                Pixel(Pixel::window_mask(window) | pflags)
+            } else {
+                continue;
+            }
+        } else {
+            Pixel(pflags)
+        };
+
+        // Bounds checks are basically done at the top of the function using the asserts.
+        // This ensures that we never go above 75KB (max address is actually 0x12BFE).
+        // The compiler just doesn't seem to be able to optimize the checks away here though.
+        // Doing it this way removes bounds checks and allows auto vectorization :o
+        let color = unsafe { read_u16_unchecked(framebuffer, line_offset + x * 2) } | 0x8000;
+        pixels.push_bitmap_pixel(x, pixel_metadata, color);
+    }
 }

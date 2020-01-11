@@ -20,7 +20,7 @@ impl GbaPalette {
     }
 
     pub fn obj256(&self, index: usize) -> u16 {
-        return self.bg[index] | 0x8000;
+        return self.obj[index] | 0x8000;
     }
 
     pub fn bg16(&self, palette: usize, index: usize) -> u16 {

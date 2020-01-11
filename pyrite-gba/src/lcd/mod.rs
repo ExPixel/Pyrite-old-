@@ -222,6 +222,12 @@ impl LCDLineBuffer {
         self.bot_layer_second_target.clear_all();
     }
 
+    #[inline]
+    pub fn push_bitmap_pixel(&mut self, index: usize, pixel_metadata: Pixel, color: u16) {
+        self.unmixed[index].push(Pixel(pixel_metadata.0 | (index as u8 as u16)));
+        self.bitmap_palette[index] = color;
+    }
+
     // @TODO rename this to push_pixel when ready:
     #[inline]
     pub fn push_pixel(&mut self, index: usize, pix: Pixel) {
@@ -240,31 +246,45 @@ impl LCDLineBuffer {
     }
 
     pub fn mix(&mut self, palette: &GbaPalette, effect: SpecialEffect, registers: &LCDRegisters) {
+        let eva = bits!(registers.alpha, 0, 4); // EVA * 16
+        let evb = bits!(registers.alpha, 8, 12); // EVB * 16
         let bm_color = registers.dispcnt.mode() == 3 || registers.dispcnt.mode() == 5;
-        for x in 0..240 {
-            let Pixels2 { top, bot } = self.unmixed[x];
-            self.mixed[x] = self.lookup_color(palette, bm_color, top);
+
+        match effect {
+            SpecialEffect::AlphaBlending => {
+                for x in 0..240 {
+                    let Pixels2 { top, bot } = self.unmixed[x];
+                    if !top.first_target() || !bot.second_target() {
+                        self.mixed[x] = self.lookup_color(palette, bm_color, top);
+                    } else {
+                        self.mixed[x] = Self::alpha_blend(
+                            self.lookup_color(palette, bm_color, top),
+                            self.lookup_color(palette, bm_color, bot),
+                            eva,
+                            evb,
+                        );
+                    }
+                }
+            }
+
+            SpecialEffect::BrightnessIncrease => {
+                todo!();
+            }
+
+            SpecialEffect::BrightnessDecrease => {
+                todo!();
+            }
+
+            // handled at the top
+            SpecialEffect::None => {
+                // if we're not blending be can just copy the top most pixel into the mixed line
+                // buffer.
+                for x in 0..240 {
+                    let Pixels2 { top, bot } = self.unmixed[x];
+                    self.mixed[x] = self.lookup_color(palette, bm_color, top);
+                }
+            }
         }
-
-        // let eva = bits!(registers.alpha, 0, 4); // EVA * 16
-        // let evb = bits!(registers.alpha, 8, 12); // EVB * 16
-
-        // let no_blending = (effect == SpecialEffect::None && self.obj_semitrans.is_all_zeroes())
-        //     || (effect == SpecialEffect::AlphaBlending
-        //         && (self.bot_layer_second_target.is_all_zeroes() || eva == 16))
-        //     || self.top_layer_first_target.is_all_zeroes();
-
-        // if no_blending {
-        //     // if we're not blending be can just copy the top most pixel into the mixed line
-        //     // buffer.
-        //     self.unmixed
-        //         .iter()
-        //         .zip(self.mixed.iter_mut())
-        //         .for_each(|(&s, d)| {
-        //             *d = s as u16;
-        //         });
-        //     return;
-        // }
 
         // match effect {
         //     SpecialEffect::AlphaBlending => {
@@ -458,13 +478,13 @@ impl Pixel {
     // @TODO mark this as const when `Layer::from_index` becomes const.
     #[inline(always)]
     pub fn layer(self) -> Layer {
-        Layer::from_index((self.0 >> 8) & 0b0111)
+        unsafe { Layer::from_index_unsafe((self.0 >> 8) & 0b0111) }
     }
 
     // @TODO mark this as const when `Window::from_index` becomes const.
     #[inline(always)]
     pub fn window(self) -> Window {
-        Window::from_index((self.0 >> 14) & 0b11)
+        unsafe { Window::from_index_unsafe((self.0 >> 14) & 0b11) }
     }
 }
 
@@ -612,6 +632,18 @@ impl Layer {
             _ => panic!("Invalid layer."),
         }
     }
+
+    pub unsafe fn from_index_unsafe(index: u16) -> Layer {
+        match index {
+            0 => Layer::BG0,
+            1 => Layer::BG1,
+            2 => Layer::BG2,
+            3 => Layer::BG3,
+            4 => Layer::OBJ,
+            5 => Layer::Backdrop,
+            _ => std::hint::unreachable_unchecked(),
+        }
+    }
 }
 
 #[repr(u16)]
@@ -632,6 +664,17 @@ impl Window {
             2 => Window::Outside,
             3 => Window::OBJ,
             _ => panic!("Invalid window."),
+        }
+    }
+
+    // @TODO this can be made const when `match` is enabled in const fns in stable Rust.
+    pub unsafe fn from_index_unsafe(index: u16) -> Window {
+        match index {
+            0 => Window::Win0,
+            1 => Window::Win1,
+            2 => Window::Outside,
+            3 => Window::OBJ,
+            _ => std::hint::unreachable_unchecked(),
         }
     }
 
