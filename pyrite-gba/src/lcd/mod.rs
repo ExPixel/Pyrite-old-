@@ -188,11 +188,12 @@ impl GbaLCD {
 pub struct LCDLineBuffer {
     mixed: [u16; 240],
     unmixed: [u32; 240],
+    bitmap_palette: [u16; 240],
     obj_semitrans: LCDPixelBits,
 
-    top_layer_first_target: LCDPixelBits,
-    top_layer_second_target: LCDPixelBits,
-    bot_layer_second_target: LCDPixelBits,
+    top_layer_first_target: LCDPixelBits,  // @TODO remove this
+    top_layer_second_target: LCDPixelBits, // @TODO remove this
+    bot_layer_second_target: LCDPixelBits, // @TODO remove this
 
     /// Cycles remaining for drawing objects.
     pub(crate) obj_cycles: u16,
@@ -203,6 +204,7 @@ impl LCDLineBuffer {
         LCDLineBuffer {
             mixed: [0xFFFF; 240],
             unmixed: [0x0000; 240],
+            bitmap_palette: [0; 240],
             obj_semitrans: LCDPixelBits::new(),
             obj_cycles: 1210,
 
@@ -210,6 +212,38 @@ impl LCDLineBuffer {
             top_layer_second_target: LCDPixelBits::new(),
             bot_layer_second_target: LCDPixelBits::new(),
         }
+    }
+
+    pub const fn create_layer_mask(layer: u16) -> u16 {
+        return (layer & 0b0111) << 8;
+    }
+
+    pub fn create_semi_transparent_obj_mask(is_semi_transparent: bool) -> u16 {
+        if is_semi_transparent {
+            0x0800
+        } else {
+            0x0000
+        }
+    }
+
+    pub fn create_first_target_mask(first_target: bool) -> u16 {
+        if first_target {
+            0x1000
+        } else {
+            0x0000
+        }
+    }
+
+    pub fn create_second_target_mask(second_target: bool) -> u16 {
+        if second_target {
+            0x2000
+        } else {
+            0x0000
+        }
+    }
+
+    pub const fn create_window_index_mask(window: u16) -> u16 {
+        return (window & 0b11) << 14;
     }
 
     #[inline]
@@ -225,6 +259,12 @@ impl LCDLineBuffer {
     pub fn push_pixel_fast(&mut self, index: usize, color: u16) {
         self.unmixed[index] = (self.unmixed[index] << 16) | (color as u32);
         // self.pixels[index] = color;
+    }
+
+    // @TODO rename this to push_pixel when ready:
+    #[inline]
+    pub fn push_pixel_ex(&mut self, index: usize, pixel: u16) {
+        self.unmixed[index] = (self.unmixed[index] << 16) | (pixel as u32);
     }
 
     #[inline]

@@ -111,105 +111,111 @@ pub fn draw_text_bg_4bpp(
     dest: &mut LCDLineBuffer,
     window_info: &WindowInfo,
 ) {
-    pub const BYTES_PER_TILE: u32 = 32;
-    pub const BYTES_PER_LINE: u32 = 4;
+    // pub const BYTES_PER_TILE: u32 = 32;
+    // pub const BYTES_PER_LINE: u32 = 4;
 
-    let start_scx = bg.xoffset & (bg.width - 1);
-    let scy = if bg.mosaic_y > 0 {
-        let original_scy = (bg.yoffset + line) & (bg.height - 1);
-        original_scy - (original_scy % bg.mosaic_y)
-    } else {
-        (bg.yoffset + line) & (bg.height - 1)
-    };
-    let ty = scy % 8;
+    // let start_scx = bg.xoffset & (bg.width - 1);
+    // let scy = if bg.mosaic_y > 0 {
+    //     let original_scy = (bg.yoffset + line) & (bg.height - 1);
+    //     original_scy - (original_scy % bg.mosaic_y)
+    // } else {
+    //     (bg.yoffset + line) & (bg.height - 1)
+    // };
+    // let ty = scy % 8;
 
-    let mut mdx = 0;
-    let mut dx = 0;
-    let mut pixel_buffer = [0u8; 240];
+    // let layer_mask = LCDLineBuffer::create_layer_mask(layer);
+    // let bpp_mask = LCDLineBuffer::create_8bpp_mask(false);
+    // let first_target_mask = LCDLineBuffer::create_first_target_mask(bg.first_target);
+    // let second_target_mask = LCDLineBuffer::create_second_target_mask(bg.second_target);
+    // let pixel_mask = layer_mask | bpp_mask | first_target_mask | second_target_mask;
 
-    while dx < 240 {
-        let scx = start_scx + dx - mdx;
+    // let mut mdx = 0;
+    // let mut dx = 0;
+    // let mut pixel_buffer = [0u8; 240];
 
-        mdx += 1;
-        if mdx >= bg.mosaic_x {
-            mdx = 0;
-        }
+    // while dx < 240 {
+    //     let scx = start_scx + dx - mdx;
 
-        let tile_info_offset = bg.get_tile_info_offset(scx, scy);
-        // @TODO I'm not sure if this condition is even possible given how screen areas are
-        // addressed. I should check that later.
-        if tile_info_offset >= 0x10000 {
-            dx += 1;
-            continue;
-        }
-        let tile_info = unsafe { read_u16_unchecked(vram, tile_info_offset as usize) };
-        let tile_number = (tile_info & 0x3FF) as u32;
-        let tile_palette = ((tile_info >> 12) & 0xF) as u8;
-        let hflip = (tile_info & 0x400) != 0;
-        let vflip = (tile_info & 0x800) != 0;
+    //     mdx += 1;
+    //     if mdx >= bg.mosaic_x {
+    //         mdx = 0;
+    //     }
 
-        let tx = if hflip { 7 - (scx % 8) } else { scx % 8 };
-        let ty = if vflip { 7 - ty } else { ty };
+    //     let tile_info_offset = bg.get_tile_info_offset(scx, scy);
+    //     // @TODO I'm not sure if this condition is even possible given how screen areas are
+    //     // addressed. I should check that later.
+    //     if tile_info_offset >= 0x10000 {
+    //         dx += 1;
+    //         continue;
+    //     }
+    //     let tile_info = unsafe { read_u16_unchecked(vram, tile_info_offset as usize) };
+    //     let tile_number = (tile_info & 0x3FF) as u32;
+    //     let tile_palette = ((tile_info >> 12) & 0xF) as u8;
+    //     let hflip = (tile_info & 0x400) != 0;
+    //     let vflip = (tile_info & 0x800) != 0;
 
-        let tile_data_start = bg.char_base + (BYTES_PER_TILE * tile_number);
-        let mut pixel_offset = tile_data_start + (ty * BYTES_PER_LINE) + tx / 2;
-        if pixel_offset >= 0x10000 {
-            dx += 1;
-            continue;
-        }
+    //     let tx = if hflip { 7 - (scx % 8) } else { scx % 8 };
+    //     let ty = if vflip { 7 - ty } else { ty };
 
-        // try to do 8 pixels at a time if possible:
-        if bg.mosaic_x <= 1 && (scx % 8) == 0 && dx <= 232 {
-            let pinc = if hflip { -1i32 as u32 } else { 1u32 };
-            for _ in 0..4 {
-                let palette_entry = vram[pixel_offset as usize];
-                let lo_palette_entry = palette_entry & 0xF;
-                let hi_palette_entry = palette_entry >> 4;
-                pixel_buffer[dx as usize] = (tile_palette * 16) + lo_palette_entry;
-                pixel_buffer[dx as usize + 1] = (tile_palette * 16) + hi_palette_entry;
-                dx += 2;
-                pixel_offset = pixel_offset.wrapping_add(pinc);
-            }
-        } else {
-            let palette_entry = (vram[pixel_offset as usize] >> ((tx % 2) << 2)) & 0xF;
-            pixel_buffer[dx as usize] = (tile_palette * 16) + palette_entry;
-            dx += 1;
-        }
-    }
+    //     let tile_data_start = bg.char_base + (BYTES_PER_TILE * tile_number);
+    //     let mut pixel_offset = tile_data_start + (ty * BYTES_PER_LINE) + tx / 2;
+    //     if pixel_offset >= 0x10000 {
+    //         dx += 1;
+    //         continue;
+    //     }
 
-    if !window_info.enabled {
-        for x in 0..240 {
-            let entry = pixel_buffer[x];
-            if (entry & 0xF) == 0 {
-                continue;
-            }
-            dest.push_pixel(
-                x,
-                palette.bg256(entry as usize),
-                bg.first_target,
-                bg.second_target,
-                false,
-            )
-        }
-    } else {
-        for x in 0..240 {
-            let entry = pixel_buffer[x];
-            if (entry & 0xF) == 0 {
-                continue;
-            }
+    //     // try to do 8 pixels at a time if possible:
+    //     if bg.mosaic_x <= 1 && (scx % 8) == 0 && dx <= 232 {
+    //         let pinc = if hflip { -1i32 as u32 } else { 1u32 };
+    //         for _ in 0..4 {
+    //             let palette_entry = vram[pixel_offset as usize];
+    //             let lo_palette_entry = palette_entry & 0xF;
+    //             let hi_palette_entry = palette_entry >> 4;
+    //             pixel_buffer[dx as usize] = (tile_palette * 16) + lo_palette_entry;
+    //             pixel_buffer[dx as usize + 1] = (tile_palette * 16) + hi_palette_entry;
+    //             dx += 2;
+    //             pixel_offset = pixel_offset.wrapping_add(pinc);
+    //         }
+    //     } else {
+    //         let palette_entry = (vram[pixel_offset as usize] >> ((tx % 2) << 2)) & 0xF;
+    //         pixel_buffer[dx as usize] = (tile_palette * 16) + palette_entry;
+    //         dx += 1;
+    //     }
+    // }
 
-            if let Some(effects) = window_info.check_pixel_obj_window(layer, x as u16, line as u16)
-            {
-                dest.push_pixel(
-                    x,
-                    palette.bg256(entry as usize),
-                    effects & bg.first_target,
-                    effects & bg.second_target,
-                    false,
-                )
-            }
-        }
-    }
+    // if !window_info.enabled {
+    //     for x in 0..240 {
+    //         let entry = pixel_buffer[x];
+    //         if (entry & 0xF) == 0 {
+    //             continue;
+    //         }
+    //         dest.push_pixel(
+    //             x,
+    //             palette.bg256(entry as usize),
+    //             bg.first_target,
+    //             bg.second_target,
+    //             false,
+    //         )
+    //     }
+    // } else {
+    //     for x in 0..240 {
+    //         let entry = pixel_buffer[x];
+    //         if (entry & 0xF) == 0 {
+    //             continue;
+    //         }
+
+    //         if let Some(effects) = window_info.check_pixel_obj_window(layer, x as u16, line as u16)
+    //         {
+    //             dest.push_pixel(
+    //                 x,
+    //                 palette.bg256(entry as usize),
+    //                 effects & bg.first_target,
+    //                 effects & bg.second_target,
+    //                 false,
+    //             )
+    //         }
+    //     }
+    // }
 }
 
 pub fn draw_text_bg_8bpp(
@@ -221,105 +227,105 @@ pub fn draw_text_bg_8bpp(
     dest: &mut LCDLineBuffer,
     window_info: &WindowInfo,
 ) {
-    pub const BYTES_PER_TILE: u32 = 64;
-    pub const BYTES_PER_LINE: u32 = 8;
+    // pub const BYTES_PER_TILE: u32 = 64;
+    // pub const BYTES_PER_LINE: u32 = 8;
 
-    let start_scx = bg.xoffset & (bg.width - 1);
-    let scy = if bg.mosaic_y > 0 {
-        let original_scy = (bg.yoffset + line) & (bg.height - 1);
-        original_scy - (original_scy % bg.mosaic_y)
-    } else {
-        (bg.yoffset + line) & (bg.height - 1)
-    };
-    let ty = scy % 8;
+    // let start_scx = bg.xoffset & (bg.width - 1);
+    // let scy = if bg.mosaic_y > 0 {
+    //     let original_scy = (bg.yoffset + line) & (bg.height - 1);
+    //     original_scy - (original_scy % bg.mosaic_y)
+    // } else {
+    //     (bg.yoffset + line) & (bg.height - 1)
+    // };
+    // let ty = scy % 8;
 
-    let mut mdx = 0;
-    let mut dx = 0;
+    // let mut mdx = 0;
+    // let mut dx = 0;
 
-    let mut pixel_buffer = [0u8; 240];
+    // let mut pixel_buffer = [0u8; 240];
 
-    while dx < 240 {
-        let scx = start_scx + dx - mdx;
+    // while dx < 240 {
+    //     let scx = start_scx + dx - mdx;
 
-        mdx += 1;
-        if mdx >= bg.mosaic_x {
-            mdx = 0;
-        }
+    //     mdx += 1;
+    //     if mdx >= bg.mosaic_x {
+    //         mdx = 0;
+    //     }
 
-        let tile_info_offset = bg.get_tile_info_offset(scx, scy);
-        if tile_info_offset >= 0x10000 {
-            dx += 1;
-            continue;
-        }
-        let tile_info = unsafe { read_u16_unchecked(vram, tile_info_offset as usize) };
-        let tile_number = (tile_info & 0x3FF) as u32;
-        let tile_palette = ((tile_info >> 12) & 0xF) as u8;
-        let hflip = (tile_info & 0x400) != 0;
-        let vflip = (tile_info & 0x800) != 0;
+    //     let tile_info_offset = bg.get_tile_info_offset(scx, scy);
+    //     if tile_info_offset >= 0x10000 {
+    //         dx += 1;
+    //         continue;
+    //     }
+    //     let tile_info = unsafe { read_u16_unchecked(vram, tile_info_offset as usize) };
+    //     let tile_number = (tile_info & 0x3FF) as u32;
+    //     let tile_palette = ((tile_info >> 12) & 0xF) as u8;
+    //     let hflip = (tile_info & 0x400) != 0;
+    //     let vflip = (tile_info & 0x800) != 0;
 
-        let tx = scx % 8; // not yet accounting for hflip
-        let ty = if vflip { 7 - ty } else { ty };
+    //     let tx = scx % 8; // not yet accounting for hflip
+    //     let ty = if vflip { 7 - ty } else { ty };
 
-        let tile_data_start = bg.char_base + (BYTES_PER_TILE * tile_number);
-        let mut pixel_offset = tile_data_start + (ty * BYTES_PER_LINE); // without X offset
-        if pixel_offset >= 0x10000 {
-            dx += 1;
-            continue;
-        }
+    //     let tile_data_start = bg.char_base + (BYTES_PER_TILE * tile_number);
+    //     let mut pixel_offset = tile_data_start + (ty * BYTES_PER_LINE); // without X offset
+    //     if pixel_offset >= 0x10000 {
+    //         dx += 1;
+    //         continue;
+    //     }
 
-        // try to do 8 pixels at a time if possible:
-        if bg.mosaic_x <= 1 && (scx % 8) == 0 && dx <= 232 {
-            pixel_buffer[dx as usize..(dx as usize + 8)]
-                .copy_from_slice(&vram[pixel_offset as usize..(pixel_offset as usize + 8)]);
-            if hflip {
-                pixel_buffer[dx as usize..(dx as usize + 8)].reverse();
-            }
-            dx += 8;
-        } else {
-            if hflip {
-                pixel_offset += (7 - (scx % 8));
-            } else {
-                pixel_offset += scx % 8;
-            }
+    //     // try to do 8 pixels at a time if possible:
+    //     if bg.mosaic_x <= 1 && (scx % 8) == 0 && dx <= 232 {
+    //         pixel_buffer[dx as usize..(dx as usize + 8)]
+    //             .copy_from_slice(&vram[pixel_offset as usize..(pixel_offset as usize + 8)]);
+    //         if hflip {
+    //             pixel_buffer[dx as usize..(dx as usize + 8)].reverse();
+    //         }
+    //         dx += 8;
+    //     } else {
+    //         if hflip {
+    //             pixel_offset += (7 - (scx % 8));
+    //         } else {
+    //             pixel_offset += scx % 8;
+    //         }
 
-            let palette_entry = vram[pixel_offset as usize];
-            pixel_buffer[dx as usize] = palette_entry;
-            dx += 1;
-        }
-    }
+    //         let palette_entry = vram[pixel_offset as usize];
+    //         pixel_buffer[dx as usize] = palette_entry;
+    //         dx += 1;
+    //     }
+    // }
 
-    if !window_info.enabled {
-        for x in 0..240 {
-            let entry = pixel_buffer[x];
-            if entry == 0 {
-                continue;
-            }
-            dest.push_pixel(
-                x,
-                palette.bg256(entry as usize),
-                bg.first_target,
-                bg.second_target,
-                false,
-            )
-        }
-    } else {
-        for x in 0..240 {
-            let entry = pixel_buffer[x];
-            if entry == 0 {
-                continue;
-            }
-            if let Some(effects) = window_info.check_pixel_obj_window(layer, x as u16, line as u16)
-            {
-                dest.push_pixel(
-                    x,
-                    palette.bg256(entry as usize),
-                    bg.first_target,
-                    bg.second_target,
-                    false,
-                )
-            }
-        }
-    }
+    // if !window_info.enabled {
+    //     for x in 0..240 {
+    //         let entry = pixel_buffer[x];
+    //         if entry == 0 {
+    //             continue;
+    //         }
+    //         dest.push_pixel(
+    //             x,
+    //             palette.bg256(entry as usize),
+    //             bg.first_target,
+    //             bg.second_target,
+    //             false,
+    //         )
+    //     }
+    // } else {
+    //     for x in 0..240 {
+    //         let entry = pixel_buffer[x];
+    //         if entry == 0 {
+    //             continue;
+    //         }
+    //         if let Some(effects) = window_info.check_pixel_obj_window(layer, x as u16, line as u16)
+    //         {
+    //             dest.push_pixel(
+    //                 x,
+    //                 palette.bg256(entry as usize),
+    //                 bg.first_target,
+    //                 bg.second_target,
+    //                 false,
+    //             )
+    //         }
+    //     }
+    // }
 }
 
 pub struct TextBG {
