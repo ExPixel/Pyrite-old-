@@ -305,11 +305,69 @@ impl LCDLineBuffer {
             }
 
             SpecialEffect::BrightnessIncrease => {
-                todo!();
+                let evy = bits!(registers.brightness, 0, 4); // EVY * 16
+
+                for x in 0..240 {
+                    let Pixels2 { top, bot } = self.unmixed[x];
+
+                    // If the top pixel is not a first target pixel, we don't bother trying to do
+                    // any blending.
+                    if !top.first_target() {
+                        self.mixed[x] = self.lookup_color(palette, bm_color, top);
+                        continue;
+                    }
+
+                    // Semi-transparent object pixels can only use alpha transparency:
+                    if top.semi_transparent() {
+                        if bot.second_target() {
+                            self.mixed[x] = Self::alpha_blend(
+                                self.lookup_color(palette, bm_color, top),
+                                self.lookup_color(palette, bm_color, bot),
+                                eva,
+                                evb,
+                            );
+                        } else {
+                            self.mixed[x] = self.lookup_color(palette, bm_color, top);
+                        }
+                        continue;
+                    }
+
+                    self.mixed[x] =
+                        Self::brightness_increase(self.lookup_color(palette, bm_color, top), evy);
+                }
             }
 
             SpecialEffect::BrightnessDecrease => {
-                todo!();
+                let evy = bits!(registers.brightness, 0, 4); // EVY * 16
+
+                for x in 0..240 {
+                    let Pixels2 { top, bot } = self.unmixed[x];
+
+                    // If the top pixel is not a first target pixel, we don't bother trying to do
+                    // any blending.
+                    if !top.first_target() {
+                        self.mixed[x] = self.lookup_color(palette, bm_color, top);
+                        continue;
+                    }
+
+                    // Semi-transparent object pixels can only use alpha transparency:
+                    if top.semi_transparent() {
+                        if bot.second_target() {
+                            self.mixed[x] = Self::alpha_blend(
+                                self.lookup_color(palette, bm_color, top),
+                                self.lookup_color(palette, bm_color, bot),
+                                eva,
+                                evb,
+                            );
+                        } else {
+                            self.mixed[x] = self.lookup_color(palette, bm_color, top);
+                        }
+                        continue;
+                    }
+
+                    self.mixed[x] =
+                        Self::brightness_decrease(self.lookup_color(palette, bm_color, top), evy);
+                }
             }
 
             // handled at the top
@@ -517,6 +575,11 @@ impl Pixel {
     #[inline(always)]
     pub const fn second_target(self) -> bool {
         (self.0 & Self::SECOND_TARGET) != 0
+    }
+
+    #[inline(always)]
+    pub const fn semi_transparent(self) -> bool {
+        (self.0 & Self::SEMI_TRANSPARENT) != 0
     }
 
     // @TODO mark this as const when `Layer::from_index` becomes const.
