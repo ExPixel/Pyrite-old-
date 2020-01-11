@@ -20,7 +20,6 @@ macro_rules! run_between_bm_objs {
                     object_priorities.objects_with_priority(p as usize),
                     $VRAM,
                     $OAM,
-                    $PAL,
                     $Pixels,
                     $WindowInfo,
                 )
@@ -39,7 +38,6 @@ macro_rules! run_between_bm_objs {
                         object_priorities.objects_with_priority(p as usize),
                         $VRAM,
                         $OAM,
-                        $PAL,
                         $Pixels,
                         $WindowInfo,
                     )
@@ -52,7 +50,6 @@ pub fn render_mode3(
     registers: &LCDRegisters,
     vram: &VRAM,
     oam: &OAM,
-    pal: &GbaPalette,
     pixels: &mut LCDLineBuffer,
     window_info: &WindowInfo,
 ) {
@@ -112,7 +109,6 @@ pub fn render_mode4(
     registers: &LCDRegisters,
     vram: &VRAM,
     oam: &OAM,
-    pal: &GbaPalette,
     pixels: &mut LCDLineBuffer,
     window_info: &WindowInfo,
 ) {
@@ -135,7 +131,6 @@ pub fn render_mode4(
                 unsafe {
                     std::mem::transmute((&vram[framebuffer_start..framebuffer_end]).as_ptr())
                 },
-                pal,
                 registers.effects.is_first_target(2),
                 registers.effects.is_second_target(2),
                 pixels,
@@ -148,7 +143,6 @@ pub fn render_mode4(
 fn render_mode4_bitmap(
     line: usize,
     framebuffer: &Mode4FrameBuffer,
-    pal: &GbaPalette,
     first_target: bool,
     second_target: bool,
     pixels: &mut LCDLineBuffer,
@@ -190,7 +184,6 @@ pub fn render_mode5(
     registers: &LCDRegisters,
     vram: &VRAM,
     oam: &OAM,
-    pal: &GbaPalette,
     pixels: &mut LCDLineBuffer,
     window_info: &WindowInfo,
 ) {

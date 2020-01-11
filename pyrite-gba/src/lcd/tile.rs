@@ -10,7 +10,6 @@ pub fn render_mode0(
     registers: &LCDRegisters,
     vram: &VRAM,
     oam: &OAM,
-    pal: &GbaPalette,
     pixels: &mut LCDLineBuffer,
     window_info: &WindowInfo,
 ) {
@@ -38,7 +37,6 @@ pub fn render_mode0(
                         registers.line as u32,
                         &textbg,
                         vram,
-                        pal,
                         pixels,
                         window_info,
                     );
@@ -48,7 +46,6 @@ pub fn render_mode0(
                         registers.line as u32,
                         &textbg,
                         vram,
-                        pal,
                         pixels,
                         window_info,
                     );
@@ -62,7 +59,6 @@ pub fn render_mode0(
                 object_priorities.objects_with_priority(priority),
                 vram,
                 oam,
-                pal,
                 pixels,
                 window_info,
             );
@@ -74,7 +70,6 @@ pub fn render_mode1(
     registers: &LCDRegisters,
     vram: &VRAM,
     oam: &OAM,
-    pal: &GbaPalette,
     pixels: &mut LCDLineBuffer,
     window_info: &WindowInfo,
 ) {
@@ -84,24 +79,9 @@ pub fn render_mode2(
     registers: &LCDRegisters,
     vram: &VRAM,
     oam: &OAM,
-    pal: &GbaPalette,
     pixels: &mut LCDLineBuffer,
     window_info: &WindowInfo,
 ) {
-}
-
-fn map_tiles_to_screen(
-    tx: usize,
-    ty: usize,
-    offset: usize,
-    width: usize,
-    height: usize,
-    tiles: &mut [u16; 32],
-) {
-    // We can have at most two regions mapped into the tile array. They will either be two parts of
-    // a single screen that wrapped around horizontally, or a part of two screens that the output
-    // spans across.
-    todo!();
 }
 
 pub fn draw_text_bg_4bpp(
@@ -109,7 +89,6 @@ pub fn draw_text_bg_4bpp(
     line: u32,
     bg: &TextBG,
     vram: &VRAM,
-    palette: &GbaPalette,
     dest: &mut LCDLineBuffer,
     window_info: &WindowInfo,
 ) {
@@ -219,7 +198,6 @@ pub fn draw_text_bg_8bpp(
     line: u32,
     bg: &TextBG,
     vram: &VRAM,
-    palette: &GbaPalette,
     dest: &mut LCDLineBuffer,
     window_info: &WindowInfo,
 ) {
@@ -279,7 +257,7 @@ pub fn draw_text_bg_8bpp(
             dx += 8;
         } else {
             if hflip {
-                pixel_offset += (7 - (scx % 8));
+                pixel_offset += 7 - (scx % 8);
             } else {
                 pixel_offset += scx % 8;
             }

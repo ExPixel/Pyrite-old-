@@ -1226,17 +1226,17 @@ impl ArmMemory for GbaHardware {
     }
 }
 
-#[inline(always)]
-const fn set_byte_of_word(word: u32, value: u8, off: u32) -> u32 {
-    let shift = (off as u32 & 0x3) << 3;
-    (word & !(0xFF << shift)) | ((value as u32) << shift)
-}
+// #[inline(always)]
+// const fn set_byte_of_word(word: u32, value: u8, off: u32) -> u32 {
+//     let shift = (off as u32 & 0x3) << 3;
+//     (word & !(0xFF << shift)) | ((value as u32) << shift)
+// }
 
-#[inline(always)]
-fn set_halfword_of_word(word: u32, value: u16, off: u32) -> u32 {
-    let shift = (off as u32 & 0x3) << 3;
-    (word & !(0xFFFF << shift)) | ((value as u32) << shift)
-}
+// #[inline(always)]
+// fn set_halfword_of_word(word: u32, value: u16, off: u32) -> u32 {
+//     let shift = (off as u32 & 0x3) << 3;
+//     (word & !(0xFFFF << shift)) | ((value as u32) << shift)
+// }
 
 /// Select the first halfword or the second halfword a full 32-bit word depending on the given address.
 #[inline(always)]
@@ -1308,14 +1308,14 @@ pub enum Region {
 }
 
 impl Region {
-    /// Returns the total number of memory regions.
-    pub const fn count() -> usize {
-        16
-    }
+    // /// Returns the total number of memory regions.
+    // pub const fn count() -> usize {
+    //     16
+    // }
 
-    pub fn index(self) -> usize {
-        self as u32 as usize
-    }
+    // pub fn index(self) -> usize {
+    //     self as u32 as usize
+    // }
 
     pub fn from_address(address: u32) -> Region {
         match (address >> 24) & 0x0F {

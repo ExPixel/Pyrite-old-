@@ -9,7 +9,6 @@ pub fn render_objects(
     objects: &[u16],
     vram: &VRAM,
     oam: &OAM,
-    pal: &GbaPalette,
     pixels: &mut LCDLineBuffer,
     window_info: &WindowInfo,
 ) {

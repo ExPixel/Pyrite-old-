@@ -109,7 +109,6 @@ impl GbaLCD {
             1210
         };
 
-        self.pixels.clear_flags();
         // setting up the backdrop:
         let backdrop = Pixel(Pixel::layer_mask(Layer::Backdrop) | 0);
         self.pixels.clear(backdrop);
@@ -130,54 +129,12 @@ impl GbaLCD {
         };
 
         match mode {
-            0 => tile::render_mode0(
-                &self.registers,
-                vram,
-                oam,
-                palette,
-                &mut self.pixels,
-                &window_info,
-            ),
-            1 => tile::render_mode1(
-                &self.registers,
-                vram,
-                oam,
-                palette,
-                &mut self.pixels,
-                &window_info,
-            ),
-            2 => tile::render_mode2(
-                &self.registers,
-                vram,
-                oam,
-                palette,
-                &mut self.pixels,
-                &window_info,
-            ),
-            3 => bitmap::render_mode3(
-                &self.registers,
-                vram,
-                oam,
-                palette,
-                &mut self.pixels,
-                &window_info,
-            ),
-            4 => bitmap::render_mode4(
-                &self.registers,
-                vram,
-                oam,
-                palette,
-                &mut self.pixels,
-                &window_info,
-            ),
-            5 => bitmap::render_mode5(
-                &self.registers,
-                vram,
-                oam,
-                palette,
-                &mut self.pixels,
-                &window_info,
-            ),
+            0 => tile::render_mode0(&self.registers, vram, oam, &mut self.pixels, &window_info),
+            1 => tile::render_mode1(&self.registers, vram, oam, &mut self.pixels, &window_info),
+            2 => tile::render_mode2(&self.registers, vram, oam, &mut self.pixels, &window_info),
+            3 => bitmap::render_mode3(&self.registers, vram, oam, &mut self.pixels, &window_info),
+            4 => bitmap::render_mode4(&self.registers, vram, oam, &mut self.pixels, &window_info),
+            5 => bitmap::render_mode5(&self.registers, vram, oam, &mut self.pixels, &window_info),
             _ => eprintln!("bad mode {}", mode),
         }
     }
@@ -187,12 +144,6 @@ pub struct LCDLineBuffer {
     mixed: [u16; 240],
     unmixed: [Pixels2; 240],
     bitmap_palette: [u16; 240],
-    obj_semitrans: LCDPixelBits,
-
-    top_layer_first_target: LCDPixelBits,  // @TODO remove this
-    top_layer_second_target: LCDPixelBits, // @TODO remove this
-    bot_layer_second_target: LCDPixelBits, // @TODO remove this
-
     /// Cycles remaining for drawing objects.
     pub(crate) obj_cycles: u16,
 }
@@ -203,24 +154,12 @@ impl LCDLineBuffer {
             mixed: [0xFFFF; 240],
             unmixed: [Pixels2::zero(); 240],
             bitmap_palette: [0; 240],
-            obj_semitrans: LCDPixelBits::new(),
             obj_cycles: 1210,
-
-            top_layer_first_target: LCDPixelBits::new(),
-            top_layer_second_target: LCDPixelBits::new(),
-            bot_layer_second_target: LCDPixelBits::new(),
         }
     }
 
     pub fn clear(&mut self, clear_pixel: Pixel) {
         self.unmixed.iter_mut().for_each(|p| p.set(clear_pixel));
-    }
-
-    #[inline]
-    pub fn clear_flags(&mut self) {
-        self.top_layer_first_target.clear_all();
-        self.bot_layer_second_target.clear_all();
-        self.bot_layer_second_target.clear_all();
     }
 
     #[inline]
@@ -380,104 +319,6 @@ impl LCDLineBuffer {
                 }
             }
         }
-
-        // match effect {
-        //     SpecialEffect::AlphaBlending => {
-        //         for index in 0..240 {
-        //             // for alpha blending, we only blend if there is both a first and second
-        //             // target:
-        //             if !self.top_layer_first_target.get(index)
-        //                 || !self.bot_layer_second_target.get(index)
-        //             {
-        //                 self.mixed[index] = self.unmixed[index] as u16;
-        //                 continue;
-        //             }
-
-        //             self.mixed[index] = Self::alpha_blend(
-        //                 self.unmixed[index] as u16,
-        //                 (self.unmixed[index] >> 16) as u16,
-        //                 eva,
-        //                 evb,
-        //             );
-        //         }
-        //     }
-
-        //     SpecialEffect::BrightnessIncrease => {
-        //         let evy = bits!(registers.brightness, 0, 4); // EVY * 16
-
-        //         for index in 0..240 {
-        //             // for brightness blending, we only blend if there is a first target pixel in
-        //             // the top layer:
-        //             if !self.top_layer_first_target.get(index) {
-        //                 self.mixed[index] = self.unmixed[index] as u16;
-        //                 continue;
-        //             }
-
-        //             if self.obj_semitrans.get(index) {
-        //                 // implies first target
-        //                 if self.bot_layer_second_target.get(index) {
-        //                     self.mixed[index] = Self::alpha_blend(
-        //                         self.unmixed[index] as u16,
-        //                         (self.unmixed[index] >> 16) as u16,
-        //                         eva,
-        //                         evb,
-        //                     );
-        //                 } else {
-        //                     self.mixed[index] = self.unmixed[index] as u16;
-        //                 }
-        //                 continue;
-        //             }
-
-        //             self.mixed[index] = Self::brightness_increase(self.unmixed[index] as u16, evy);
-        //         }
-        //     }
-
-        //     SpecialEffect::BrightnessDecrease => {
-        //         let evy = bits!(registers.brightness, 0, 4); // EVY * 16
-
-        //         for index in 0..240 {
-        //             // for brightness blending, we only blend if there is a first target pixel in
-        //             // the top layer:
-        //             if !self.top_layer_first_target.get(index) {
-        //                 self.mixed[index] = self.unmixed[index] as u16;
-        //                 continue;
-        //             }
-
-        //             if self.obj_semitrans.get(index) {
-        //                 // implies first target
-        //                 if self.bot_layer_second_target.get(index) {
-        //                     self.mixed[index] = Self::alpha_blend(
-        //                         self.unmixed[index] as u16,
-        //                         (self.unmixed[index] >> 16) as u16,
-        //                         eva,
-        //                         evb,
-        //                     );
-        //                 } else {
-        //                     self.mixed[index] = self.unmixed[index] as u16;
-        //                 }
-        //                 continue;
-        //             }
-
-        //             self.mixed[index] = Self::brightness_decrease(self.unmixed[index] as u16, evy);
-        //         }
-        //     }
-
-        //     // we would only reach here if there are semi-transparent objects.
-        //     SpecialEffect::None => {
-        //         for index in 0..240 {
-        //             if !self.obj_semitrans.get(index) || !self.bot_layer_second_target.get(index) {
-        //                 self.mixed[index] = self.unmixed[index] as u16;
-        //             } else {
-        //                 self.mixed[index] = Self::alpha_blend(
-        //                     self.unmixed[index] as u16,
-        //                     (self.unmixed[index] >> 16) as u16,
-        //                     eva,
-        //                     evb,
-        //                 );
-        //             }
-        //         }
-        //     }
-        // }
     }
 
     fn alpha_blend(first: u16, second: u16, eva: u16, evb: u16) -> u16 {
@@ -1051,7 +892,7 @@ impl WindowBounds {
 
         let v1 = (self.top <= self.bottom) & ((y >= self.top) & (y < self.bottom));
         let v2 = (self.top > self.bottom) & ((y >= self.top) | (y < self.bottom));
-        return (v1 | v2);
+        return v1 | v2;
     }
 
     pub(crate) fn set_h(&mut self, h: u16) {
