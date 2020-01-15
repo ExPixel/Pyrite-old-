@@ -49,6 +49,8 @@ fn tonc_benchmarks(c: &mut Criterion) {
         (50, "obj_demo", "../roms/tonc/obj_demo.gba"),
         (40, "bld_demo", "../roms/tonc/bld_demo.gba"),
         (40, "win_demo", "../roms/tonc/win_demo.gba"),
+        (40, "sbb_aff", "../roms/tonc/sbb_aff.gba"),
+        (40, "obj_aff", "../roms/tonc/obj_aff.gba"),
     ];
 
     let mut group = c.benchmark_group("tonc");
