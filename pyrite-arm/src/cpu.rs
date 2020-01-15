@@ -5,11 +5,14 @@ use super::{arm, thumb};
 pub const EXCEPTION_BASE: u32 = 0;
 
 pub struct ArmCpu {
-    /// The last instruction that was fetched.
+    /// The last opcode that was fetched.
     fetched: u32,
 
-    /// This last instruction that was decoded.
-    decoded: u32,
+    /// This last opcode that was decoded.
+    decoded_op: u32,
+
+    /// Function that will be called for the decoded opcode.
+    decoded_fn: fn(&mut ArmCpu, memory: &mut dyn ArmMemory, u32),
 
     /// Temporary cycle count used by the currently running step if
     /// there is one.
@@ -34,7 +37,8 @@ impl ArmCpu {
     pub fn new() -> ArmCpu {
         ArmCpu {
             registers: ArmRegisters::new(CpuMode::System),
-            decoded: 0,
+            decoded_op: 0,
+            decoded_fn: Self::step_nop,
             fetched: 0,
             cycles: 0,
             total_cycles: 0,
@@ -54,7 +58,10 @@ impl ArmCpu {
     pub(crate) fn arm_branch_to(&mut self, pc: u32, memory: &mut dyn ArmMemory) {
         let next_pc = pc.wrapping_add(4);
         self.registers.write(15, next_pc);
-        self.decoded = memory.read_code_word(pc, false, &mut self.cycles);
+        self.decoded_op = memory.read_code_word(pc, false, &mut self.cycles);
+        // @TODO maybe conditionally also do the decoding here if the condition code for the opcode
+        // is AL (always)
+        self.decoded_fn = Self::step_arm;
         self.fetched = memory.read_code_word(next_pc, true, &mut self.cycles);
     }
 
@@ -63,7 +70,8 @@ impl ArmCpu {
     pub(crate) fn thumb_branch_to(&mut self, pc: u32, memory: &mut dyn ArmMemory) {
         let next_pc = pc.wrapping_add(2);
         self.registers.write(15, next_pc);
-        self.decoded = memory.read_code_halfword(pc, false, &mut self.cycles) as u32;
+        self.decoded_op = memory.read_code_halfword(pc, false, &mut self.cycles) as u32;
+        self.decoded_fn = Self::decode_thumb(self.decoded_op);
         self.fetched = memory.read_code_halfword(next_pc, true, &mut self.cycles) as u32;
     }
 
@@ -103,6 +111,8 @@ impl ArmCpu {
     pub fn arm_prefetch(&mut self, memory: &mut dyn ArmMemory) {
         let next_pc = self.registers.read(15).wrapping_add(4);
         self.registers.write(15, next_pc);
+        self.decoded_op = self.fetched;
+        self.decoded_fn = Self::step_arm;
         self.fetched = memory.read_code_word(next_pc, true, &mut self.cycles);
     }
 
@@ -118,6 +128,8 @@ impl ArmCpu {
     pub fn thumb_prefetch(&mut self, memory: &mut dyn ArmMemory) {
         let next_pc = self.registers.read(15).wrapping_add(2);
         self.registers.write(15, next_pc);
+        self.decoded_op = self.fetched;
+        self.decoded_fn = Self::decode_thumb(self.decoded_op);
         self.fetched = memory.read_code_halfword(next_pc, true, &mut self.cycles) as u32;
     }
 
@@ -143,16 +155,7 @@ impl ArmCpu {
     #[inline]
     pub fn step(&mut self, memory: &mut dyn ArmMemory) -> u32 {
         self.cycles = 0;
-        if let Some(exception) = self.pending_exception.take() {
-            let next = self.next_exec_address();
-            self.handle_exception(exception, memory, next);
-        } else {
-            if self.registers.getf_t() {
-                self.step_thumb(memory);
-            } else {
-                self.step_arm(memory);
-            }
-        }
+        (self.decoded_fn)(self, memory, self.decoded_op);
         self.total_cycles += self.cycles as u64;
         return self.cycles;
     }
@@ -164,36 +167,49 @@ impl ArmCpu {
             }
         }
         self.pending_exception = Some(exception);
+        self.decoded_op = 0xECEAAECE;
+        self.decoded_fn = Self::step_exception;
     }
 
-    #[inline]
-    fn step_arm(&mut self, memory: &mut dyn ArmMemory) {
-        let opcode = self.decoded;
-        self.decoded = self.fetched;
+    fn step_exception(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _opcode: u32) {
+        let exception = cpu
+            .pending_exception
+            .take()
+            .expect("called step_exception with no pending exception");
+        let next = cpu.next_exec_address();
+        cpu.handle_exception(exception, memory, next);
+    }
 
-        let opcode_row = bits!(opcode, 20, 27);
-        let opcode_col = bits!(opcode, 4, 7);
-        let opcode_idx = (opcode_row * 16) + opcode_col;
-
-        if check_condition((opcode >> 28) & 0xF, &self.registers) {
-            let arm_fn = arm::ARM_OPCODE_TABLE[opcode_idx as usize];
-            arm_fn(self, memory, opcode);
+    fn step_nop(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _opcode: u32) {
+        if cpu.registers.getf_t() {
+            cpu.thumb_prefetch(memory);
         } else {
-            self.arm_prefetch(memory);
+            cpu.arm_prefetch(memory);
         }
     }
 
     #[inline]
-    fn step_thumb(&mut self, memory: &mut dyn ArmMemory) {
-        let opcode = self.decoded;
-        self.decoded = self.fetched;
+    fn step_arm(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+        if check_condition((opcode >> 28) & 0xF, &cpu.registers) {
+            let arm_fn = Self::decode_arm(opcode);
+            arm_fn(cpu, memory, opcode);
+        } else {
+            cpu.arm_prefetch(memory);
+        }
+    }
 
+    fn decode_arm(opcode: u32) -> fn(&mut ArmCpu, memory: &mut dyn ArmMemory, u32) {
+        let opcode_row = bits!(opcode, 20, 27);
+        let opcode_col = bits!(opcode, 4, 7);
+        let opcode_idx = (opcode_row * 16) + opcode_col;
+        return arm::ARM_OPCODE_TABLE[opcode_idx as usize];
+    }
+
+    fn decode_thumb(opcode: u32) -> fn(&mut ArmCpu, memory: &mut dyn ArmMemory, u32) {
         let opcode_row = bits!(opcode, 12, 15);
         let opcode_col = bits!(opcode, 8, 11);
         let opcode_idx = (opcode_row * 16) + opcode_col;
-
-        let thumb_fn = thumb::THUMB_OPCODE_TABLE[opcode_idx as usize];
-        thumb_fn(self, memory, opcode);
+        return thumb::THUMB_OPCODE_TABLE[opcode_idx as usize];
     }
 
     /// Sets the new exception handler. This will return the old exception handler.
