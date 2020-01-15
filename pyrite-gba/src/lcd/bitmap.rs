@@ -1,4 +1,4 @@
-use super::obj::{render_objects, ObjectPriority};
+use super::obj::{process_window_objects_bm, render_objects_bm, ObjectPriority};
 use super::{LCDLineBuffer, LCDRegisters, Layer, Pixel};
 use crate::hardware::{OAM, VRAM};
 use crate::util::memory::read_u16_unchecked;
@@ -9,12 +9,24 @@ pub type Mode5FrameBuffer = [u8; 0xA000];
 macro_rules! run_between_bm_objs {
     ($Registers:expr, $VRAM:expr, $OAM:expr, $PAL:expr, $Pixels:expr, $RenderBlock:block) => {
         let object_priorities = ObjectPriority::sorted($OAM);
+
+        // Setup the OBJ window.
+        if $Registers.dispcnt.display_layer(4) {
+            process_window_objects_bm(
+                $Registers,
+                object_priorities.objects_with_priority(4),
+                $VRAM,
+                $OAM,
+                $Pixels,
+            );
+        }
+
         let bg2_priority = $Registers.bg_cnt[2].priority();
 
         if $Registers.dispcnt.display_layer(4) {
             // Draw all OBJs that are below the bitmap layer (with a greather priority value).
             ((bg2_priority + 1)..=3).rev().for_each(|p| {
-                render_objects(
+                render_objects_bm(
                     $Registers,
                     object_priorities.objects_with_priority(p as usize),
                     $VRAM,
@@ -31,7 +43,7 @@ macro_rules! run_between_bm_objs {
             (0u16..=bg2_priority)
                 .rev()
                 .for_each(|p| {
-                    render_objects(
+                    render_objects_bm(
                         $Registers,
                         object_priorities.objects_with_priority(p as usize),
                         $VRAM,

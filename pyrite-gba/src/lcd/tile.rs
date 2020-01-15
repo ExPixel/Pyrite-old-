@@ -1,4 +1,4 @@
-use super::obj::{render_objects, ObjectPriority};
+use super::obj::{process_window_objects_tm, render_objects_tm, ObjectPriority};
 use super::{
     apply_mosaic, AffineBGParams, BGControl, BGOffset, LCDLineBuffer, LCDRegisters, Layer, Pixel,
 };
@@ -7,6 +7,17 @@ use crate::util::memory::read_u16_unchecked;
 
 pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &mut LCDLineBuffer) {
     let object_priorities = ObjectPriority::sorted(oam);
+
+    // Setup the OBJ window.
+    if registers.dispcnt.display_layer(4) {
+        process_window_objects_tm(
+            registers,
+            object_priorities.objects_with_priority(4),
+            vram,
+            oam,
+            pixels,
+        );
+    }
 
     for priority in (0usize..=3).rev() {
         for bg_index in (0usize..=3).rev() {
@@ -45,7 +56,7 @@ pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &m
         }
 
         if registers.dispcnt.display_layer(4) {
-            render_objects(
+            render_objects_tm(
                 registers,
                 object_priorities.objects_with_priority(priority),
                 vram,
@@ -63,6 +74,17 @@ pub fn render_mode1(
     pixels: &mut LCDLineBuffer,
 ) {
     let object_priorities = ObjectPriority::sorted(oam);
+
+    // Setup the OBJ window.
+    if registers.dispcnt.display_layer(4) {
+        process_window_objects_tm(
+            registers,
+            object_priorities.objects_with_priority(4),
+            vram,
+            oam,
+            pixels,
+        );
+    }
 
     for priority in (0usize..=3).rev() {
         for bg_index in (0usize..=2).rev() {
@@ -120,7 +142,7 @@ pub fn render_mode1(
         }
 
         if registers.dispcnt.display_layer(4) {
-            render_objects(
+            render_objects_tm(
                 registers,
                 object_priorities.objects_with_priority(priority),
                 vram,
@@ -141,6 +163,17 @@ pub fn render_mode2(
     pixels: &mut LCDLineBuffer,
 ) {
     let object_priorities = ObjectPriority::sorted(oam);
+
+    // Setup the OBJ window.
+    if registers.dispcnt.display_layer(4) {
+        process_window_objects_tm(
+            registers,
+            object_priorities.objects_with_priority(4),
+            vram,
+            oam,
+            pixels,
+        );
+    }
 
     for priority in (0usize..=3).rev() {
         for bg_index in (2usize..=3).rev() {
@@ -174,7 +207,7 @@ pub fn render_mode2(
         }
 
         if registers.dispcnt.display_layer(4) {
-            render_objects(
+            render_objects_tm(
                 registers,
                 object_priorities.objects_with_priority(priority),
                 vram,
