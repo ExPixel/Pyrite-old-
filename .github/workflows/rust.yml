@@ -2,20 +2,21 @@ name: Tests
 
 on: [push, pull_request]
 
+
+strategy:
+    matrix:
+        rust_channel: [stable, beta, nightly]
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+
 jobs:
     cargo_tests:
         name: ${{ matrix.rust_channel }} ${{ matrix.os }}
         runs-on: ${{ matrix.os }}
 
-        strategy:
-            matrix:
-                rust_channel: [stable, beta, nightly]
-                os: [ubuntu-latest, windows-latest, macOS-latest]
-
         steps:
-        - uses: actions/checkout@v1
+        - uses: actions/checkout@v2
           with:
-              submodules: true
+              submodules: recursive
         - uses: actions-rs/toolchain@v1
           with:
               toolchain: ${{ matrix.rust_channel }}
