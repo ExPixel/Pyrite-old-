@@ -31,12 +31,13 @@ pub struct GbaHardware {
     pub(crate) pal: GbaPalette,
     pub(crate) gamepak: Vec<u8>,
 
-    // :o
     pub(crate) sysctl: GbaSystemControl,
     pub(crate) ramctl: GbaRAMControl,
     pub lcd: GbaLCD,
     pub keypad: GbaKeypad,
     pub irq: GbaInterruptControl,
+
+    pub(crate) events: HardwareEventQueue,
 
     /// This singular purpose of this is to make 8bit writes to larger IO registers consistent by
     /// storing the values that were last written to them.
@@ -71,6 +72,8 @@ impl GbaHardware {
             lcd: GbaLCD::new(),
             keypad: GbaKeypad::new(),
             irq: GbaInterruptControl::new(),
+
+            events: HardwareEventQueue::new(),
 
             ioreg_bytes: [0u8; 0x20C],
             last_code_read: 0,
@@ -1254,6 +1257,49 @@ const fn byte_of_word(word: u32, addr: u32) -> u8 {
 #[inline(always)]
 const fn byte_of_halfword(halfword: u16, addr: u32) -> u8 {
     (halfword >> ((addr % 2) * 8)) as u8
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum HardwareEvent {
+    IRQ(crate::irq::Interrupt),
+    Halt,
+    Stop,
+    None,
+}
+
+pub struct HardwareEventQueue {
+    count: usize,
+    pending: [HardwareEvent; 16],
+}
+
+impl HardwareEventQueue {
+    pub fn new() -> HardwareEventQueue {
+        HardwareEventQueue {
+            count: 0,
+            pending: [HardwareEvent::None; 16],
+        }
+    }
+
+    /// Push an event into the hardware event queue.
+    pub fn push(&mut self, event: HardwareEvent) {
+        assert!(self.count < self.pending.len());
+        self.pending[self.count] = event;
+        self.count += 1;
+    }
+
+    /// @TODO: For now the return order for events is a bit weird and its expected that all events are
+    /// going to be processed at once and we just pray that while processing events we don't fire
+    /// enough to overfill the buffer. This would probably be solved if I could be bothered to use
+    /// the CircularBuffer here instead of writing this comment :|
+    pub fn pop(&mut self) -> HardwareEvent {
+        assert!(self.count > 0);
+        self.count -= 1;
+        std::mem::replace(&mut self.pending[self.count], HardwareEvent::None)
+    }
+
+    pub fn count(&self) -> usize {
+        self.count
+    }
 }
 
 pub struct GbaRAMControl {

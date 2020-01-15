@@ -7,12 +7,6 @@ pub struct GbaInterruptControl {
 
     /// (IE Register) Request / Acknowledge interrupt bits.
     request_ack: u16,
-
-    /// (IF Register) Controlled by the I flag in the CPU's CPSR.
-    pub(crate) cpu_irq_enabled: bool,
-
-    /// True if there is a pending IRQ that the CPU should handle.
-    pending_irq: bool,
 }
 
 impl GbaInterruptControl {
@@ -21,46 +15,31 @@ impl GbaInterruptControl {
             master_enable: false,
             enabled: 0,
             request_ack: 0,
-            cpu_irq_enabled: false,
-            pending_irq: false,
         }
     }
 
-    /// Returns the pending IRQ flag's current value and clears it.
-    #[inline]
-    pub fn pop_pending_irq(&mut self) -> bool {
-        let ret = self.pending_irq;
-        self.pending_irq = false;
-        return ret;
-    }
-
-    #[inline]
-    pub fn read_if(&self) -> u16 {
+    pub(crate) fn read_if(&self) -> u16 {
         self.request_ack
     }
 
     /// Handles writing to the IF register. Writing a 1 to any bit in the IF register actually
     /// clears it.
-    #[inline]
-    pub fn write_if(&mut self, value: u16) {
+    pub(crate) fn write_if(&mut self, value: u16) {
         self.request_ack &= !value;
     }
 
     /// Requests an interrupt. Returns true if the interrupt was enabled and the request was
     /// successfully made (IRQ request flag set).
-    #[inline]
-    pub fn request(&mut self, interrupt: Interrupt) -> bool {
-        if self.cpu_irq_enabled && self.master_enable && self.is_enabled(interrupt) {
+    pub(crate) fn request(&mut self, interrupt: Interrupt) -> bool {
+        if self.master_enable && self.is_enabled(interrupt) {
             self.request_ack |= interrupt.mask();
-            self.pending_irq = true;
             return true;
         } else {
             return false;
         }
     }
 
-    #[inline]
-    pub fn is_enabled(&self, interrupt: Interrupt) -> bool {
+    pub(crate) fn is_enabled(&self, interrupt: Interrupt) -> bool {
         (self.enabled & interrupt.mask()) != 0
     }
 }

@@ -7,7 +7,7 @@ pub const WINOUT: u16 = 0;
 pub const WINOBJ: u16 = 1;
 
 use self::palette::GbaPalette;
-use crate::hardware::{OAM, VRAM};
+use crate::hardware::{HardwareEventQueue, OAM, VRAM};
 use crate::util::fixedpoint::{FixedPoint16, FixedPoint32};
 use crate::GbaVideoOutput;
 use pyrite_common::bits;
@@ -44,6 +44,7 @@ impl GbaLCD {
         oam: &OAM,
         palette: &GbaPalette,
         video: &mut dyn GbaVideoOutput,
+        hw_events: &mut HardwareEventQueue,
     ) -> bool {
         let original_cycles = self.next_state_cycles;
         self.next_state_cycles = self.next_state_cycles.saturating_sub(cycles);

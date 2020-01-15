@@ -100,10 +100,10 @@ impl Gba {
         video: &mut dyn GbaVideoOutput,
         _audio: &mut dyn GbaAudioOutput,
     ) -> (bool, bool) {
-        if pyrite_common::unlikely!(self.hardware.irq.pop_pending_irq()) {
-            self.cpu.set_pending_exception(CpuException::IRQ);
+        while self.hardware.events.count() > 0 {
+            let event = self.hardware.events.pop();
+            self.process_hardware_event(event);
         }
-        self.hardware.irq.cpu_irq_enabled = !self.cpu.registers.getf_i();
 
         let cycles = self.cpu.step(&mut self.hardware);
         let video_frame = self.hardware.lcd.step(
@@ -112,9 +112,35 @@ impl Gba {
             &self.hardware.oam,
             &self.hardware.pal,
             video,
+            &mut self.hardware.events,
         );
         let audio_frame = false;
+
         return (video_frame, audio_frame);
+    }
+
+    fn process_hardware_event(&mut self, event: hardware::HardwareEvent) {
+        use hardware::HardwareEvent;
+
+        match event {
+            HardwareEvent::IRQ(irq) => {
+                if self.cpu.registers.getf_i() && self.hardware.irq.request(irq) {
+                    self.cpu.set_pending_exception(CpuException::IRQ);
+                }
+            }
+
+            HardwareEvent::Halt => {
+                todo!("HardwareEvent::Halt");
+            }
+
+            HardwareEvent::Stop => {
+                todo!("HardwareEvent::Stop");
+            }
+
+            HardwareEvent::None => {
+                unreachable!("HardwareEvent::None");
+            }
+        }
     }
 
     /// Steps the GBA until the end of a video frame.
