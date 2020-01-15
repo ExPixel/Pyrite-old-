@@ -18,11 +18,22 @@ pub struct Gba {
 }
 
 impl Gba {
+    #[inline]
     pub fn new() -> Gba {
         let mut g = Gba {
             cpu: ArmCpu::new(),
             hardware: GbaHardware::new(),
         };
+        g.setup_handler();
+        return g;
+    }
+
+    #[inline]
+    pub fn alloc() -> Box<Gba> {
+        let mut g = Box::new(Gba {
+            cpu: ArmCpu::new(),
+            hardware: GbaHardware::new(),
+        });
         g.setup_handler();
         return g;
     }

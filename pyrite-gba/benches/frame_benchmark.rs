@@ -26,7 +26,7 @@ fn setup_gba(rom_file: &str) -> Box<Gba> {
     use std::fs::File;
     use std::io::prelude::*;
 
-    let mut gba = Box::new(Gba::new());
+    let mut gba = Gba::alloc();
 
     let mut rom = Vec::new();
     {
