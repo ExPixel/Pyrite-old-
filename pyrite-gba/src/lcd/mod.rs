@@ -66,7 +66,11 @@ impl GbaLCD {
         self.registers.line += 1;
 
         match self.registers.line {
-            160 => self.registers.dispstat.set_vblank(true),
+            160 => {
+                self.registers.dispstat.set_vblank(true);
+                self.registers.bg2_affine_params.copy_reference_points();
+                self.registers.bg3_affine_params.copy_reference_points();
+            }
             227 => self.registers.dispstat.set_vblank(false),
             228 => self.registers.line = 0,
             _ => { /* NOP */ }
@@ -131,8 +135,8 @@ impl GbaLCD {
 
         match mode {
             0 => tile::render_mode0(&self.registers, vram, oam, &mut self.pixels),
-            1 => tile::render_mode1(&self.registers, vram, oam, &mut self.pixels),
-            2 => tile::render_mode2(&self.registers, vram, oam, &mut self.pixels),
+            1 => tile::render_mode1(&mut self.registers, vram, oam, &mut self.pixels),
+            2 => tile::render_mode2(&mut self.registers, vram, oam, &mut self.pixels),
             3 => bitmap::render_mode3(&self.registers, vram, oam, &mut self.pixels),
             4 => bitmap::render_mode4(&self.registers, vram, oam, &mut self.pixels),
             5 => bitmap::render_mode5(&self.registers, vram, oam, &mut self.pixels),
@@ -847,7 +851,7 @@ impl BGOffset {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct AffineBGParams {
     pub internal_x: FixedPoint32,
     pub internal_y: FixedPoint32,
@@ -863,10 +867,14 @@ pub struct AffineBGParams {
 
 impl AffineBGParams {
     /// Copies the reference point registers into the internal reference point registers.
-    #[inline]
     pub fn copy_reference_points(&mut self) {
         self.internal_x = self.x;
         self.internal_y = self.y;
+    }
+
+    pub fn increment_reference_points(&mut self) {
+        self.internal_x += self.b; // increment by dmx
+        self.internal_y += self.d; // increment by dmy
     }
 
     pub fn set_x(&mut self, value: u32) {
@@ -889,7 +897,7 @@ impl AffineBGParams {
 
     pub fn set_y_lo(&mut self, value: u16) {
         let raw_y = (self.y.to_inner() & 0xFFFF0000u32 as i32) | (value as i32);
-        self.y = FixedPoint32::wrap(raw_x);
+        self.y = FixedPoint32::wrap(raw_y);
     }
 
     pub fn set_y_hi(&mut self, value: u16) {
