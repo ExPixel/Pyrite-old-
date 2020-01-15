@@ -131,6 +131,13 @@ impl GbaLCD {
 
             // @TODO
             obj_window: LCDPixelBits::new(),
+
+            window_effects_masks: [
+                Pixel::window_effects_mask(self.registers.winin.effects_enabled(Window::Win0)),
+                Pixel::window_effects_mask(self.registers.winin.effects_enabled(Window::Win1)),
+                Pixel::window_effects_mask(self.registers.winout.effects_enabled(Window::Outside)),
+                Pixel::window_effects_mask(self.registers.winout.effects_enabled(Window::OBJ)),
+            ],
         };
 
         match mode {
@@ -401,14 +408,20 @@ impl Pixel {
     pub const SECOND_TARGET: u16 = 0x1000;
     pub const SEMI_TRANSPARENT: u16 = 0x2000;
 
-    #[inline(always)]
-    pub const fn layer_mask(layer: Layer) -> u16 {
-        ((layer as u16) & 0b0111) << 8
+    /// When this mask is ANDed with a pixel. It will either leave the FIRST_TARGET and
+    /// SECOND_TARGET bits alone or remove them completely if special effects are disabled by a
+    /// window.
+    pub fn window_effects_mask(enabled: bool) -> u16 {
+        if enabled {
+            0xFFFF
+        } else {
+            !(Self::FIRST_TARGET | Self::SECOND_TARGET)
+        }
     }
 
     #[inline(always)]
-    pub const fn window_mask(window: Window) -> u16 {
-        ((window as u16) & 0b11) << 14
+    pub const fn layer_mask(layer: Layer) -> u16 {
+        ((layer as u16) & 0b0111) << 8
     }
 
     pub const fn pal_index(self) -> usize {
@@ -434,12 +447,6 @@ impl Pixel {
     #[inline(always)]
     pub fn layer(self) -> Layer {
         unsafe { Layer::from_index_unsafe((self.0 >> 8) & 0b0111) }
-    }
-
-    // @TODO mark this as const when `Window::from_index` becomes const.
-    #[inline(always)]
-    pub fn window(self) -> Window {
-        unsafe { Window::from_index_unsafe((self.0 >> 14) & 0b11) }
     }
 }
 
@@ -634,6 +641,11 @@ impl Window {
     }
 
     #[inline(always)]
+    pub const fn index(self) -> usize {
+        self as u16 as usize
+    }
+
+    #[inline(always)]
     pub const fn reg_index(self) -> u16 {
         (self as u16) & 1
     }
@@ -650,6 +662,8 @@ pub struct WindowInfo {
     pub winin: WindowControl,
     pub winout: WindowControl,
     pub obj_window: LCDPixelBits,
+
+    pub window_effects_masks: [u16; 4],
 }
 
 impl WindowInfo {
@@ -664,14 +678,15 @@ impl WindowInfo {
             winin: WindowControl { inner: 0 },
             winout: WindowControl { inner: 0 },
             obj_window: LCDPixelBits::new(),
+            window_effects_masks: [0; 4],
         }
     }
 
     /// Returns Some(window) if a pixel is contained inside of a given window.
-    pub(crate) fn check_pixel(&self, layer: Layer, x: u16, y: u16) -> Option<Window> {
+    pub(crate) fn check_pixel(&self, layer: Layer, x: u16, y: u16) -> Option<u16> {
         if self.win0_enabled && self.win0_bounds.contains(x, y) {
             if self.winin.layer_enabled(Window::Win0, layer) {
-                return Some(Window::Win0);
+                return Some(self.window_effects_masks[Window::Win0.index()]);
             } else {
                 return None;
             }
@@ -679,7 +694,7 @@ impl WindowInfo {
 
         if self.win1_enabled && self.win1_bounds.contains(x, y) {
             if self.winin.layer_enabled(Window::Win1, layer) {
-                return Some(Window::Win1);
+                return Some(self.window_effects_masks[Window::Win1.index()]);
             } else {
                 return None;
             }
@@ -687,14 +702,14 @@ impl WindowInfo {
 
         if self.win_obj_enabled && self.obj_window.get(x as usize) {
             if self.winout.layer_enabled(Window::OBJ, layer) {
-                return Some(Window::OBJ);
+                return Some(self.window_effects_masks[Window::OBJ.index()]);
             } else {
                 return None;
             }
         }
 
         if self.winout.layer_enabled(Window::Outside, layer) {
-            return Some(Window::Outside);
+            return Some(self.window_effects_masks[Window::Outside.index()]);
         }
 
         return None;

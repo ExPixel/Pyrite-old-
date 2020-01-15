@@ -207,12 +207,12 @@ pub fn render_objects(
 
             for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize) {
                 let pflags_w = if pixels.windows.enabled {
-                    if let Some(window_mask) = pixels.windows.check_pixel(
+                    if let Some(window_effects_mask) = pixels.windows.check_pixel(
                         Layer::OBJ,
                         obj_screen_draw as u16,
                         registers.line,
                     ) {
-                        pflags | Pixel::window_mask(window_mask)
+                        pflags & window_effects_mask
                     } else {
                         obj_x += obj_dx;
                         obj_y += obj_dy;
@@ -261,12 +261,12 @@ pub fn render_objects(
 
             for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize) {
                 let pflags_w = if pixels.windows.enabled {
-                    if let Some(window_mask) = pixels.windows.check_pixel(
+                    if let Some(window_effects_mask) = pixels.windows.check_pixel(
                         Layer::OBJ,
                         obj_screen_draw as u16,
                         registers.line,
                     ) {
-                        pflags | Pixel::window_mask(window_mask)
+                        pflags & window_effects_mask
                     } else {
                         obj_x += obj_dx;
                         obj_y += obj_dy;

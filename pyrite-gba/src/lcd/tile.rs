@@ -237,10 +237,12 @@ pub fn draw_affine_bg(
                 if !pixels.windows.enabled {
                     pixels.push_pixel(idx, Pixel(pixel_mask | (entry as u16)));
                 } else {
-                    if let Some(win) = pixels.windows.check_pixel(layer, idx as u16, line as u16) {
+                    if let Some(window_effects_mask) =
+                        pixels.windows.check_pixel(layer, idx as u16, line as u16)
+                    {
                         pixels.push_pixel(
                             idx,
-                            Pixel(pixel_mask | Pixel::window_mask(win) | (entry as u16)),
+                            Pixel((pixel_mask & window_effects_mask) | (entry as u16)),
                         );
                     }
                 }
@@ -350,10 +352,12 @@ pub fn draw_text_bg_4bpp(
             if (entry & 0xF) == 0 {
                 continue;
             }
-            if let Some(win) = pixels.windows.check_pixel(layer, x as u16, line as u16) {
+            if let Some(window_effects_mask) =
+                pixels.windows.check_pixel(layer, x as u16, line as u16)
+            {
                 pixels.push_pixel(
                     x,
-                    Pixel(pixel_mask | Pixel::window_mask(win) | (entry as u16)),
+                    Pixel((pixel_mask & window_effects_mask) | (entry as u16)),
                 );
             }
         }
@@ -460,10 +464,12 @@ pub fn draw_text_bg_8bpp(
             if entry == 0 {
                 continue;
             }
-            if let Some(win) = pixels.windows.check_pixel(layer, x as u16, line as u16) {
+            if let Some(window_effects_mask) =
+                pixels.windows.check_pixel(layer, x as u16, line as u16)
+            {
                 pixels.push_pixel(
                     x,
-                    Pixel(pixel_mask | Pixel::window_mask(win) | (entry as u16)),
+                    Pixel((pixel_mask & window_effects_mask) | (entry as u16)),
                 );
             }
         }

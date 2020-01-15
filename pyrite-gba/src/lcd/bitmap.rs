@@ -77,11 +77,12 @@ fn render_mode3_bitmap(
     let line_offset = 480 * line;
     for x in 0..240 {
         let pixel_metadata = if pixels.windows.enabled {
-            if let Some(window) = pixels
-                .windows
-                .check_pixel(Layer::BG2, x as u16, line as u16)
+            if let Some(window_effects_mask) =
+                pixels
+                    .windows
+                    .check_pixel(Layer::BG2, x as u16, line as u16)
             {
-                Pixel(Pixel::window_mask(window) | pflags)
+                Pixel(pflags & window_effects_mask)
             } else {
                 continue;
             }
@@ -145,11 +146,12 @@ fn render_mode4_bitmap(
     let line_offset = 240 * line;
     for x in 0..240 {
         let pixel_metadata = if pixels.windows.enabled {
-            if let Some(window) = pixels
-                .windows
-                .check_pixel(Layer::BG2, x as u16, line as u16)
+            if let Some(window_effects_mask) =
+                pixels
+                    .windows
+                    .check_pixel(Layer::BG2, x as u16, line as u16)
             {
-                Pixel::window_mask(window) | pflags
+                pflags & window_effects_mask
             } else {
                 continue;
             }
@@ -217,11 +219,12 @@ fn render_mode5_bitmap(
     let line_offset = 480 * line;
     for x in 0..160 {
         let pixel_metadata = if pixels.windows.enabled {
-            if let Some(window) = pixels
-                .windows
-                .check_pixel(Layer::BG2, x as u16, line as u16)
+            if let Some(window_effects_mask) =
+                pixels
+                    .windows
+                    .check_pixel(Layer::BG2, x as u16, line as u16)
             {
-                Pixel(Pixel::window_mask(window) | pflags)
+                Pixel(pflags & window_effects_mask)
             } else {
                 continue;
             }
