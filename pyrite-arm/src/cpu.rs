@@ -18,9 +18,6 @@ pub struct ArmCpu {
     /// there is one.
     pub(crate) cycles: u32,
 
-    /// The total number of cycles that have elapsed.
-    total_cycles: u64,
-
     pub registers: ArmRegisters,
 
     /// Exception that should be handled on the next call to step instead of running the next
@@ -41,7 +38,6 @@ impl ArmCpu {
             decoded_fn: Self::step_nop,
             fetched: 0,
             cycles: 0,
-            total_cycles: 0,
             pending_exception: None,
             on_exception: None,
         }
@@ -156,7 +152,6 @@ impl ArmCpu {
     pub fn step(&mut self, memory: &mut dyn ArmMemory) -> u32 {
         self.cycles = 0;
         (self.decoded_fn)(self, memory, self.decoded_op);
-        self.total_cycles += self.cycles as u64;
         return self.cycles;
     }
 
