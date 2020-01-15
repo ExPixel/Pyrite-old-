@@ -1,0 +1,42 @@
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+    cargo_tests:
+        name: ${{ matrix.rust_channel }} ${{ matrix.os }}
+        runs-on: ${{ matrix.os }}
+
+        strategy:
+            matrix:
+                rust_channel: [stable, beta, nightly]
+                os: [ubuntu-latest, windows-latest, macOS-latest]
+
+        steps:
+        - uses: actions/checkout@v1
+          with:
+              submodules: true
+        - uses: actions-rs/toolchain@v1
+          with:
+              toolchain: ${{ matrix.rust_channel }}
+              override: true
+
+        # Display Tool Versions:
+        - name: Check Tools
+          run: |
+            rustc --version
+            cargo --version
+            cargo fmt --version
+            cargo clippy --version
+
+        # Run Tests:
+        - name: Test
+          run: cargo test
+        - name: Check Formatting
+          run: cargo fmt --all -- --check
+        - name: Clippy Lints
+          run: cargo clippy --all-features -- -A warnings
+        - name: Expensive Tests
+          run: cargo test -- --ignored
+        - name: Benchmark
+          run: cargo bench
