@@ -168,12 +168,18 @@ impl ArmCpu {
         (self.decoded_fn)(self, memory, self.decoded_op)
     }
 
+    #[inline]
     pub fn set_pending_exception(&mut self, exception: CpuException) {
+        if !self.exception_enabled(exception) {
+            return;
+        }
+
         if let Some(current) = self.pending_exception {
             if exception.info().priority >= current.info().priority {
                 return;
             }
         }
+
         self.pending_exception = Some(exception);
         self.decoded_op = 0xECEAAECE;
         self.decoded_fn = Self::step_exception;
@@ -242,6 +248,17 @@ impl ArmCpu {
         self.registers.read(15).wrapping_sub(instr_size)
     }
 
+    #[inline]
+    pub fn exception_enabled(&mut self, exception: CpuException) -> bool {
+        if exception == CpuException::IRQ && self.registers.getf_i() {
+            return false;
+        }
+        if exception == CpuException::FIQ && self.registers.getf_f() {
+            return false;
+        }
+        return true;
+    }
+
     /// Actions performed by CPU when entering an exception
     ///   - R14_<new mode>=PC+nn   ;save old PC, ie. return address
     ///   - SPSR_<new mode>=CPSR   ;save old flags
@@ -256,15 +273,6 @@ impl ArmCpu {
         memory: &mut dyn ArmMemory,
         next_instr_address: u32,
     ) -> (bool, u32) {
-        let exception_info = exception.info();
-
-        if (exception_info.disable & 0b01) != 0 && self.registers.getf_i() {
-            return (false, 0);
-        }
-        if (exception_info.disable & 0b10) != 0 && self.registers.getf_f() {
-            return (false, 0);
-        }
-
         let exception_addr =
             next_instr_address.wrapping_sub(if self.registers.getf_t() { 2 } else { 4 });
 
@@ -279,6 +287,8 @@ impl ArmCpu {
                 return (true, 0);
             }
         }
+
+        let exception_info = exception.info();
 
         let cpsr = self.registers.read_cpsr();
         self.registers.write_mode(exception_info.mode_on_entry); // Set the entry mode.
@@ -380,10 +390,6 @@ pub struct CpuExceptionInfo {
     pc_adjust: u32,
     offset: u32,
 
-    /// Disable if 2 bits used as a mask for the I and F flags to check if
-    /// a particular exception is disabled. bit 0 = I and bit 1 = F.
-    disable: u8,
-
     /// Lower number means higher priority.
     priority: u8,
 }
@@ -395,7 +401,6 @@ impl CpuExceptionInfo {
         f_flag: Option<bool>,
         pc_adjust: u32,
         offset: u32,
-        disable: u8,
     ) -> CpuExceptionInfo {
         CpuExceptionInfo {
             priority,
@@ -403,7 +408,6 @@ impl CpuExceptionInfo {
             f_flag,
             pc_adjust,
             offset,
-            disable,
         }
     }
 }
@@ -419,23 +423,22 @@ impl CpuExceptionInfo {
 //   BASE+18h 4     Normal Interrupt (IRQ)     IRQ        (_irq)  I=1, F=unchanged
 //   BASE+1Ch 3     Fast Interrupt (FIQ)       FIQ        (_fiq)  I=1, F=1
 pub const EXCEPTION_RESET: CpuExceptionInfo =
-    CpuExceptionInfo::new(1, CpuMode::Supervisor, Some(true), 0, 0x00, 0b00);
+    CpuExceptionInfo::new(1, CpuMode::Supervisor, Some(true), 0, 0x00);
 pub const EXCEPTION_UNDEFINED: CpuExceptionInfo =
-    CpuExceptionInfo::new(7, CpuMode::Undefined, None, 0, 0x04, 0b00);
+    CpuExceptionInfo::new(7, CpuMode::Undefined, None, 0, 0x04);
 pub const EXCEPTION_SWI: CpuExceptionInfo =
-    CpuExceptionInfo::new(6, CpuMode::Supervisor, None, 0, 0x08, 0b00);
+    CpuExceptionInfo::new(6, CpuMode::Supervisor, None, 0, 0x08);
 pub const EXCEPTION_PREFETCH_ABORT: CpuExceptionInfo =
-    CpuExceptionInfo::new(5, CpuMode::Abort, None, 4, 0x0C, 0b00);
+    CpuExceptionInfo::new(5, CpuMode::Abort, None, 4, 0x0C);
 pub const EXCEPTION_DATA_ABORT: CpuExceptionInfo =
-    CpuExceptionInfo::new(2, CpuMode::Abort, None, 4, 0x10, 0b00);
-pub const EXCEPTION_IRQ: CpuExceptionInfo =
-    CpuExceptionInfo::new(4, CpuMode::IRQ, None, 4, 0x18, 0b01);
+    CpuExceptionInfo::new(2, CpuMode::Abort, None, 4, 0x10);
+pub const EXCEPTION_IRQ: CpuExceptionInfo = CpuExceptionInfo::new(4, CpuMode::IRQ, None, 4, 0x18);
 pub const EXCEPTION_FIQ: CpuExceptionInfo =
-    CpuExceptionInfo::new(3, CpuMode::FIQ, Some(true), 4, 0x1C, 0b10);
+    CpuExceptionInfo::new(3, CpuMode::FIQ, Some(true), 4, 0x1C);
 
 // #TODO I don't actually know the priority for the 26bit address overflow exception.
 pub const EXCEPTION_ADDRESS_EXCEEDS_26BIT: CpuExceptionInfo =
-    CpuExceptionInfo::new(8, CpuMode::Supervisor, None, 4, 0x14, 0b00);
+    CpuExceptionInfo::new(8, CpuMode::Supervisor, None, 4, 0x14);
 
 pub type ExceptionHandler =
     Box<dyn FnMut(&mut ArmCpu, &mut dyn ArmMemory, CpuException, u32) -> bool>;
