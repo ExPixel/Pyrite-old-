@@ -87,7 +87,7 @@ impl Gba {
         self.hardware.set_bios_rom(&bios);
     }
 
-    pub fn init(&mut self, video: &mut dyn GbaVideoOutput, _audio: &mut dyn GbaAudioOutput) {
+    pub fn init(&mut self, _video: &mut dyn GbaVideoOutput, _audio: &mut dyn GbaAudioOutput) {
         // @TODO reimplement lcd init
         // self.lcd.init(video);
     }

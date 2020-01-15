@@ -1,4 +1,3 @@
-use crate::hardware::Region;
 use pyrite_common::bits;
 
 macro_rules! set_timings {

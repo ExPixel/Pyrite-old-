@@ -11,10 +11,6 @@ use sysctl::GbaSystemControl;
 
 use pyrite_common::bits_b;
 
-pub const CART0: u32 = 0x08000000;
-pub const CART1: u32 = 0x0A000000;
-pub const CART2: u32 = 0x0C000000;
-
 pub type BIOS = [u8; 16 * 1024];
 pub type EWRAM = [u8; 256 * 1024];
 pub type IWRAM = [u8; 32 * 1024];
@@ -229,7 +225,6 @@ impl GbaHardware {
             | Region::GamePak2Hi => self.gamepak_read8(addr, false),
             Region::SRAM => BAD_VALUE,
             Region::Unused0xF => BAD_VALUE,
-            _ => unreachable!(),
         }
     }
 
@@ -468,7 +463,7 @@ impl GbaHardware {
     }
 
     fn io_write8(&mut self, addr: u32, data: u8, display_error: bool) -> bool {
-        const IMC_END: u16 = ioregs::IMC + 3;
+        // const IMC_END: u16 = ioregs::IMC + 3;
 
         let offset = Self::io_off(addr);
         match offset {
@@ -955,7 +950,6 @@ impl ArmMemory for GbaHardware {
                 self.bad_read(8, addr, "unused region 0x0F");
                 byte_of_word(self.last_code_read, addr)
             }
-            _ => unreachable!(),
         }
     }
 

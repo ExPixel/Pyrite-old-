@@ -1,5 +1,4 @@
 use super::obj::{render_objects, ObjectPriority};
-use super::palette::GbaPalette;
 use super::{apply_mosaic, BGControl, BGOffset, LCDLineBuffer, LCDRegisters, Layer, Pixel};
 use crate::hardware::{OAM, VRAM};
 use crate::util::memory::read_u16_unchecked;
@@ -209,11 +208,9 @@ pub fn draw_text_bg_8bpp(
         }
         let tile_info = unsafe { read_u16_unchecked(vram, tile_info_offset as usize) };
         let tile_number = (tile_info & 0x3FF) as u32;
-        let tile_palette = ((tile_info >> 12) & 0xF) as u8;
         let hflip = (tile_info & 0x400) != 0;
         let vflip = (tile_info & 0x800) != 0;
 
-        let tx = scx % 8; // not yet accounting for hflip
         let ty = if vflip { 7 - ty } else { ty };
 
         let tile_data_start = bg.char_base + (BYTES_PER_TILE * tile_number);

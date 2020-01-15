@@ -90,7 +90,7 @@ impl GbaLCD {
             if self.registers.line == 0 {
                 video.pre_frame();
             }
-            self.draw_line(vram, oam, palette);
+            self.draw_line(vram, oam);
             self.pixels
                 .mix(palette, self.registers.effects.effect(), &self.registers);
             video.display_line(self.registers.line as u32, &self.pixels.mixed);
@@ -102,7 +102,7 @@ impl GbaLCD {
         return self.registers.line == 159;
     }
 
-    fn draw_line(&mut self, vram: &VRAM, oam: &OAM, palette: &GbaPalette) {
+    fn draw_line(&mut self, vram: &VRAM, oam: &OAM) {
         // setup obj cycles:
         self.pixels.obj_cycles = if self.registers.dispcnt.hblank_interval_free() {
             954
@@ -317,7 +317,7 @@ impl LCDLineBuffer {
                 // if we're not blending be can just copy the top most pixel into the mixed line
                 // buffer.
                 for x in 0..240 {
-                    let Pixels2 { top, bot } = self.unmixed[x];
+                    let Pixels2 { top, bot: _bot } = self.unmixed[x];
                     self.mixed[x] = self.lookup_color(palette, bm_color, top);
                 }
             }

@@ -3,6 +3,7 @@ use pyrite_arm::{ArmCpu, ArmMemory};
 
 const MAX_OPCODE_SIZE: u32 = 44;
 
+#[allow(dead_code)]
 #[derive(PartialEq, Eq)]
 pub enum DisasmMode {
     Arm,

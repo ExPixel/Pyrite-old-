@@ -1,4 +1,3 @@
-use super::palette::GbaPalette;
 use super::{apply_mosaic_cond, LCDLineBuffer, LCDRegisters, Layer, Pixel};
 use crate::hardware::{OAM, VRAM};
 use crate::util::fixedpoint::{FixedPoint16, FixedPoint32};

@@ -1,5 +1,4 @@
 use super::obj::{render_objects, ObjectPriority};
-use super::palette::GbaPalette;
 use super::{LCDLineBuffer, LCDRegisters, Layer, Pixel};
 use crate::hardware::{OAM, VRAM};
 use crate::util::memory::read_u16_unchecked;
