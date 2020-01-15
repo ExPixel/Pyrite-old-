@@ -1275,6 +1275,7 @@ impl HardwareEventQueue {
     }
 
     /// Push an event into the hardware event queue.
+    #[inline]
     pub fn push(&mut self, event: HardwareEvent) {
         assert!(self.count < self.pending.len());
         self.pending[self.count] = event;
@@ -1285,12 +1286,14 @@ impl HardwareEventQueue {
     /// going to be processed at once and we just pray that while processing events we don't fire
     /// enough to overfill the buffer. This would probably be solved if I could be bothered to use
     /// the CircularBuffer here instead of writing this comment :|
+    #[inline]
     pub fn pop(&mut self) -> HardwareEvent {
         assert!(self.count > 0);
         self.count -= 1;
         std::mem::replace(&mut self.pending[self.count], HardwareEvent::None)
     }
 
+    #[inline]
     pub fn count(&self) -> usize {
         self.count
     }

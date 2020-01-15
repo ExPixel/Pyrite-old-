@@ -111,9 +111,8 @@ impl Gba {
         video: &mut dyn GbaVideoOutput,
         _audio: &mut dyn GbaAudioOutput,
     ) -> (bool, bool) {
-        while self.hardware.events.count() > 0 {
-            let event = self.hardware.events.pop();
-            self.process_hardware_event(event);
+        if self.hardware.events.count() > 0 {
+            self.process_all_hardware_events();
         }
 
         let cycles = self.cpu.step(&mut self.hardware);
@@ -128,6 +127,14 @@ impl Gba {
         let audio_frame = false;
 
         return (video_frame, audio_frame);
+    }
+
+    #[cold]
+    fn process_all_hardware_events(&mut self) {
+        while self.hardware.events.count() > 0 {
+            let event = self.hardware.events.pop();
+            self.process_hardware_event(event);
+        }
     }
 
     fn process_hardware_event(&mut self, event: hardware::HardwareEvent) {
