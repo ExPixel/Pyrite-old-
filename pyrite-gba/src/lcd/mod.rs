@@ -857,31 +857,58 @@ pub struct AffineBGParams {
     pub c: FixedPoint32,
     pub d: FixedPoint32,
 
-    pub x: u32,
-    pub y: u32,
+    pub x: FixedPoint32,
+    pub y: FixedPoint32,
 }
 
 impl AffineBGParams {
     /// Copies the reference point registers into the internal reference point registers.
     #[inline]
     pub fn copy_reference_points(&mut self) {
-        self.internal_x = FixedPoint32::wrap(((self.x as i32) << 4) >> 4);
-        self.internal_y = FixedPoint32::wrap(((self.y as i32) << 4) >> 4);
+        self.internal_x = self.x;
+        self.internal_y = self.y;
     }
 
-    #[inline]
+    pub fn set_x(&mut self, value: u32) {
+        self.x = FixedPoint32::wrap(((value as i32) << 4) >> 4);
+    }
+
+    pub fn set_y(&mut self, value: u32) {
+        self.y = FixedPoint32::wrap(((value as i32) << 4) >> 4);
+    }
+
+    pub fn set_x_lo(&mut self, value: u16) {
+        let raw_x = (self.x.to_inner() & 0xFFFF0000u32 as i32) | (value as i32);
+        self.x = FixedPoint32::wrap(raw_x);
+    }
+
+    pub fn set_x_hi(&mut self, value: u16) {
+        // this will sign extend the final 4 bits
+        self.set_x((self.x.to_inner() as u32 & 0x0000FFFF) | ((value as u32) << 16));
+    }
+
+    pub fn set_y_lo(&mut self, value: u16) {
+        let raw_y = (self.y.to_inner() & 0xFFFF0000u32 as i32) | (value as i32);
+        self.y = FixedPoint32::wrap(raw_x);
+    }
+
+    pub fn set_y_hi(&mut self, value: u16) {
+        // this will sign extend the final 4 bits
+        self.set_y((self.y.to_inner() as u32 & 0x0000FFFF) | ((value as u32) << 16));
+    }
+
     pub fn set_a(&mut self, value: u16) {
         self.a = FixedPoint32::from(FixedPoint16::wrap(value as i16));
     }
-    #[inline]
+
     pub fn set_b(&mut self, value: u16) {
         self.b = FixedPoint32::from(FixedPoint16::wrap(value as i16));
     }
-    #[inline]
+
     pub fn set_c(&mut self, value: u16) {
         self.c = FixedPoint32::from(FixedPoint16::wrap(value as i16));
     }
-    #[inline]
+
     pub fn set_d(&mut self, value: u16) {
         self.d = FixedPoint32::from(FixedPoint16::wrap(value as i16));
     }

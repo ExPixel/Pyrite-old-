@@ -419,22 +419,22 @@ impl GbaHardware {
 
         match offset_lo {
             ioregs::BG2X => {
-                self.lcd.registers.bg2_affine_params.x = data;
+                self.lcd.registers.bg2_affine_params.set_x(data);
                 self.lcd.registers.bg2_affine_params.copy_reference_points();
             }
 
             ioregs::BG2Y => {
-                self.lcd.registers.bg2_affine_params.y = data;
+                self.lcd.registers.bg2_affine_params.set_y(data);
                 self.lcd.registers.bg2_affine_params.copy_reference_points();
             }
 
             ioregs::BG3X => {
-                self.lcd.registers.bg3_affine_params.x = data;
+                self.lcd.registers.bg3_affine_params.set_x(data);
                 self.lcd.registers.bg3_affine_params.copy_reference_points();
             }
 
             ioregs::BG3Y => {
-                self.lcd.registers.bg3_affine_params.y = data;
+                self.lcd.registers.bg3_affine_params.set_y(data);
                 self.lcd.registers.bg3_affine_params.copy_reference_points();
             }
 
@@ -532,49 +532,41 @@ impl GbaHardware {
             ioregs::BG2VOFS => self.lcd.registers.bg_ofs[2].y = data,
             ioregs::BG3VOFS => self.lcd.registers.bg_ofs[3].y = data,
             ioregs::BG2X => {
-                self.lcd.registers.bg2_affine_params.x =
-                    setw!(self.lcd.registers.bg2_affine_params.x);
+                self.lcd.registers.bg2_affine_params.set_x_lo(data);
                 self.lcd.registers.bg2_affine_params.copy_reference_points();
             }
             ioregs::BG2X_HI => {
-                self.lcd.registers.bg2_affine_params.x =
-                    setw!(self.lcd.registers.bg2_affine_params.x);
+                self.lcd.registers.bg2_affine_params.set_x_hi(data);
                 self.lcd.registers.bg2_affine_params.copy_reference_points();
             }
             ioregs::BG2Y => {
-                self.lcd.registers.bg2_affine_params.y =
-                    setw!(self.lcd.registers.bg2_affine_params.y);
+                self.lcd.registers.bg2_affine_params.set_y_lo(data);
                 self.lcd.registers.bg2_affine_params.copy_reference_points();
             }
             ioregs::BG2Y_HI => {
-                self.lcd.registers.bg2_affine_params.y =
-                    setw!(self.lcd.registers.bg2_affine_params.y);
+                self.lcd.registers.bg2_affine_params.set_y_hi(data);
                 self.lcd.registers.bg2_affine_params.copy_reference_points();
             }
 
             ioregs::BG2PA => self.lcd.registers.bg2_affine_params.set_a(data),
-            ioregs::BG2PB => self.lcd.registers.bg2_affine_params.set_a(data),
-            ioregs::BG2PC => self.lcd.registers.bg2_affine_params.set_a(data),
-            ioregs::BG2PD => self.lcd.registers.bg2_affine_params.set_a(data),
+            ioregs::BG2PB => self.lcd.registers.bg2_affine_params.set_b(data),
+            ioregs::BG2PC => self.lcd.registers.bg2_affine_params.set_c(data),
+            ioregs::BG2PD => self.lcd.registers.bg2_affine_params.set_d(data),
 
             ioregs::BG3X => {
-                self.lcd.registers.bg3_affine_params.x =
-                    setw!(self.lcd.registers.bg3_affine_params.x);
+                self.lcd.registers.bg3_affine_params.set_x_lo(data);
                 self.lcd.registers.bg3_affine_params.copy_reference_points();
             }
             ioregs::BG3X_HI => {
-                self.lcd.registers.bg3_affine_params.x =
-                    setw!(self.lcd.registers.bg3_affine_params.x);
+                self.lcd.registers.bg3_affine_params.set_x_hi(data);
                 self.lcd.registers.bg3_affine_params.copy_reference_points();
             }
             ioregs::BG3Y => {
-                self.lcd.registers.bg3_affine_params.y =
-                    setw!(self.lcd.registers.bg3_affine_params.y);
+                self.lcd.registers.bg3_affine_params.set_y_lo(data);
                 self.lcd.registers.bg3_affine_params.copy_reference_points();
             }
             ioregs::BG3Y_HI => {
-                self.lcd.registers.bg3_affine_params.y =
-                    setw!(self.lcd.registers.bg3_affine_params.y);
+                self.lcd.registers.bg3_affine_params.set_y_hi(data);
                 self.lcd.registers.bg3_affine_params.copy_reference_points();
             }
 
