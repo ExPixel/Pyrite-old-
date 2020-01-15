@@ -20,8 +20,8 @@ fn get_long_mulinstr_regs(instr: u32) -> (u32, u32, u32, u32) {
 }
 
 /// Multiply and accumulate registers
-pub fn arm_mla(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_mla(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
 
     let (rm, rs, rn, rd) = get_mulinstr_regs(instr);
     let lhs = cpu.registers.read(rm);
@@ -31,13 +31,15 @@ pub fn arm_mla(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     cpu.registers.write(rd, res);
 
     let icycles = 1 + internal_multiply_cycles(rhs, false);
-    cpu.cycles += icycles;
+    cycles += icycles;
     memory.on_internal_cycles(icycles);
+
+    return cycles;
 }
 
 /// Multiply and accumulate registers, setting flags
-pub fn arm_mlas(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_mlas(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
 
     let (rm, rs, rn, rd) = get_mulinstr_regs(instr);
     let lhs = cpu.registers.read(rm);
@@ -48,13 +50,15 @@ pub fn arm_mlas(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     set_nz_flags(cpu, res);
 
     let icycles = 1 + internal_multiply_cycles(rhs, false);
-    cpu.cycles += icycles;
+    cycles += icycles;
     memory.on_internal_cycles(icycles);
+
+    return cycles;
 }
 
 /// Multiply registers
-pub fn arm_mul(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_mul(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
 
     let (rm, rs, _rn, rd) = get_mulinstr_regs(instr);
     let lhs = cpu.registers.read(rm);
@@ -63,13 +67,15 @@ pub fn arm_mul(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     cpu.registers.write(rd, res);
 
     let icycles = internal_multiply_cycles(rhs, false);
-    cpu.cycles += icycles;
+    cycles += icycles;
     memory.on_internal_cycles(icycles);
+
+    return cycles;
 }
 
 /// Multiply registers, setting flags
-pub fn arm_muls(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_muls(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
 
     let (rm, rs, _rn, rd) = get_mulinstr_regs(instr);
     let lhs = cpu.registers.read(rm);
@@ -79,13 +85,15 @@ pub fn arm_muls(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     set_nz_flags(cpu, res);
 
     let icycles = internal_multiply_cycles(rhs, false);
-    cpu.cycles += icycles;
+    cycles += icycles;
     memory.on_internal_cycles(icycles);
+
+    return cycles;
 }
 
 /// Signed long multiply and accumulate
-pub fn arm_smlal(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_smlal(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
 
     let (rm, rs, rd_lo, rd_hi) = get_long_mulinstr_regs(instr);
     let rsv = cpu.registers.read(rs);
@@ -101,13 +109,15 @@ pub fn arm_smlal(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     cpu.registers.write(rd_hi, res_hi);
 
     let icycles = 1 + internal_multiply_cycles(rsv, true);
-    cpu.cycles += icycles;
+    cycles += icycles;
     memory.on_internal_cycles(icycles);
+
+    return cycles;
 }
 
 /// Signed long multiply and accumulate, setting flags
-pub fn arm_smlals(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_smlals(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
 
     let (rm, rs, rd_lo, rd_hi) = get_long_mulinstr_regs(instr);
     let rsv = cpu.registers.read(rs);
@@ -124,13 +134,15 @@ pub fn arm_smlals(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     set_nz_flags64(cpu, res as u64);
 
     let icycles = 1 + internal_multiply_cycles(rsv, true);
-    cpu.cycles += icycles;
+    cycles += icycles;
     memory.on_internal_cycles(icycles);
+
+    return cycles;
 }
 
 /// Signed long multiply (32x32 to 64)
-pub fn arm_smull(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_smull(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
 
     let (rm, rs, rd_lo, rd_hi) = get_long_mulinstr_regs(instr);
     let rsv = cpu.registers.read(rs);
@@ -143,13 +155,15 @@ pub fn arm_smull(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     cpu.registers.write(rd_hi, res_hi);
 
     let icycles = internal_multiply_cycles(rsv, true);
-    cpu.cycles += icycles;
+    cycles += icycles;
     memory.on_internal_cycles(icycles);
+
+    return cycles;
 }
 
 /// Signed long multiply, setting flags
-pub fn arm_smulls(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_smulls(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
 
     let (rm, rs, rd_lo, rd_hi) = get_long_mulinstr_regs(instr);
     let rsv = cpu.registers.read(rs);
@@ -163,13 +177,15 @@ pub fn arm_smulls(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     set_nz_flags64(cpu, res as u64);
 
     let icycles = internal_multiply_cycles(rsv, true);
-    cpu.cycles += icycles;
+    cycles += icycles;
     memory.on_internal_cycles(icycles);
+
+    return cycles;
 }
 
 /// Unsigned long multiply and accumulate
-pub fn arm_umlal(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_umlal(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
 
     let (rm, rs, rd_lo, rd_hi) = get_long_mulinstr_regs(instr);
     let rsv = cpu.registers.read(rs);
@@ -185,13 +201,15 @@ pub fn arm_umlal(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     cpu.registers.write(rd_hi, res_hi);
 
     let icycles = 1 + internal_multiply_cycles(rsv, false);
-    cpu.cycles += icycles;
+    cycles += icycles;
     memory.on_internal_cycles(icycles);
+
+    return cycles;
 }
 
 /// Unsigned long multiply and accumulate, setting flags
-pub fn arm_umlals(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_umlals(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
 
     let (rm, rs, rd_lo, rd_hi) = get_long_mulinstr_regs(instr);
     let rsv = cpu.registers.read(rs);
@@ -208,13 +226,15 @@ pub fn arm_umlals(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     set_nz_flags64(cpu, res);
 
     let icycles = 1 + internal_multiply_cycles(rsv, false);
-    cpu.cycles += icycles;
+    cycles += icycles;
     memory.on_internal_cycles(icycles);
+
+    return cycles;
 }
 
 /// Unsigned long multiply (32x32 to 64)
-pub fn arm_umull(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_umull(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
 
     let (rm, rs, rd_lo, rd_hi) = get_long_mulinstr_regs(instr);
     let rsv = cpu.registers.read(rs);
@@ -227,13 +247,15 @@ pub fn arm_umull(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     cpu.registers.write(rd_hi, res_hi);
 
     let icycles = internal_multiply_cycles(rsv, false);
-    cpu.cycles += icycles;
+    cycles += icycles;
     memory.on_internal_cycles(icycles);
+
+    return cycles;
 }
 
 /// Unsigned long multiply, setting flags
-pub fn arm_umulls(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_umulls(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
 
     let (rm, rs, rd_lo, rd_hi) = get_long_mulinstr_regs(instr);
     let rsv = cpu.registers.read(rs);
@@ -247,6 +269,8 @@ pub fn arm_umulls(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
     set_nz_flags64(cpu, res);
 
     let icycles = internal_multiply_cycles(rsv, false);
-    cpu.cycles += icycles;
+    cycles += icycles;
     memory.on_internal_cycles(icycles);
+
+    return cycles;
 }

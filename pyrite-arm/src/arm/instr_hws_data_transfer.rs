@@ -15,8 +15,8 @@ const NO_WRITEBACK: bool = false;
 /// Generates a function for a halfword or signed data transfer function.
 macro_rules! arm_gen_hwsdt {
     ($name:ident, $transfer:expr, $transfer_type:expr, $data_size:expr, $get_offset:expr, $direction:expr, $indexing:expr, $writeback:expr) => {
-        pub fn $name(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-            cpu.arm_prefetch(memory);
+        pub fn $name(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+            let mut cycles = cpu.arm_prefetch(memory);
 
             let rd = bits!(instr, 12, 15);
             let rn = bits!(instr, 16, 19);
@@ -47,41 +47,55 @@ macro_rules! arm_gen_hwsdt {
                 cpu.registers.write(rn, writeback_addr);
             }
 
-            $transfer(cpu, memory, rd, addr);
+            cycles += $transfer(cpu, memory, rd, addr);
 
             if $transfer_type == LOAD {
                 if rd == 15 || ($writeback == WRITEBACK && rn == 15) {
                     let dest_pc = cpu.registers.read(15);
-                    cpu.arm_branch_to(dest_pc, memory);
+                    cycles += cpu.arm_branch_to(dest_pc, memory);
                 }
             }
+
+            return cycles;
         }
     };
 }
 
-fn ldrh(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) {
-    let value = memory.read_data_halfword(addr, false, &mut cpu.cycles) as u32;
+#[must_use]
+fn ldrh(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) -> u32 {
+    let mut cycles = 0;
+    let value = memory.read_data_halfword(addr, false, &mut cycles) as u32;
     cpu.registers.write(rd, value);
+    return cycles;
 }
 
-fn ldrsh(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) {
-    let value = memory.read_data_halfword(addr, false, &mut cpu.cycles) as i16 as i32 as u32;
+#[must_use]
+fn ldrsh(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) -> u32 {
+    let mut cycles = 0;
+    let value = memory.read_data_halfword(addr, false, &mut cycles) as i16 as i32 as u32;
     cpu.registers.write(rd, value);
+    return cycles;
 }
 
-fn ldrsb(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) {
-    let value = memory.read_data_byte(addr, false, &mut cpu.cycles) as i8 as i32 as u32;
+#[must_use]
+fn ldrsb(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) -> u32 {
+    let mut cycles = 0;
+    let value = memory.read_data_byte(addr, false, &mut cycles) as i8 as i32 as u32;
     cpu.registers.write(rd, value);
+    return cycles;
 }
 
-fn strh(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) {
+#[must_use]
+fn strh(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) -> u32 {
+    let mut cycles = 0;
     let mut value = cpu.registers.read(rd);
     // If the Program Counter is used as the source register in a halfword store, it will be 12 bytes
     // ahead instead of 8 when read.
     if rd == 15 {
         value = value.wrapping_add(4);
     }
-    memory.write_data_halfword(addr, (value & 0xFFFF) as u16, false, &mut cpu.cycles);
+    memory.write_data_halfword(addr, (value & 0xFFFF) as u16, false, &mut cycles);
+    return cycles;
 }
 
 fn off_imm(_cpu: &ArmCpu, instr: u32) -> u32 {

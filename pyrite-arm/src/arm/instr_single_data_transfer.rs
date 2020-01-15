@@ -20,8 +20,8 @@ const NO_USER_MODE: bool = false;
 // #TODO handle data aborts by correctly jumping to the data abort exception vector.
 macro_rules! arm_gen_sdt {
     ($name:ident, $transfer:expr, $transfer_type:expr, $data_size:expr, $get_offset:expr, $direction:expr, $indexing:expr, $writeback:expr, $user_mode:expr) => {
-        pub fn $name(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-            cpu.arm_prefetch(memory);
+        pub fn $name(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+            let mut cycles = cpu.arm_prefetch(memory);
 
             let rd = bits!(instr, 12, 15);
             let rn = bits!(instr, 16, 19);
@@ -59,7 +59,7 @@ macro_rules! arm_gen_sdt {
                 cpu.registers.write(rn, writeback_addr);
             }
 
-            $transfer(cpu, memory, rd, addr);
+            cycles += $transfer(cpu, memory, rd, addr);
 
             // Switch back to our original mode if the "T Bit" is set and we weren't originally in
             // user mode.
@@ -70,9 +70,11 @@ macro_rules! arm_gen_sdt {
             if $transfer_type == LOAD {
                 if rd == 15 || ($writeback == WRITEBACK && rn == 15) {
                     let dest_pc = cpu.registers.read(15);
-                    cpu.arm_branch_to(dest_pc, memory);
+                    cycles += cpu.arm_branch_to(dest_pc, memory);
                 }
             }
+
+            return cycles;
         }
     };
 
@@ -91,8 +93,10 @@ macro_rules! arm_gen_sdt {
     };
 }
 
+#[must_use]
 #[inline(always)]
-fn sdt_ldr(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) {
+fn sdt_ldr(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) -> u32 {
+    let mut cycles = 0u32;
     // From the ARM7TDMI Documentation:
     //  A word load will normally use a word aligned address, however,
     //  an address offset from the word boundary will cause the data to
@@ -100,37 +104,51 @@ fn sdt_ldr(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) {
     // Basically we rotate the word to the right by the number of bits that the address
     // is unaligned (offset from the word boundary).
     let value = memory
-        .read_data_word(addr & 0xFFFFFFFC, false, &mut cpu.cycles)
+        .read_data_word(addr & 0xFFFFFFFC, false, &mut cycles)
         .rotate_right(8 * (addr % 4));
     cpu.registers.write(rd, value);
+
+    return cycles;
 }
 
+#[must_use]
 #[inline(always)]
-fn sdt_ldrb(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) {
-    let value = memory.read_data_byte(addr, false, &mut cpu.cycles);
+fn sdt_ldrb(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) -> u32 {
+    let mut cycles = 0u32;
+    let value = memory.read_data_byte(addr, false, &mut cycles);
     cpu.registers.write(rd, value as u32);
+
+    return cycles;
 }
 
+#[must_use]
 #[inline(always)]
-fn sdt_str(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) {
+fn sdt_str(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) -> u32 {
+    let mut cycles = 0u32;
     let mut value = cpu.registers.read(rd);
     // If the Program Counter is used as the source register in a word store, it will be 12 bytes
     // ahead instead of 8 when read.
     if rd == 15 {
         value = value.wrapping_add(4);
     }
-    memory.write_data_word(addr & 0xFFFFFFFC, value, false, &mut cpu.cycles);
+    memory.write_data_word(addr & 0xFFFFFFFC, value, false, &mut cycles);
+
+    return cycles;
 }
 
+#[must_use]
 #[inline(always)]
-fn sdt_strb(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) {
+fn sdt_strb(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, rd: u32, addr: u32) -> u32 {
+    let mut cycles = 0u32;
     let mut value = cpu.registers.read(rd);
     // If the Program Counter is used as the source register in a byte store, it will be 12 bytes
     // ahead instead of 8 when read.
     if rd == 15 {
         value = value.wrapping_add(4);
     }
-    memory.write_data_byte(addr, value as u8, false, &mut cpu.cycles);
+    memory.write_data_byte(addr, value as u8, false, &mut cycles);
+
+    return cycles;
 }
 
 #[inline(always)]

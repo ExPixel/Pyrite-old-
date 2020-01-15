@@ -58,7 +58,7 @@ impl Gba {
         self.cpu.registers.setf_f(); // Disables FIQ interrupts (always high on the GBA)
         self.hardware.sysctl.set_reg_waitcnt(0x4317);
         if skip_bios {
-            self.cpu.set_pc(0x08000000, &mut self.hardware);
+            let _ = self.cpu.set_pc(0x08000000, &mut self.hardware);
             self.cpu.registers.setf_i(); // Disables IRQ interrupts
             self.cpu.registers.write_mode(registers::CpuMode::System);
             self.cpu
@@ -72,7 +72,7 @@ impl Gba {
                 .write_with_mode(registers::CpuMode::Supervisor, 13, 0x03007FE0);
         } else {
             self.cpu.registers.setf_i(); // Disables IRQ interrupts
-            self.cpu.set_pc(0x00000000, &mut self.hardware);
+            let _ = self.cpu.set_pc(0x00000000, &mut self.hardware);
             self.cpu
                 .registers
                 .write_mode(registers::CpuMode::Supervisor);

@@ -12,11 +12,7 @@ pub struct ArmCpu {
     decoded_op: u32,
 
     /// Function that will be called for the decoded opcode.
-    decoded_fn: fn(&mut ArmCpu, memory: &mut dyn ArmMemory, u32),
-
-    /// Temporary cycle count used by the currently running step if
-    /// there is one.
-    pub(crate) cycles: u32,
+    decoded_fn: fn(&mut ArmCpu, memory: &mut dyn ArmMemory, u32) -> u32,
 
     pub registers: ArmRegisters,
 
@@ -37,7 +33,6 @@ impl ArmCpu {
             decoded_op: 0,
             decoded_fn: Self::step_nop,
             fetched: 0,
-            cycles: 0,
             pending_exception: None,
             on_exception: None,
         }
@@ -50,92 +45,112 @@ impl ArmCpu {
     ///
     /// TLDR this should only be used while already inside of the `step`
     /// function.
+    #[must_use]
     #[inline]
-    pub(crate) fn arm_branch_to(&mut self, pc: u32, memory: &mut dyn ArmMemory) {
+    pub(crate) fn arm_branch_to(&mut self, pc: u32, memory: &mut dyn ArmMemory) -> u32 {
+        let mut cycles = 0;
         let next_pc = pc.wrapping_add(4);
         self.registers.write(15, next_pc);
-        self.decoded_op = memory.read_code_word(pc, false, &mut self.cycles);
+        self.decoded_op = memory.read_code_word(pc, false, &mut cycles);
         // @TODO maybe conditionally also do the decoding here if the condition code for the opcode
         // is AL (always)
         self.decoded_fn = Self::step_arm;
-        self.fetched = memory.read_code_word(next_pc, true, &mut self.cycles);
+        self.fetched = memory.read_code_word(next_pc, true, &mut cycles);
+        return cycles;
     }
 
     /// See `arm_branch_to`
+    #[must_use]
     #[inline]
-    pub(crate) fn thumb_branch_to(&mut self, pc: u32, memory: &mut dyn ArmMemory) {
+    pub(crate) fn thumb_branch_to(&mut self, pc: u32, memory: &mut dyn ArmMemory) -> u32 {
+        let mut cycles = 0;
         let next_pc = pc.wrapping_add(2);
         self.registers.write(15, next_pc);
-        self.decoded_op = memory.read_code_halfword(pc, false, &mut self.cycles) as u32;
+        self.decoded_op = memory.read_code_halfword(pc, false, &mut cycles) as u32;
         self.decoded_fn = Self::decode_thumb(self.decoded_op);
-        self.fetched = memory.read_code_halfword(next_pc, true, &mut self.cycles) as u32;
+        self.fetched = memory.read_code_halfword(next_pc, true, &mut cycles) as u32;
+        return cycles;
     }
 
     /// Like `arm_branch_to` and `thumb_branch_to` but this will select which one to call for you
     /// based on the current mode and will also automatically align.
+    #[must_use]
     #[inline]
-    pub(crate) fn branch_to(&mut self, pc: u32, memory: &mut dyn ArmMemory) {
+    pub(crate) fn branch_to(&mut self, pc: u32, memory: &mut dyn ArmMemory) -> u32 {
         if self.registers.getf_t() {
-            self.thumb_branch_to(pc & 0xFFFFFFFE, memory);
+            return self.thumb_branch_to(pc & 0xFFFFFFFE, memory);
         } else {
-            self.arm_branch_to(pc & 0xFFFFFFFC, memory);
+            return self.arm_branch_to(pc & 0xFFFFFFFC, memory);
         }
     }
 
     /// Flushes the CPU's pipeline, sets the program counter
     /// and "fetches" and "decodes" the next instruction.
-    pub fn set_pc(&mut self, value: u32, memory: &mut dyn ArmMemory) {
+    #[must_use]
+    #[inline]
+    pub fn set_pc(&mut self, value: u32, memory: &mut dyn ArmMemory) -> u32 {
         if self.registers.getf_t() {
-            self.thumb_set_pc(value, memory);
+            return self.thumb_set_pc(value, memory);
         } else {
-            self.arm_set_pc(value, memory);
+            return self.arm_set_pc(value, memory);
         }
     }
 
     // @TODO remove this
+    #[must_use]
     #[inline]
-    fn arm_set_pc(&mut self, value: u32, memory: &mut dyn ArmMemory) {
-        self.arm_branch_to(value, memory);
+    fn arm_set_pc(&mut self, value: u32, memory: &mut dyn ArmMemory) -> u32 {
+        self.arm_branch_to(value, memory)
     }
 
     // @TODO remove this
+    #[must_use]
     #[inline]
-    fn thumb_set_pc(&mut self, value: u32, memory: &mut dyn ArmMemory) {
-        self.thumb_branch_to(value, memory);
+    fn thumb_set_pc(&mut self, value: u32, memory: &mut dyn ArmMemory) -> u32 {
+        self.thumb_branch_to(value, memory)
     }
 
-    pub fn arm_prefetch(&mut self, memory: &mut dyn ArmMemory) {
+    #[must_use]
+    pub fn arm_prefetch(&mut self, memory: &mut dyn ArmMemory) -> u32 {
+        let mut cycles = 0;
         let next_pc = self.registers.read(15).wrapping_add(4);
         self.registers.write(15, next_pc);
         self.decoded_op = self.fetched;
         self.decoded_fn = Self::step_arm;
-        self.fetched = memory.read_code_word(next_pc, true, &mut self.cycles);
+        self.fetched = memory.read_code_word(next_pc, true, &mut cycles);
+        return cycles;
     }
 
     /// Gets the cycles for a prefetch without actually fetching the memory.
     /// Used by branch instructions so that we aren't doing useless reads.
+    #[must_use]
     #[inline(always)]
-    pub fn arm_prefetch_cycles(&mut self, memory: &mut dyn ArmMemory) {
+    pub fn arm_prefetch_cycles(&mut self, memory: &mut dyn ArmMemory) -> u32 {
         let next_pc = self.registers.read(15).wrapping_add(4);
         self.registers.write(15, next_pc);
-        self.cycles += memory.code_cycles_word(next_pc, true);
+        return memory.code_cycles_word(next_pc, true);
     }
 
-    pub fn thumb_prefetch(&mut self, memory: &mut dyn ArmMemory) {
+    #[must_use]
+    #[inline(always)]
+    pub fn thumb_prefetch(&mut self, memory: &mut dyn ArmMemory) -> u32 {
+        let mut cycles = 0;
         let next_pc = self.registers.read(15).wrapping_add(2);
         self.registers.write(15, next_pc);
         self.decoded_op = self.fetched;
         self.decoded_fn = Self::decode_thumb(self.decoded_op);
-        self.fetched = memory.read_code_halfword(next_pc, true, &mut self.cycles) as u32;
+        self.fetched = memory.read_code_halfword(next_pc, true, &mut cycles) as u32;
+        return cycles;
     }
 
     /// Gets the cycles for a prefetch without actually fetching the memory.
     /// Used by branch instructions so that we aren't doing useless reads.
+    #[must_use]
     #[inline(always)]
-    pub fn thumb_prefetch_cycles(&mut self, memory: &mut dyn ArmMemory) {
+    pub fn thumb_prefetch_cycles(&mut self, memory: &mut dyn ArmMemory) -> u32 {
         let next_pc = self.registers.read(15).wrapping_add(2);
         self.registers.write(15, next_pc);
-        self.cycles += memory.code_cycles_halfword(next_pc, true);
+        return memory.code_cycles_halfword(next_pc, true);
     }
 
     /// Resets a CPU's registers
@@ -150,9 +165,7 @@ impl ArmCpu {
     /// but might not always be.
     #[inline]
     pub fn step(&mut self, memory: &mut dyn ArmMemory) -> u32 {
-        self.cycles = 0;
-        (self.decoded_fn)(self, memory, self.decoded_op);
-        return self.cycles;
+        (self.decoded_fn)(self, memory, self.decoded_op)
     }
 
     pub fn set_pending_exception(&mut self, exception: CpuException) {
@@ -166,41 +179,41 @@ impl ArmCpu {
         self.decoded_fn = Self::step_exception;
     }
 
-    fn step_exception(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _opcode: u32) {
+    fn step_exception(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _opcode: u32) -> u32 {
         let exception = cpu
             .pending_exception
             .take()
             .expect("called step_exception with no pending exception");
         let next = cpu.next_exec_address();
-        cpu.handle_exception(exception, memory, next);
+        return cpu.handle_exception(exception, memory, next).1;
     }
 
-    fn step_nop(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _opcode: u32) {
+    fn step_nop(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _opcode: u32) -> u32 {
         if cpu.registers.getf_t() {
-            cpu.thumb_prefetch(memory);
+            return cpu.thumb_prefetch(memory);
         } else {
-            cpu.arm_prefetch(memory);
+            return cpu.arm_prefetch(memory);
         }
     }
 
     #[inline]
-    fn step_arm(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) {
+    fn step_arm(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) -> u32 {
         if check_condition((opcode >> 28) & 0xF, &cpu.registers) {
             let arm_fn = Self::decode_arm(opcode);
-            arm_fn(cpu, memory, opcode);
+            return arm_fn(cpu, memory, opcode);
         } else {
-            cpu.arm_prefetch(memory);
+            return cpu.arm_prefetch(memory);
         }
     }
 
-    fn decode_arm(opcode: u32) -> fn(&mut ArmCpu, memory: &mut dyn ArmMemory, u32) {
+    fn decode_arm(opcode: u32) -> fn(&mut ArmCpu, memory: &mut dyn ArmMemory, u32) -> u32 {
         let opcode_row = bits!(opcode, 20, 27);
         let opcode_col = bits!(opcode, 4, 7);
         let opcode_idx = (opcode_row * 16) + opcode_col;
         return arm::ARM_OPCODE_TABLE[opcode_idx as usize];
     }
 
-    fn decode_thumb(opcode: u32) -> fn(&mut ArmCpu, memory: &mut dyn ArmMemory, u32) {
+    fn decode_thumb(opcode: u32) -> fn(&mut ArmCpu, memory: &mut dyn ArmMemory, u32) -> u32 {
         let opcode_row = bits!(opcode, 12, 15);
         let opcode_col = bits!(opcode, 8, 11);
         let opcode_idx = (opcode_row * 16) + opcode_col;
@@ -236,19 +249,20 @@ impl ArmCpu {
     ///   - CPSR new I bit         ;IRQs disabled (I=1), done by ALL exceptions
     ///   - CPSR new F bit         ;FIQs disabled (F=1), done by Reset and FIQ only
     ///   - PC=exception_vector
+    #[must_use]
     pub(crate) fn handle_exception(
         &mut self,
         exception: CpuException,
         memory: &mut dyn ArmMemory,
         next_instr_address: u32,
-    ) -> bool {
+    ) -> (bool, u32) {
         let exception_info = exception.info();
 
         if (exception_info.disable & 0b01) != 0 && self.registers.getf_i() {
-            return false;
+            return (false, 0);
         }
         if (exception_info.disable & 0b10) != 0 && self.registers.getf_f() {
-            return false;
+            return (false, 0);
         }
 
         let exception_addr =
@@ -261,7 +275,8 @@ impl ArmCpu {
             let consumed = handler(self, memory, exception, exception_addr);
             self.on_exception = Some(handler); // RETURN THE SLAB
             if consumed {
-                return true;
+                // @TODO this should probably not return 0 cycles. The emulator doesn't like that :(
+                return (true, 0);
             }
         }
 
@@ -281,8 +296,8 @@ impl ArmCpu {
         }
 
         let exception_vector = EXCEPTION_BASE + exception_info.offset;
-        self.arm_branch_to(exception_vector, memory); // PC = exception_vector
-        return true;
+        let cycles = self.arm_branch_to(exception_vector, memory); // PC = exception_vector
+        return (true, cycles);
     }
 }
 

@@ -17,74 +17,78 @@ use super::{ArmCpu, ArmMemory};
 /// Branch and Exchange
 ///
 /// BX Rd
-fn arm_bx(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch_cycles(memory);
-
+fn arm_bx(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch_cycles(memory);
     let mut dest = cpu.registers.read(instr & 0xF);
     if (dest & 1) == 0 {
         dest &= 0xFFFFFFFC;
-        cpu.arm_branch_to(dest, memory);
+        cycles += cpu.arm_branch_to(dest, memory);
     } else {
         dest &= 0xFFFFFFFE;
         cpu.registers.setf_t();
-        cpu.thumb_branch_to(dest, memory);
+        cycles += cpu.thumb_branch_to(dest, memory);
     }
+    return cycles;
 }
 
 /// Branch
 ///
 /// B <offset>
-fn arm_b(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch_cycles(memory);
+fn arm_b(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch_cycles(memory);
 
     let offset = sign_extend_32!(instr & 0xFFFFFF, 24).wrapping_shl(2);
     let pc = cpu.registers.read(15);
     let dest = pc.wrapping_add(offset);
-    cpu.arm_branch_to(dest, memory);
+    cycles += cpu.arm_branch_to(dest, memory);
+    return cycles;
 }
 
 /// Branch and Link
 ///
 /// BL <offset>
-fn arm_bl(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch_cycles(memory);
+fn arm_bl(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch_cycles(memory);
 
     let offset = sign_extend_32!(instr & 0xFFFFFF, 24).wrapping_shl(2);
     let pc = cpu.registers.read(15);
     let dest = pc.wrapping_add(offset);
     cpu.registers.write(14, (pc.wrapping_sub(4)) & 0xFFFFFFFC);
-    cpu.arm_branch_to(dest, memory);
+    cycles += cpu.arm_branch_to(dest, memory);
+    return cycles;
 }
 
 /// Move status word to register, Register, CPSR
 ///
 /// MRS Rd, CPSR
-pub fn arm_mrs_rc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_mrs_rc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let cycles = cpu.arm_prefetch(memory);
 
     // #NOTE: The PC is not allowed to be a destination register here but I don't check it.
     let rd = (instr >> 12) & 0xf;
     let cpsr = cpu.registers.read_cpsr();
     cpu.registers.write(rd, cpsr);
+    return cycles;
 }
 
 /// Move status word to register, Register, SPSR
 ///
 /// MRS Rd, SPSR
-pub fn arm_mrs_rs(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_mrs_rs(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let cycles = cpu.arm_prefetch(memory);
 
     // #NOTE: The PC is not allowed to be a destination register here but I don't check it.
     let rd = (instr >> 12) & 0xf;
     let spsr = cpu.registers.read_spsr();
     cpu.registers.write(rd, spsr);
+    return cycles;
 }
 
 /// Move value to status word, Immediate, CPSR
 ///
 /// MSR CPSR_flg, <#expression>
-pub fn arm_msr_ic(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_msr_ic(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
 
     if likely!((instr & 0x00010000) == 0) {
         // CPSR_flg
@@ -94,15 +98,23 @@ pub fn arm_msr_ic(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
             .write_cpsr((cpsr & !0xF0000000) | (src & 0xF0000000));
     } else {
         // CPSR_all (not supported using immediate value)
-        arm_undefined(cpu, memory, instr);
+        cycles += cpu
+            .handle_exception(
+                super::cpu::CpuException::Undefined,
+                memory,
+                cpu.registers.read(15).wrapping_sub(4),
+            )
+            .1;
     }
+
+    return cycles;
 }
 
 /// Move value to status word, Immediate, SPSR
 ///
 /// MSR SPSR_flg, <#expression>
-pub fn arm_msr_is(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_msr_is(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
 
     if likely!((instr & 0x00010000) == 0) {
         // SPSR_flg
@@ -112,15 +124,23 @@ pub fn arm_msr_is(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
             .write_spsr((spsr & !0xF0000000) | (src & 0xF0000000));
     } else {
         // SPSR_all (not supported using immediate value)
-        arm_undefined(cpu, memory, instr);
+        cycles += cpu
+            .handle_exception(
+                super::cpu::CpuException::Undefined,
+                memory,
+                cpu.registers.read(15).wrapping_sub(4),
+            )
+            .1;
     }
+
+    return cycles;
 }
 
 /// Move value to status word, Register, CPSR
 ///
 /// MSR CPSR/CPSR_flg, Rm
-pub fn arm_msr_rc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_msr_rc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let cycles = cpu.arm_prefetch(memory);
 
     // #NOTE: The PC is not allowed to be an operand register here but I don't check it.
     let src = cpu.registers.read(instr & 0xf);
@@ -133,13 +153,15 @@ pub fn arm_msr_rc(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
         // CPSR_all
         cpu.registers.write_cpsr(src);
     }
+
+    return cycles;
 }
 
 /// Move value to status word, Register, SPSR
 ///
 /// MSR SPSR/SPSR_flg, Rm
-pub fn arm_msr_rs(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_msr_rs(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let cycles = cpu.arm_prefetch(memory);
 
     // #NOTE: The PC is not allowed to be an operand register here, but I don't check it.
     let src = cpu.registers.read(instr & 0xf);
@@ -152,58 +174,70 @@ pub fn arm_msr_rs(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
         // CPSR_all
         cpu.registers.write_spsr(src);
     }
+
+    return cycles;
 }
 
 /// Swap registers with memory word
-pub fn arm_swp(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_swp(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
 
     let rm = bits!(instr, 0, 3);
     let rd = bits!(instr, 12, 15);
     let rn = bits!(instr, 16, 19);
 
     let addr = cpu.registers.read(rn);
-    let temp = memory.read_data_word(addr, false, &mut cpu.cycles); // we use temp because Rd and Rm might be the same.
-    memory.write_data_word(addr, cpu.registers.read(rm), false, &mut cpu.cycles);
+    let temp = memory.read_data_word(addr, false, &mut cycles); // we use temp because Rd and Rm might be the same.
+    memory.write_data_word(addr, cpu.registers.read(rm), false, &mut cycles);
     cpu.registers.write(rd, temp);
+
+    return cycles;
 }
 
 /// Swap registers with memory byte
-pub fn arm_swpb(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-    cpu.arm_prefetch(memory);
+pub fn arm_swpb(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
 
     let rm = bits!(instr, 0, 3);
     let rd = bits!(instr, 12, 15);
     let rn = bits!(instr, 16, 19);
 
     let addr = cpu.registers.read(rn);
-    let temp = memory.read_data_byte(addr, false, &mut cpu.cycles); // we use temp because Rd and Rm might be the same.
-    memory.write_data_byte(addr, cpu.registers.read(rm) as u8, false, &mut cpu.cycles);
+    let temp = memory.read_data_byte(addr, false, &mut cycles); // we use temp because Rd and Rm might be the same.
+    memory.write_data_byte(addr, cpu.registers.read(rm) as u8, false, &mut cycles);
     cpu.registers.write(rd, temp as u32);
+
+    return cycles;
 }
 
 /// SWI INSTR
-fn arm_swi(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _instr: u32) {
-    cpu.arm_prefetch(memory);
-    cpu.handle_exception(
-        super::cpu::CpuException::SWI,
-        memory,
-        cpu.registers.read(15).wrapping_sub(4),
-    );
+fn arm_swi(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
+    cycles += cpu
+        .handle_exception(
+            super::cpu::CpuException::SWI,
+            memory,
+            cpu.registers.read(15).wrapping_sub(4),
+        )
+        .1;
+    return cycles;
 }
 
 /// UNDEFINED INSTR
-fn arm_undefined(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _instr: u32) {
-    cpu.arm_prefetch(memory);
-    cpu.handle_exception(
-        super::cpu::CpuException::Undefined,
-        memory,
-        cpu.registers.read(15).wrapping_sub(4),
-    );
+fn arm_undefined(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _instr: u32) -> u32 {
+    let mut cycles = cpu.arm_prefetch(memory);
+    cycles += cpu
+        .handle_exception(
+            super::cpu::CpuException::Undefined,
+            memory,
+            cpu.registers.read(15).wrapping_sub(4),
+        )
+        .1;
+    return cycles;
 }
 
 #[allow(dead_code)]
-pub const ARM_OPCODE_TABLE: [fn(&mut ArmCpu, memory: &mut dyn ArmMemory, u32); 4096] = [
+pub const ARM_OPCODE_TABLE: [fn(&mut ArmCpu, memory: &mut dyn ArmMemory, u32) -> u32; 4096] = [
     arm_and_lli,
     arm_and_llr,
     arm_and_lri,

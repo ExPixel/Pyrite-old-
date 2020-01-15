@@ -17,8 +17,8 @@ const NO_USER_MODE: bool = false;
 
 macro_rules! arm_gen_bdt {
     ($name:ident, $transfer:expr, $transfer_type:expr, $direction:expr, $indexing:expr, $writeback:expr, $s_bit:expr) => {
-        pub fn $name(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-            cpu.arm_prefetch(memory);
+        pub fn $name(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+            let mut cycles = cpu.arm_prefetch(memory);
 
             let register_list = bits!(instr, 0, 15);
             let rn = bits!(instr, 16, 19);
@@ -54,7 +54,7 @@ macro_rules! arm_gen_bdt {
             for reg in 0..16 {
                 if (register_list & (1 << reg)) != 0 {
                     addr = addr.wrapping_add(4);
-                    $transfer(cpu, memory, reg, addr, first);
+                    cycles += $transfer(cpu, memory, reg, addr, first);
 
                     if first {
                         first = false;
@@ -107,22 +107,25 @@ macro_rules! arm_gen_bdt {
                 // #TODO The ARM7TDMI documentation also mentions that this can be merged with the
                 // next prefetch cycle as well to create one N cycle, but I'm not sure if the GBA does
                 // that or not.
-                cpu.cycles += 1;
+                cycles += 1;
                 memory.on_internal_cycles(1);
 
                 if (register_list & (1 << 15)) != 0 {
                     let dest_pc = cpu.registers.read(15);
                     if cpu.registers.getf_t() {
-                        cpu.thumb_branch_to(dest_pc, memory);
+                        cycles += cpu.thumb_branch_to(dest_pc, memory);
                     } else {
-                        cpu.arm_branch_to(dest_pc, memory);
+                        cycles += cpu.arm_branch_to(dest_pc, memory);
                     }
                 }
             }
+
+            return cycles;
         }
     };
 }
 
+#[must_use]
 #[inline(always)]
 fn store_word(
     cpu: &mut ArmCpu,
@@ -130,15 +133,18 @@ fn store_word(
     reg: u32,
     addr: u32,
     first_transfer: bool,
-) {
+) -> u32 {
+    let mut cycles = 0;
     let mut value = cpu.registers.read(reg);
     // Whenever R15 is stored to memory the stored value is the address of the STM instruction plus 12.
     if reg == 15 {
         value += 4;
     }
-    memory.write_data_word(addr, value, !first_transfer, &mut cpu.cycles);
+    memory.write_data_word(addr, value, !first_transfer, &mut cycles);
+    return cycles;
 }
 
+#[must_use]
 #[inline(always)]
 fn load_word(
     cpu: &mut ArmCpu,
@@ -146,9 +152,11 @@ fn load_word(
     reg: u32,
     addr: u32,
     first_transfer: bool,
-) {
-    let value = memory.read_data_word(addr, !first_transfer, &mut cpu.cycles);
+) -> u32 {
+    let mut cycles = 0;
+    let value = memory.read_data_word(addr, !first_transfer, &mut cycles);
     cpu.registers.write(reg, value);
+    return cycles;
 }
 
 // Load multiple words, decrement after

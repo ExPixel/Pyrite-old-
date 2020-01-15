@@ -3,7 +3,7 @@ mod instr;
 use self::instr::*;
 use super::{ArmCpu, ArmMemory};
 
-pub const THUMB_OPCODE_TABLE: [fn(&mut ArmCpu, &mut dyn ArmMemory, u32); 256] = [
+pub const THUMB_OPCODE_TABLE: [fn(&mut ArmCpu, &mut dyn ArmMemory, u32) -> u32; 256] = [
     /* Bits 15-12 */
     /* 0x0 */
     thumb_lsl_imm,

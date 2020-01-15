@@ -13,8 +13,8 @@ macro_rules! dataproc {
         // #TODO possibly add some debug code here in the data processing instruction
         //       gen so that I can log an error when Rs is R15 which is not supported
         //       by these sets of instructions.
-        pub fn $name(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-            cpu.arm_prefetch(memory);
+        pub fn $name(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+            let mut cycles = cpu.arm_prefetch(memory);
 
             let rd = bits!(instr, 12, 15);
             let rn = bits!(instr, 16, 19);
@@ -30,7 +30,7 @@ macro_rules! dataproc {
 
             // clock the register shift
             if $r_shift {
-                cpu.cycles += 1;
+                cycles += 1;
                 memory.on_internal_cycles(1);
             }
 
@@ -43,16 +43,18 @@ macro_rules! dataproc {
                 let res = $operation(cpu, lhs, rhs);
                 let spsr = cpu.registers.read_spsr();
                 cpu.registers.write_cpsr(spsr);
-                cpu.branch_to(res, memory);
+                cycles += cpu.branch_to(res, memory);
             } else {
                 let rhs = $get_operand(cpu, instr);
                 let res = $operation(cpu, lhs, rhs);
                 if unlikely!(rd == 15) {
-                    cpu.arm_branch_to(res & 0xFFFFFFFC, memory);
+                    cycles += cpu.arm_branch_to(res & 0xFFFFFFFC, memory);
                 } else {
                     cpu.registers.write(rd, res);
                 }
             }
+
+            return cycles;
         }
     };
 }
@@ -64,8 +66,8 @@ macro_rules! dataproc_no_write {
         // #TODO possibly add some debug code here in the data processing instruction
         //       gen so that I can log an error when Rs is R15 which is not supported
         //       by these sets of instructions.
-        pub fn $name(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) {
-            cpu.arm_prefetch(memory);
+        pub fn $name(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, instr: u32) -> u32 {
+            let mut cycles = cpu.arm_prefetch(memory);
 
             let rd = bits!(instr, 12, 15);
             let rn = bits!(instr, 16, 19);
@@ -80,7 +82,7 @@ macro_rules! dataproc_no_write {
 
             // clock the register shift
             if $r_shift {
-                cpu.cycles += 1;
+                cycles += 1;
                 memory.on_internal_cycles(1);
             }
 
@@ -101,12 +103,14 @@ macro_rules! dataproc_no_write {
             if rd == 15 {
                 if cpu.registers.getf_t() {
                     let dest = cpu.registers.read(15) & 0xFFFFFFFE;
-                    cpu.thumb_branch_to(dest, memory);
+                    cycles += cpu.thumb_branch_to(dest, memory);
                 } else {
                     let dest = cpu.registers.read(15) & 0xFFFFFFFC;
-                    cpu.arm_branch_to(dest, memory);
+                    cycles += cpu.arm_branch_to(dest, memory);
                 }
             }
+
+            return cycles;
         }
     };
 }
