@@ -259,6 +259,8 @@ pub fn render_objects(
             const BYTES_PER_TILE: usize = 32;
             const BYTES_PER_LINE: usize = 4;
 
+            let pflags = pflags | (attrs.2.palette_number() << 4);
+
             for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize) {
                 let pflags_w = if pixels.windows.enabled {
                     if let Some(window_effects_mask) = pixels.windows.check_pixel(
@@ -298,8 +300,8 @@ pub fn render_objects(
                         (tile_data[pixel_offset as usize] >> ((obj_x_i % 2) << 2)) & 0xF;
 
                     if palette_entry != 0 {
-                        let color = (attrs.2.palette_number() << 4) | (palette_entry as u16);
-                        pixels.push_pixel(obj_screen_draw, Pixel(pflags_w | (color as u16)));
+                        pixels
+                            .push_pixel(obj_screen_draw, Pixel(pflags_w | (palette_entry as u16)));
                     }
                 }
 
