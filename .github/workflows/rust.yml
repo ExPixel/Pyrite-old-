@@ -17,6 +17,9 @@ jobs:
                 rust_channel: [stable, beta, nightly]
                 os: [ubuntu-latest, windows-latest, macOS-latest]
 
+        env:
+            CARGO_INCREMENTAL: 0
+
         steps:
         - uses: actions/checkout@v2
         - name: Checkout Submodules
