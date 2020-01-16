@@ -168,6 +168,29 @@ impl ArmCpu {
         (self.decoded_fn)(self, memory, self.decoded_op)
     }
 
+    /// Override the next function that will be called by `step`.
+    /// If the given function does not modify the program counter or cause a CPU exception then
+    /// `resume_execution` can be used to have the CPU continue normal execution.
+    pub fn override_execution(
+        &mut self,
+        ov_fn: fn(&mut ArmCpu, memory: &mut dyn ArmMemory, u32) -> u32,
+    ) {
+        self.decoded_fn = ov_fn;
+    }
+
+    /// This is used to restore the execution function that was overriden by `override_execution`.
+    pub fn resume_execution(&mut self) {
+        if self.pending_exception.is_some() {
+            self.decoded_fn = Self::step_exception;
+        } else {
+            if self.registers.getf_t() {
+                self.decoded_fn = Self::decode_thumb(self.decoded_op);
+            } else {
+                self.decoded_fn = Self::decode_arm(self.decoded_op);
+            }
+        }
+    }
+
     #[inline]
     pub fn set_pending_exception(&mut self, exception: CpuException) {
         if !self.exception_enabled(exception) {

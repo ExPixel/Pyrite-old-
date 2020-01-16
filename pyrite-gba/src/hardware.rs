@@ -1,3 +1,4 @@
+use crate::dma::{DMAChannelIndex, GbaDMA};
 use crate::ioregs;
 use crate::irq::GbaInterruptControl;
 use crate::keypad::GbaKeypad;
@@ -5,11 +6,9 @@ use crate::lcd::palette::GbaPalette;
 use crate::lcd::GbaLCD;
 use crate::sysctl;
 use crate::util::memory::*;
-
 use pyrite_arm::memory::ArmMemory;
-use sysctl::GbaSystemControl;
-
 use pyrite_common::bits_b;
+use sysctl::GbaSystemControl;
 
 pub type BIOS = [u8; 16 * 1024];
 pub type EWRAM = [u8; 256 * 1024];
@@ -32,6 +31,7 @@ pub struct GbaHardware {
     pub lcd: GbaLCD,
     pub keypad: GbaKeypad,
     pub irq: GbaInterruptControl,
+    pub dma: GbaDMA,
 
     pub(crate) events: HardwareEventQueue,
 
@@ -68,6 +68,7 @@ impl GbaHardware {
             lcd: GbaLCD::new(),
             keypad: GbaKeypad::new(),
             irq: GbaInterruptControl::new(),
+            dma: GbaDMA::new(),
 
             events: HardwareEventQueue::new(),
 
@@ -438,6 +439,22 @@ impl GbaHardware {
                 self.lcd.registers.bg3_affine_params.copy_reference_points();
             }
 
+            ioregs::DMA0SAD => {
+                self.dma.channel_mut(DMAChannelIndex::DMA0).set_source(data);
+            }
+
+            ioregs::DMA1SAD => {
+                self.dma.channel_mut(DMAChannelIndex::DMA1).set_source(data);
+            }
+
+            ioregs::DMA2SAD => {
+                self.dma.channel_mut(DMAChannelIndex::DMA2).set_source(data);
+            }
+
+            ioregs::DMA3SAD => {
+                self.dma.channel_mut(DMAChannelIndex::DMA3).set_source(data);
+            }
+
             _ => {
                 let offset_hi = offset_lo + 2;
                 let lo_write = self.io_write_reg(offset_lo, data as u16);
@@ -613,6 +630,98 @@ impl GbaHardware {
             _ => {
                 return false;
             }
+
+            // DMA 0
+            ioregs::DMA0SAD => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA0)
+                .set_source_lo(data),
+            ioregs::DMA0SAD_H => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA0)
+                .set_source_hi(data),
+            ioregs::DMA0DAD => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA0)
+                .set_destination_lo(data),
+            ioregs::DMA0DAD_H => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA0)
+                .set_destination_hi(data),
+            ioregs::DMA0CNT_L => self.dma.channel_mut(DMAChannelIndex::DMA0).set_count(data),
+            ioregs::DMA1CNT_H => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA0)
+                .set_control(data, &mut self.events),
+
+            // DMA 1
+            ioregs::DMA1SAD => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA1)
+                .set_source_lo(data),
+            ioregs::DMA1SAD_H => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA1)
+                .set_source_hi(data),
+            ioregs::DMA1DAD => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA1)
+                .set_destination_lo(data),
+            ioregs::DMA1DAD_H => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA1)
+                .set_destination_hi(data),
+            ioregs::DMA1CNT_L => self.dma.channel_mut(DMAChannelIndex::DMA1).set_count(data),
+            ioregs::DMA1CNT_H => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA1)
+                .set_control(data, &mut self.events),
+
+            // DMA 2
+            ioregs::DMA2SAD => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA2)
+                .set_source_lo(data),
+            ioregs::DMA2SAD_H => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA2)
+                .set_source_hi(data),
+            ioregs::DMA2DAD => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA2)
+                .set_destination_lo(data),
+            ioregs::DMA2DAD_H => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA2)
+                .set_destination_hi(data),
+            ioregs::DMA2CNT_L => self.dma.channel_mut(DMAChannelIndex::DMA2).set_count(data),
+            ioregs::DMA2CNT_H => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA2)
+                .set_control(data, &mut self.events),
+
+            // DMA 3
+            ioregs::DMA3SAD => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA3)
+                .set_source_lo(data),
+            ioregs::DMA3SAD_H => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA3)
+                .set_source_hi(data),
+            ioregs::DMA3DAD => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA3)
+                .set_destination_lo(data),
+            ioregs::DMA3DAD_H => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA3)
+                .set_destination_hi(data),
+            ioregs::DMA3CNT_L => self.dma.channel_mut(DMAChannelIndex::DMA3).set_count(data),
+            ioregs::DMA3CNT_H => self
+                .dma
+                .channel_mut(DMAChannelIndex::DMA3)
+                .set_control(data, &mut self.events),
         }
         write_u16(&mut self.ioreg_bytes, offset as usize, data);
         return true;
@@ -1248,6 +1357,8 @@ const fn byte_of_halfword(halfword: u16, addr: u32) -> u8 {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum HardwareEvent {
     IRQ(crate::irq::Interrupt),
+    DMA(crate::dma::DMAChannelIndex),
+    DMAFinished,
     Halt,
     Stop,
     None,
@@ -1264,6 +1375,31 @@ impl HardwareEventQueue {
             count: 0,
             pending: [HardwareEvent::None; 16],
         }
+    }
+
+    #[inline]
+    pub fn push_irq_event(&mut self, int: crate::irq::Interrupt) {
+        self.push(HardwareEvent::IRQ(int));
+    }
+
+    #[inline]
+    pub fn push_dma_event(&mut self, dma: crate::dma::DMAChannelIndex) {
+        self.push(HardwareEvent::DMA(dma));
+    }
+
+    #[inline]
+    pub fn push_dma_finished(&mut self) {
+        self.push(HardwareEvent::DMAFinished);
+    }
+
+    #[inline]
+    pub fn push_halt_event(&mut self) {
+        self.push(HardwareEvent::Halt);
+    }
+
+    #[inline]
+    pub fn push_stop_event(&mut self) {
+        self.push(HardwareEvent::Stop);
     }
 
     /// Push an event into the hardware event queue.

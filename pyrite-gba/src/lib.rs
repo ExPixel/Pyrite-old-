@@ -1,5 +1,6 @@
 #[macro_use]
 mod util;
+pub mod dma;
 mod hardware;
 #[allow(dead_code)]
 mod ioregs;
@@ -146,6 +147,10 @@ impl Gba {
                     self.cpu.set_pending_exception(CpuException::IRQ);
                 }
             }
+
+            HardwareEvent::DMA(dma) => todo!("handle DMA event"),
+
+            HardwareEvent::DMAFinished => todo!("handle DMA finished event"),
 
             HardwareEvent::Halt => {
                 todo!("HardwareEvent::Halt");

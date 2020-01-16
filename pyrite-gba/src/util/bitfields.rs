@@ -2,6 +2,33 @@ pub trait FieldConvert<Out> {
     fn convert(self) -> Out;
 }
 
+macro_rules! impl_enum_bitfield_conv {
+    ($EnumName:ident: $FieldType:ty, $($Variant:ident = $Value:expr,)+) => {
+        impl $crate::util::bitfields::FieldConvert<$FieldType> for $EnumName {
+            #[inline]
+            fn convert(self) -> $FieldType {
+                match self {
+                    $(
+                        $EnumName::$Variant => $Value,
+                    )+
+                }
+            }
+        }
+
+        impl $crate::util::bitfields::FieldConvert<$EnumName> for $FieldType {
+            #[inline]
+            fn convert(self) -> $EnumName {
+                match self {
+                    $(
+                        $Value => $EnumName::$Variant,
+                    )+
+                    _ => unreachable!("bad enum bitfield conversion"),
+                }
+            }
+        }
+    };
+}
+
 macro_rules! as_conversion {
     ($From:ty, $To:ty) => {
         impl FieldConvert<$To> for $From {

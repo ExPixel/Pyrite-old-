@@ -63,19 +63,27 @@ pub const FIFO_B: u16 = 0x00A4;
 
 // DMA Transfer Channels
 pub const DMA0SAD: u16 = 0x00B0;
+pub const DMA0SAD_H: u16 = 0x00B2;
 pub const DMA0DAD: u16 = 0x00B4;
+pub const DMA0DAD_H: u16 = 0x00B6;
 pub const DMA0CNT_L: u16 = 0x00B8;
 pub const DMA0CNT_H: u16 = 0x00BA;
 pub const DMA1SAD: u16 = 0x00BC;
+pub const DMA1SAD_H: u16 = 0x00BE;
 pub const DMA1DAD: u16 = 0x00C0;
+pub const DMA1DAD_H: u16 = 0x00C2;
 pub const DMA1CNT_L: u16 = 0x00C4;
 pub const DMA1CNT_H: u16 = 0x00C6;
 pub const DMA2SAD: u16 = 0x00C8;
+pub const DMA2SAD_H: u16 = 0x00CA;
 pub const DMA2DAD: u16 = 0x00CC;
+pub const DMA2DAD_H: u16 = 0x00CE;
 pub const DMA2CNT_L: u16 = 0x00D0;
 pub const DMA2CNT_H: u16 = 0x00D2;
 pub const DMA3SAD: u16 = 0x00D4;
+pub const DMA3SAD_H: u16 = 0x00D6;
 pub const DMA3DAD: u16 = 0x00D8;
+pub const DMA3DAD_H: u16 = 0x00DA;
 pub const DMA3CNT_L: u16 = 0x00DC;
 pub const DMA3CNT_H: u16 = 0x00DE;
 
