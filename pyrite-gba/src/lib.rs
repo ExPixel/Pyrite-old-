@@ -123,6 +123,7 @@ impl Gba {
             &self.hardware.oam,
             &self.hardware.pal,
             video,
+            &mut self.hardware.dma,
             &mut self.hardware.events,
         );
         let audio_frame = false;
@@ -144,11 +145,15 @@ impl Gba {
         match event {
             HardwareEvent::IRQ(irq) => {
                 if self.cpu.registers.getf_i() && self.hardware.irq.request(irq) {
+                    todo!("unstable");
                     self.cpu.set_pending_exception(CpuException::IRQ);
+                    self.hardware.dma.resume_transfer(&mut self.cpu); // will only resume if there is a DMA
                 }
             }
 
-            HardwareEvent::DMA(dma) => todo!("handle DMA event"),
+            HardwareEvent::DMA(dma) => {
+                self.hardware.dma.begin_transfer(dma, &mut self.cpu);
+            }
 
             HardwareEvent::DMAFinished => todo!("handle DMA finished event"),
 

@@ -627,9 +627,6 @@ impl GbaHardware {
             ioregs::IME_HI => { /* NOP */ }
             ioregs::IE => self.irq.enabled = data,
             ioregs::IF => self.irq.write_if(data),
-            _ => {
-                return false;
-            }
 
             // DMA 0
             ioregs::DMA0SAD => self
@@ -649,7 +646,7 @@ impl GbaHardware {
                 .channel_mut(DMAChannelIndex::DMA0)
                 .set_destination_hi(data),
             ioregs::DMA0CNT_L => self.dma.channel_mut(DMAChannelIndex::DMA0).set_count(data),
-            ioregs::DMA1CNT_H => self
+            ioregs::DMA0CNT_H => self
                 .dma
                 .channel_mut(DMAChannelIndex::DMA0)
                 .set_control(data, &mut self.events),
@@ -722,6 +719,10 @@ impl GbaHardware {
                 .dma
                 .channel_mut(DMAChannelIndex::DMA3)
                 .set_control(data, &mut self.events),
+
+            _ => {
+                return false;
+            }
         }
         write_u16(&mut self.ioreg_bytes, offset as usize, data);
         return true;
@@ -780,10 +781,11 @@ impl GbaHardware {
     /// Converts an address into an offset into VRAM taking into account VRAM's mirroring
     /// characteristics.
     fn vram_off(addr: u32) -> usize {
-        // Even though VRAM is sized 96K (64K+32K), it is repeated in steps of 128K (64K+32K+32K, the two
+        // Even though VRAM is sized 96K (64K+32K), it is repeated in steps of 128K (64K+32K+32K,
+        // the two 32K blocks itself being mirrors of each other).
         let vram128 = addr % (128 * 1024); // offset in a 128KB block
 
-        if vram128 > (96 * 1024) {
+        if vram128 >= (96 * 1024) {
             // this means that this address is in the later 32KB block so we just subtract 32KB to
             // mirror the previous one:
             vram128 as usize - (32 * 1024)
@@ -1321,6 +1323,14 @@ impl ArmMemory for GbaHardware {
             Region::SRAM => self.sysctl.sram_cycles.word.get(true), // same for seq and nonseq
             Region::Unused0xF => 1,
         }
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 }
 

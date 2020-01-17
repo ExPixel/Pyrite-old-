@@ -7,7 +7,9 @@ pub const WINOUT: u16 = 0;
 pub const WINOBJ: u16 = 1;
 
 use self::palette::GbaPalette;
+use crate::dma::GbaDMA;
 use crate::hardware::{HardwareEventQueue, OAM, VRAM};
+use crate::irq::Interrupt;
 use crate::util::fixedpoint::{FixedPoint16, FixedPoint32};
 use crate::GbaVideoOutput;
 use pyrite_common::bits;
@@ -44,6 +46,7 @@ impl GbaLCD {
         oam: &OAM,
         palette: &GbaPalette,
         video: &mut dyn GbaVideoOutput,
+        dma: &mut GbaDMA,
         hw_events: &mut HardwareEventQueue,
     ) -> bool {
         let original_cycles = self.next_state_cycles;
@@ -52,24 +55,29 @@ impl GbaLCD {
             self.hblank = !self.hblank;
             if self.hblank {
                 self.next_state_cycles = HDRAW_CYCLES - (cycles - original_cycles);
-                return self.hblank(vram, oam, palette, video);
+                return self.hblank(vram, oam, palette, video, dma, hw_events);
             } else {
                 self.next_state_cycles = HBLANK_CYCLES - (cycles - original_cycles);
-                self.hdraw();
+                self.hdraw(dma, hw_events);
             }
         }
         return false;
     }
 
-    fn hdraw(&mut self) {
+    fn hdraw(&mut self, dma: &mut GbaDMA, hw_events: &mut HardwareEventQueue) {
         self.registers.dispstat.set_hblank(false);
         self.registers.line += 1;
 
         match self.registers.line {
             160 => {
+                dma.start_vblank(hw_events);
                 self.registers.dispstat.set_vblank(true);
                 self.registers.bg2_affine_params.copy_reference_points();
                 self.registers.bg3_affine_params.copy_reference_points();
+
+                if self.registers.dispstat.vblank_irq_enable() {
+                    hw_events.push_irq_event(Interrupt::LCDVBlank);
+                }
             }
             227 => self.registers.dispstat.set_vblank(false),
             228 => self.registers.line = 0,
@@ -78,6 +86,10 @@ impl GbaLCD {
 
         let vcounter_match = self.registers.dispstat.vcounter_setting() == self.registers.line;
         self.registers.dispstat.set_vcounter(vcounter_match);
+
+        if vcounter_match && self.registers.dispstat.vcounter_irq_enable() {
+            hw_events.push_irq_event(Interrupt::LCDVCounterMatch);
+        }
     }
 
     /// Returns true if this is the end of a frame.
@@ -87,10 +99,16 @@ impl GbaLCD {
         oam: &OAM,
         palette: &GbaPalette,
         video: &mut dyn GbaVideoOutput,
+        dma: &mut GbaDMA,
+        hw_events: &mut HardwareEventQueue,
     ) -> bool {
+        if self.registers.dispstat.hblank_irq_enable() {
+            hw_events.push_irq_event(Interrupt::LCDHBlank);
+        }
         self.registers.dispstat.set_hblank(true);
 
         if self.registers.line < 160 {
+            dma.start_hblank(hw_events); // NOTE: this does not occure during VBLANK
             if self.registers.line == 0 {
                 video.pre_frame();
             }

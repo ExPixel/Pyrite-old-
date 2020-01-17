@@ -32,6 +32,9 @@ pub trait ArmMemory {
         let _ = self.read_code_halfword(addr, seq, &mut cycles);
         return cycles;
     }
+
+    fn as_any(&self) -> &dyn std::any::Any;
+    fn as_mut_any(&mut self) -> &mut dyn std::any::Any;
 }
 
 impl ArmMemory for Vec<u8> {
@@ -121,5 +124,13 @@ impl ArmMemory for Vec<u8> {
         } else {
             panic!("out of bounds read from 0x{:08X}", addr);
         }
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 }

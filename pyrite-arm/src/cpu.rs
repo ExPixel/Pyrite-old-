@@ -186,7 +186,7 @@ impl ArmCpu {
             if self.registers.getf_t() {
                 self.decoded_fn = Self::decode_thumb(self.decoded_op);
             } else {
-                self.decoded_fn = Self::decode_arm(self.decoded_op);
+                self.decoded_fn = Self::step_arm;
             }
         }
     }

@@ -1,3 +1,5 @@
+use crate::dma::DMAChannelIndex;
+
 pub struct GbaInterruptControl {
     /// (IME Register) Interrupt master enable bit
     pub(crate) master_enable: bool,
@@ -80,13 +82,12 @@ impl Interrupt {
         }
     }
 
-    pub fn dma(dma_index: usize) -> Interrupt {
+    pub fn dma(dma_index: DMAChannelIndex) -> Interrupt {
         match dma_index {
-            0 => Interrupt::DMA0,
-            1 => Interrupt::DMA1,
-            2 => Interrupt::DMA2,
-            3 => Interrupt::DMA3,
-            _ => Interrupt::None,
+            DMAChannelIndex::DMA0 => Interrupt::DMA0,
+            DMAChannelIndex::DMA1 => Interrupt::DMA1,
+            DMAChannelIndex::DMA2 => Interrupt::DMA2,
+            DMAChannelIndex::DMA3 => Interrupt::DMA3,
         }
     }
 }
