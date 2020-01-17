@@ -36,13 +36,13 @@ jobs:
         - name: Cache Cargo Registry
           uses: actions/cache@v1
           with:
-              path: ~/.cache/registry
+              path: ~/.cargo/registry
               key: ${{ matrix.os }}-${{ matrix.rust_channel }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
 
         - name: Cache Cargo Index
           uses: actions/cache@v1
           with:
-              path: ~/.cache/git
+              path: ~/.cargo/git
               key: ${{ matrix.os }}-${{ matrix.rust_channel }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
 
         - name: Cache Cargo Target Dir
