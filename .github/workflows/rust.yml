@@ -37,19 +37,19 @@ jobs:
           uses: actions/cache@v1
           with:
               path: ~/.cache/registry
-              key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+              key: ${{ matrix.os }}-${{ matrix.rust_channel }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
 
         - name: Cache Cargo Index
           uses: actions/cache@v1
           with:
               path: ~/.cache/git
-              key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+              key: ${{ matrix.os }}-${{ matrix.rust_channel }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
 
         - name: Cache Cargo Target Dir
           uses: actions/cache@v1
           with:
               path: target
-              key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+              key: ${{ matrix.os }}-${{ matrix.rust_channel }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
         - name: Install LLVM (Windows)
           run: choco install llvm
