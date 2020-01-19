@@ -797,16 +797,19 @@ impl GbaHardware {
     #[cold]
     fn bad_read(&self, bits: u8, addr: u32, message: &'static str) {
         self.bad_access.set(true);
-        println!("bad {}-bit read from 0x{:08X}: {}", bits, addr, message);
+        log::warn!("bad {}-bit read from 0x{:08X}: {}", bits, addr, message);
     }
 
     #[inline(never)]
     #[cold]
     fn bad_write(&self, bits: u8, addr: u32, value: u32, message: &'static str) {
         self.bad_access.set(true);
-        println!(
+        log::warn!(
             "bad {}-bit write of value 0x{:X} to 0x{:08X}: {}",
-            bits, value, addr, message
+            bits,
+            value,
+            addr,
+            message
         );
     }
 

@@ -48,19 +48,15 @@ impl Gba {
                 match exception {
                     CpuException::Reset => false,
                     CpuException::SWI => {
-                        // println!("SWI from {:08X}", exception_addr);
+                        log::debug!("SWI from 0x{:08X}", exception_addr);
                         false
                     }
                     CpuException::IRQ => {
-                        // println!("IRQ from {:08X}", exception_addr);
+                        log::debug!("IRQ from 0x{:08X}", exception_addr);
                         false
                     }
                     _ => {
-                        eprintln!(
-                            "error: {} exception at 0x{:08X}",
-                            exception.name(),
-                            exception_addr
-                        );
+                        log::warn!("{} exception at 0x{:08X}", exception.name(), exception_addr);
                         // consume the exception
                         true
                     }

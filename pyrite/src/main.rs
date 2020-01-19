@@ -30,7 +30,7 @@ fn run_emulator() -> i32 {
         }
 
         Err(err) => {
-            eprintln!("error occurred while loading BIOS ({}): {}", BIOS_FILE, err);
+            log::error!("error occurred while loading BIOS ({}): {}", BIOS_FILE, err);
             return 1;
         }
     }
@@ -42,13 +42,13 @@ fn run_emulator() -> i32 {
             }
 
             Err(err) => {
-                eprintln!("error occurred while loading ROM ({}): {}", rom_file, err);
+                log::error!("error occurred while loading ROM ({}): {}", rom_file, err);
                 return 1;
             }
         }
         gba.reset(true);
     } else {
-        eprintln!("error: must pass a GBA ROM as the first argument");
+        log::error!("error: must pass a GBA ROM as the first argument");
         return 1;
     }
 

@@ -79,7 +79,7 @@ impl PyriteGL {
             None,
         );
 
-        globj::check_gl_errors(|e| eprintln!("GL Error: {}", e));
+        globj::check_gl_errors(|e| log::error!("GL Error: {}", e));
 
         PyriteGL {
             vertex_array: vertex_array,
@@ -107,7 +107,7 @@ impl PyriteGL {
         unsafe { gl::ActiveTexture(gl::TEXTURE0) };
         self.texture.bind();
 
-        globj::check_gl_errors(|e| eprintln!("GL Error: {}", e));
+        globj::check_gl_errors(|e| log::error!("GL Error: {}", e));
 
         unsafe {
             gl::DrawElements(
