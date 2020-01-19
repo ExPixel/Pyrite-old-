@@ -5,6 +5,7 @@ use crate::keypad::GbaKeypad;
 use crate::lcd::palette::GbaPalette;
 use crate::lcd::GbaLCD;
 use crate::sysctl::GbaSystemControl;
+use crate::timers::GbaTimers;
 use crate::util::memory::*;
 use pyrite_arm::memory::ArmMemory;
 use pyrite_common::bits_b;
@@ -31,6 +32,7 @@ pub struct GbaHardware {
     pub keypad: GbaKeypad,
     pub irq: GbaInterruptControl,
     pub dma: GbaDMA,
+    pub timers: GbaTimers,
 
     pub(crate) events: HardwareEventQueue,
 
@@ -68,6 +70,7 @@ impl GbaHardware {
             keypad: GbaKeypad::new(),
             irq: GbaInterruptControl::new(),
             dma: GbaDMA::new(),
+            timers: GbaTimers::new(),
 
             events: HardwareEventQueue::new(),
 

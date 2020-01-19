@@ -8,6 +8,7 @@ pub mod irq;
 pub mod keypad;
 pub mod lcd;
 mod sysctl;
+pub mod timers;
 
 use hardware::GbaHardware;
 use pyrite_arm::cpu::CpuException;
