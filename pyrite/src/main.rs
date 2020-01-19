@@ -1,4 +1,5 @@
 mod gba_imgui;
+mod logger;
 #[allow(dead_code)]
 mod platform;
 #[allow(dead_code)]
@@ -7,6 +8,7 @@ mod util;
 use pyrite_gba::Gba;
 
 fn main() {
+    logger::PyriteLogger::init(log::Level::Trace);
     let exit_code = run_emulator();
     if exit_code != 0 {
         std::process::exit(exit_code);

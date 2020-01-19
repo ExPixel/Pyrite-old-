@@ -341,6 +341,22 @@ impl DMAChannel {
             if self.control.start_timing() == DMAStartTiming::Immediate {
                 hw_events.push_dma_event(self.index);
             }
+
+            if !self.valid_source {
+                log::debug!(
+                    "invalid source address 0x{:08X} used for DMA{}",
+                    self.source,
+                    u8::from(self.index)
+                );
+            }
+
+            if !self.valid_destination {
+                log::debug!(
+                    "invalid destination address 0x{:08X} used for DMA{}",
+                    self.destination,
+                    u8::from(self.index)
+                );
+            }
         }
     }
 

@@ -13,4 +13,5 @@ pyrite-common = { path = "../pyrite-common" }
 gl = "0.13.0"
 glutin = "0.21.1"
 log = { version = "0.4", features = ["std"] }
+termcolor = "1.1"
 imgui = { path = "../imgui", features = ["gl", "opengl3", "glutin"] }
