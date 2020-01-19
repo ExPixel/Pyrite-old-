@@ -55,9 +55,6 @@ pub struct GbaSystemControl {
     pub gamepak_cycles: [RegionCycles; 3],
     pub sram_cycles: RegionCycles,
 
-    pub stop: bool,
-    pub halt: bool,
-
     // registers:
     pub reg_waitcnt: u16,
     pub reg_postflg: bool,
@@ -73,9 +70,6 @@ impl GbaSystemControl {
                 RegionCycles::default(),
             ],
             sram_cycles: RegionCycles::default(),
-
-            stop: false,
-            halt: false,
 
             reg_waitcnt: 0,
             reg_postflg: false,

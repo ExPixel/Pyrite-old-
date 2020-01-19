@@ -16,6 +16,7 @@ use pyrite_arm::ArmCpu;
 pub struct Gba {
     pub cpu: ArmCpu,
     pub hardware: GbaHardware,
+    state: GbaSystemState,
 }
 
 impl Gba {
@@ -24,6 +25,7 @@ impl Gba {
         let mut g = Gba {
             cpu: ArmCpu::new(),
             hardware: GbaHardware::new(),
+            state: GbaSystemState::Running,
         };
         g.setup_handler();
         return g;
@@ -34,6 +36,7 @@ impl Gba {
         let mut g = Box::new(Gba {
             cpu: ArmCpu::new(),
             hardware: GbaHardware::new(),
+            state: GbaSystemState::Running,
         });
         g.setup_handler();
         return g;
@@ -145,8 +148,9 @@ impl Gba {
         match event {
             HardwareEvent::IRQ(irq) => {
                 if self.cpu.registers.getf_i() && self.hardware.irq.request(irq) {
-                    todo!("unstable");
-                    self.cpu.set_pending_exception(CpuException::IRQ);
+                    log::warn!("IRQ event is still unstable");
+                    self.state = GbaSystemState::Running;
+                    self.cpu.set_pending_exception_active(CpuException::IRQ);
                     self.hardware.dma.resume_transfer(&mut self.cpu); // will only resume if there is a DMA
                 }
             }
@@ -155,14 +159,16 @@ impl Gba {
                 self.hardware.dma.begin_transfer(dma, &mut self.cpu);
             }
 
-            HardwareEvent::DMAFinished => todo!("handle DMA finished event"),
-
             HardwareEvent::Halt => {
-                todo!("HardwareEvent::Halt");
+                log::warn!("halt event is still unstable");
+                self.state = GbaSystemState::Halted;
+                self.cpu.set_idle(true);
             }
 
             HardwareEvent::Stop => {
-                todo!("HardwareEvent::Stop");
+                log::warn!("stop event is still unstable");
+                self.state = GbaSystemState::Stopped;
+                self.cpu.set_idle(true);
             }
 
             HardwareEvent::None => {
@@ -192,6 +198,13 @@ impl Gba {
     pub fn is_key_pressed(&mut self, key: keypad::KeypadInput) -> bool {
         self.hardware.keypad.is_pressed(key)
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum GbaSystemState {
+    Running = 0,
+    Halted = 1,
+    Stopped = 2,
 }
 
 pub trait GbaVideoOutput {

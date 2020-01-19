@@ -16,6 +16,9 @@ pub struct ArmCpu {
 
     pub registers: ArmRegisters,
 
+    /// This is true while the CPU should be idling and doing nothing when stepping.
+    idle: bool,
+
     /// Exception that should be handled on the next call to step instead of running the next
     /// instruction.
     pending_exception: Option<CpuException>,
@@ -33,6 +36,7 @@ impl ArmCpu {
             decoded_op: 0,
             decoded_fn: Self::step_nop,
             fetched: 0,
+            idle: false,
             pending_exception: None,
             on_exception: None,
         }
@@ -183,12 +187,31 @@ impl ArmCpu {
         if self.pending_exception.is_some() {
             self.decoded_fn = Self::step_exception;
         } else {
-            if self.registers.getf_t() {
+            if self.idle {
+                self.decoded_fn = Self::step_idle;
+            } else if self.registers.getf_t() {
                 self.decoded_fn = Self::decode_thumb(self.decoded_op);
             } else {
                 self.decoded_fn = Self::step_arm;
             }
         }
+    }
+
+    /// If `idle` is true, this will place the CPU into an idle state where calling `step` fill do
+    /// nothing but return a fixed number of cycles (currently 1). The CPU's running state can be
+    /// restored by calling `set_idle(false)`.
+    pub fn set_idle(&mut self, idle: bool) {
+        if idle != self.idle {
+            self.idle = idle;
+            self.resume_execution();
+        }
+    }
+
+    /// This is a more efficient way of doing `set_idle(false)` followed by `set_pending_exception`
+    /// or vice versa.
+    pub fn set_pending_exception_active(&mut self, exception: CpuException) {
+        self.idle = false;
+        self.set_pending_exception(exception);
     }
 
     #[inline]
@@ -206,6 +229,11 @@ impl ArmCpu {
         self.pending_exception = Some(exception);
         self.decoded_op = 0xECEAAECE;
         self.decoded_fn = Self::step_exception;
+    }
+
+    fn step_idle(_cpu: &mut ArmCpu, _memory: &mut dyn ArmMemory, _opcode: u32) -> u32 {
+        // @TODO add a way for configuring the IDLE step size?
+        1
     }
 
     fn step_exception(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _opcode: u32) -> u32 {

@@ -77,7 +77,7 @@ impl GbaDMA {
 
     #[inline]
     pub fn active(&self) -> bool {
-        self.active_channels == 0
+        self.active_channels != 0
     }
 
     fn channel_active(&self, channel_index: DMAChannelIndex) -> bool {

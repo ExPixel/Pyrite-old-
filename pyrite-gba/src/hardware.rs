@@ -4,11 +4,10 @@ use crate::irq::GbaInterruptControl;
 use crate::keypad::GbaKeypad;
 use crate::lcd::palette::GbaPalette;
 use crate::lcd::GbaLCD;
-use crate::sysctl;
+use crate::sysctl::GbaSystemControl;
 use crate::util::memory::*;
 use pyrite_arm::memory::ArmMemory;
 use pyrite_common::bits_b;
-use sysctl::GbaSystemControl;
 
 pub type BIOS = [u8; 16 * 1024];
 pub type EWRAM = [u8; 256 * 1024];
@@ -491,9 +490,9 @@ impl GbaHardware {
 
             ioregs::HALTCNT => {
                 if (data & 1) == 0 {
-                    self.sysctl.halt = true;
+                    self.events.push_halt_event();
                 } else {
-                    self.sysctl.stop = true;
+                    self.events.push_stop_event();
                 }
                 return true;
             }
@@ -1368,7 +1367,6 @@ const fn byte_of_halfword(halfword: u16, addr: u32) -> u8 {
 pub enum HardwareEvent {
     IRQ(crate::irq::Interrupt),
     DMA(crate::dma::DMAChannelIndex),
-    DMAFinished,
     Halt,
     Stop,
     None,
@@ -1395,11 +1393,6 @@ impl HardwareEventQueue {
     #[inline]
     pub fn push_dma_event(&mut self, dma: crate::dma::DMAChannelIndex) {
         self.push(HardwareEvent::DMA(dma));
-    }
-
-    #[inline]
-    pub fn push_dma_finished(&mut self) {
-        self.push(HardwareEvent::DMAFinished);
     }
 
     #[inline]
