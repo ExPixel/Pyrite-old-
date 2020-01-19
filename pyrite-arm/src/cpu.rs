@@ -253,7 +253,6 @@ impl ArmCpu {
         }
     }
 
-    #[inline]
     fn step_arm(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) -> u32 {
         if check_condition((opcode >> 28) & 0xF, &cpu.registers) {
             let arm_fn = Self::decode_arm(opcode);
