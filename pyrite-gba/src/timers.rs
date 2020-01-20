@@ -1,5 +1,3 @@
-static mut CYCLES: u64 = 0;
-
 pub struct GbaTimers {
     timers: [GbaTimer; 4],
     active_timers: u8,
@@ -76,8 +74,6 @@ impl GbaTimers {
     }
 
     pub fn step(&mut self, cycles: u32) {
-        unsafe { CYCLES += cycles as u64 };
-
         self.cycles_acc += cycles;
         if self.cycles_acc >= self.next_overflow_at {
             self.internal_step(self.cycles_acc);
