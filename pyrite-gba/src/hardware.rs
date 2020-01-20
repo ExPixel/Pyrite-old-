@@ -54,6 +54,7 @@ pub struct GbaHardware {
 }
 
 impl GbaHardware {
+    #[inline]
     pub fn new() -> GbaHardware {
         GbaHardware {
             bios: [0u8; 16 * 1024],

@@ -33,6 +33,7 @@ pub struct ArmCpu {
 }
 
 impl ArmCpu {
+    #[inline]
     pub fn new() -> ArmCpu {
         ArmCpu {
             registers: ArmRegisters::new(CpuMode::System),
