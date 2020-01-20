@@ -43,20 +43,6 @@ impl Gba {
         return g;
     }
 
-    /*
-            let layout = alloc::Layout::new::<mem::MaybeUninit<T>>();
-                if layout.size() == 0 {
-                    return Box(NonNull::dangling().into())
-                }
-                let ptr = unsafe {
-                    Global.alloc(layout)
-                        .unwrap_or_else(|_| alloc::handle_alloc_error(layout))
-                };
-                Box(ptr.cast().into())
-
-    Box(Box::into_unique(self).cast())
-         */
-
     fn setup_handler(&mut self) {
         self.cpu
             .set_exception_handler(Box::new(|_cpu, _memory, exception, exception_addr| {
@@ -111,11 +97,6 @@ impl Gba {
 
     pub fn set_bios(&mut self, bios: Vec<u8>) {
         self.hardware.set_bios_rom(&bios);
-    }
-
-    pub fn init(&mut self, _video: &mut dyn GbaVideoOutput, _audio: &mut dyn GbaAudioOutput) {
-        // @TODO reimplement lcd init
-        // self.lcd.init(video);
     }
 
     /// Returns a tuple with the first value being true if this step marked the end of a video
