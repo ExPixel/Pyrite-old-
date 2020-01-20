@@ -1,4 +1,5 @@
 use crate::dma::DMAChannelIndex;
+use crate::timers::TimerIndex;
 
 pub struct GbaInterruptControl {
     /// (IME Register) Interrupt master enable bit
@@ -72,13 +73,12 @@ impl Interrupt {
         self as u16
     }
 
-    pub fn timer(timer_index: usize) -> Interrupt {
+    pub fn timer(timer_index: TimerIndex) -> Interrupt {
         match timer_index {
-            0 => Interrupt::Timer0Overflow,
-            1 => Interrupt::Timer1Overflow,
-            2 => Interrupt::Timer2Overflow,
-            3 => Interrupt::Timer3Overflow,
-            _ => Interrupt::None,
+            TimerIndex::TM0 => Interrupt::Timer0Overflow,
+            TimerIndex::TM1 => Interrupt::Timer1Overflow,
+            TimerIndex::TM2 => Interrupt::Timer2Overflow,
+            TimerIndex::TM3 => Interrupt::Timer3Overflow,
         }
     }
 

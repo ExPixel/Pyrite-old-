@@ -114,7 +114,7 @@ impl Gba {
         let cycles = self.cpu.step(&mut self.hardware);
 
         if self.hardware.timers.active() {
-            self.hardware.timers.step(cycles);
+            self.hardware.timers.step(cycles, &mut self.hardware.events);
         }
 
         let video_frame = self.hardware.lcd.step(

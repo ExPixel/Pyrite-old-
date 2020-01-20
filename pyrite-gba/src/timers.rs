@@ -1,3 +1,5 @@
+use crate::hardware::HardwareEventQueue;
+
 pub struct GbaTimers {
     timers: [GbaTimer; 4],
     active_timers: u8,
@@ -73,10 +75,11 @@ impl GbaTimers {
         self.active_timers != 0
     }
 
-    pub fn step(&mut self, cycles: u32) {
+    #[inline]
+    pub fn step(&mut self, cycles: u32, hw_events: &mut HardwareEventQueue) {
         self.cycles_acc += cycles;
         if self.cycles_acc >= self.next_overflow_at {
-            self.internal_step(self.cycles_acc);
+            self.internal_step(self.cycles_acc, hw_events);
             self.calc_next_overflow();
             self.cycles_acc = 0;
         }
@@ -104,47 +107,57 @@ impl GbaTimers {
         }
     }
 
-    fn internal_step(&mut self, mut cycles: u32) {
+    fn internal_step(&mut self, mut cycles: u32, hw_events: &mut HardwareEventQueue) {
         if self.active_timers == 0 {
             return;
         }
 
         while cycles > 1024 {
-            self.safe_internal_step(1024);
+            self.safe_internal_step(1024, hw_events);
             cycles -= 1024;
         }
 
-        self.safe_internal_step(cycles);
+        self.safe_internal_step(cycles, hw_events);
     }
 
-    fn safe_internal_step(&mut self, cycles: u32) {
+    fn safe_internal_step(&mut self, cycles: u32, hw_events: &mut HardwareEventQueue) {
         if self.timers[0].active() {
-            self.safe_step_single_timer(0, cycles);
+            self.safe_step_single_timer(TimerIndex::TM0, cycles, hw_events);
         }
 
         if self.timers[1].active() {
-            self.safe_step_single_timer(1, cycles);
+            self.safe_step_single_timer(TimerIndex::TM1, cycles, hw_events);
         }
 
         if self.timers[2].active() {
-            self.safe_step_single_timer(2, cycles);
+            self.safe_step_single_timer(TimerIndex::TM2, cycles, hw_events);
         }
 
         if self.timers[3].active() {
-            self.safe_step_single_timer(3, cycles);
+            self.safe_step_single_timer(TimerIndex::TM3, cycles, hw_events);
         }
     }
 
-    fn safe_step_single_timer(&mut self, mut timer: usize, mut cycles: u32) {
+    fn safe_step_single_timer(&mut self, mut timer_index: TimerIndex, mut cycles: u32, hw_events: &mut HardwareEventQueue) {
+        let mut timer = usize::from(timer_index);
+
         loop {
             let overflow = self.timers[timer].increment(cycles);
             if overflow {
-                if timer < 3 && self.timers[timer + 1].passive() {
-                    timer += 1;
-                    cycles = 1;
-                } else {
-                    break;
+                if self.timers[timer].control.irq() {
+                    hw_events.push_irq_event(crate::irq::Interrupt::timer(timer_index));
                 }
+
+                if let Some(next_timer_index) = timer_index.next() {
+                    timer_index = next_timer_index;
+                    timer = usize::from(timer_index);
+                    if self.timers[timer].passive() {
+                        cycles = 1;
+                        continue;
+                    }
+                }
+
+                break;
             } else {
                 break;
             }
@@ -215,11 +228,11 @@ impl GbaTimer {
 
     fn set_control(&mut self, control: u16) -> TimerStateChange {
         let counter = self.counter();
-        let old_enabled = self.control.enabled();
+        let old_active = self.active();
         self.control.value = control;
         self.set_counter(counter); // We set it again because the prescaler may have changed.
 
-        if old_enabled != self.control.enabled() {
+        if old_active != self.active() {
             if self.active() {
                 TimerStateChange::Active
             } else {
@@ -276,6 +289,18 @@ pub enum TimerIndex {
     TM1 = 1,
     TM2 = 2,
     TM3 = 3,
+}
+
+impl TimerIndex {
+    #[inline]
+    pub fn next(self) -> Option<TimerIndex> { 
+        match self {
+            TimerIndex::TM0 => Some(TimerIndex::TM1),
+            TimerIndex::TM1 => Some(TimerIndex::TM2),
+            TimerIndex::TM2 => Some(TimerIndex::TM3),
+            TimerIndex::TM3 => None,
+        }
+    }
 }
 
 impl From<TimerIndex> for u8 {
