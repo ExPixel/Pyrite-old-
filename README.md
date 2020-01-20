@@ -12,4 +12,16 @@ To use the emulator:
 cargo run -- <ROM>
 ```
 
-**Some more documentation coming when I have time**
+Screenshots
+---
+
+**Affine Transformations**  
+![Affine Transformations](https://raw.githubusercontent.com/ExPixel/Pyrite/master/misc/screenshots/tonc_sbb_aff.png)
+
+**Windows**  
+![Windows](https://raw.githubusercontent.com/ExPixel/Pyrite/master/misc/screenshots/tonc_win_demo.png)
+
+**DMA + Windows**  
+![DMA + Windows](https://raw.githubusercontent.com/ExPixel/Pyrite/master/misc/screenshots/tonc_dma_demo.png)
+
+__Screenshots of games runnnig when I get there coming soon.__
