@@ -1,6 +1,11 @@
+static mut CYCLES: u64 = 0;
+
 pub struct GbaTimers {
     timers: [GbaTimer; 4],
     active_timers: u8,
+
+    cycles_acc: u32,
+    next_overflow_at: u32,
 }
 
 impl GbaTimers {
@@ -13,7 +18,56 @@ impl GbaTimers {
                 GbaTimer::new(TimerIndex::TM3),
             ],
             active_timers: 0,
+            cycles_acc: 0,
+            next_overflow_at: 0,
         }
+    }
+
+    pub fn write_timer_counter(&mut self, timer_index: TimerIndex, counter: u16) {
+        self.flush_acc_cyles();
+        self.timers[usize::from(timer_index)].reload = counter;
+    }
+
+    pub fn write_timer_control(&mut self, timer_index: TimerIndex, control: u16) {
+        self.flush_acc_cyles();
+
+        match self.timers[usize::from(timer_index)].set_control(control) {
+            TimerStateChange::Active => {
+                self.timers[usize::from(timer_index)].reload_counter();
+                self.active_timers |= 1 << u8::from(timer_index);
+            }
+
+            TimerStateChange::Inactive => {
+                if self.timers[usize::from(timer_index)].passive() {
+                    // If the timer is a passive timer at this point that means it is a count-up
+                    // timer that was enabled:
+                    self.timers[usize::from(timer_index)].reload_counter();
+                }
+
+                self.active_timers &= !(1 << u8::from(timer_index));
+            }
+
+            TimerStateChange::None => { /* NOP */ }
+        }
+
+        if self.active_timers != 0 {
+            self.calc_next_overflow();
+        }
+    }
+
+    pub fn read_timer_counter(&self, timer_index: TimerIndex) -> u16 {
+        if self.timers[usize::from(timer_index)].active() {
+            // this is only relevant for counters that are currently active and aren't just
+            // counter-up timers:
+            self.timers[usize::from(timer_index)].counter()
+                - ((self.cycles_acc >> self.timers[usize::from(timer_index)].prescaler()) as u16)
+        } else {
+            self.timers[usize::from(timer_index)].counter()
+        }
+    }
+
+    pub fn read_timer_control(&self, timer_index: TimerIndex) -> u16 {
+        self.timers[usize::from(timer_index)].control.value
     }
 
     #[inline]
@@ -21,42 +75,89 @@ impl GbaTimers {
         self.active_timers != 0
     }
 
-    fn timer_active(&self, timer_index: TimerIndex) -> bool {
-        (self.active_timers & (1 << u8::from(timer_index))) != 0
+    pub fn step(&mut self, cycles: u32) {
+        unsafe { CYCLES += cycles as u64 };
+
+        self.cycles_acc += cycles;
+        if self.cycles_acc >= self.next_overflow_at {
+            self.internal_step(self.cycles_acc);
+            self.calc_next_overflow();
+            self.cycles_acc = 0;
+        }
     }
 
-    pub fn step(&mut self, mut cycles: u32) {
+    fn flush_acc_cyles(&mut self) {
+        let acc = self.cycles_acc;
+        self.timers
+            .iter_mut()
+            .filter(|timer| timer.active())
+            .for_each(|timer| timer.counter += acc);
+    }
+
+    fn calc_next_overflow(&mut self) {
+        self.next_overflow_at = 0xFFFFFFFF;
+        if self.active_timers != 0 {
+            for timer in self.timers.iter() {
+                if timer.active() {
+                    let c = timer.cycles_to_overflow();
+                    if c < self.next_overflow_at {
+                        self.next_overflow_at = c;
+                    }
+                }
+            }
+        }
+    }
+
+    fn internal_step(&mut self, mut cycles: u32) {
+        if self.active_timers == 0 {
+            return;
+        }
+
         while cycles > 1024 {
-            self.safe_step(1024);
+            self.safe_internal_step(1024);
             cycles -= 1024;
         }
-        self.safe_step(cycles);
+
+        self.safe_internal_step(cycles);
     }
 
-    fn safe_step(&mut self, cycles: u32) {
-        if self.timers[0].control.enabled() && !self.timers[0].control.count_up_timing() {
+    fn safe_internal_step(&mut self, cycles: u32) {
+        if self.timers[0].active() {
             self.safe_step_single_timer(0, cycles);
         }
 
-        if self.timers[1].control.enabled() && !self.timers[1].control.count_up_timing() {
+        if self.timers[1].active() {
             self.safe_step_single_timer(1, cycles);
         }
 
-        if self.timers[2].control.enabled() && !self.timers[2].control.count_up_timing() {
+        if self.timers[2].active() {
             self.safe_step_single_timer(2, cycles);
         }
 
-        if self.timers[3].control.enabled() && !self.timers[3].control.count_up_timing() {
+        if self.timers[3].active() {
             self.safe_step_single_timer(3, cycles);
         }
     }
 
     fn safe_step_single_timer(&mut self, mut timer: usize, mut cycles: u32) {
-        todo!();
+        loop {
+            let overflow = self.timers[timer].increment(cycles);
+            if overflow {
+                if timer < 3 && self.timers[timer + 1].passive() {
+                    timer += 1;
+                    cycles = 1;
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
     }
 }
 
 struct GbaTimer {
+    #[allow(dead_code)]
     index: TimerIndex,
 
     /// This actually contains an unsigned fixed point value with a fractional part that
@@ -66,6 +167,8 @@ struct GbaTimer {
     /// cycle and overflows will happen on time.
     counter: u32,
 
+    reload: u16,
+
     control: TimerControl,
 }
 
@@ -74,20 +177,37 @@ impl GbaTimer {
         GbaTimer {
             index: index,
             counter: 0xFFFF0000,
+            reload: 0,
             control: TimerControl::default(),
         }
     }
 
+    pub fn active(&self) -> bool {
+        self.control.enabled() && !self.control.count_up_timing()
+    }
+
+    pub fn passive(&self) -> bool {
+        self.control.enabled() && self.control.count_up_timing()
+    }
+
     pub fn set_counter(&mut self, new_counter: u16) {
-        self.counter = (self.counter & (0xFFFF << self.prescaler()))
+        self.counter = (self.counter & !(0xFFFF << self.prescaler()))
             | ((new_counter as u32) << self.prescaler());
     }
 
-    pub fn counter(&mut self) -> u16 {
+    pub fn counter(&self) -> u16 {
         (self.counter >> self.prescaler()) as u16
     }
 
+    pub fn cycles_to_overflow(&self) -> u32 {
+        ((0xFFFF - self.counter()) as u32) + 1
+    }
+
     fn prescaler(&self) -> u32 {
+        if self.control.count_up_timing() {
+            return 0;
+        }
+
         match self.control.prescaler_selection() {
             0 => 0,
             1 => 6,
@@ -95,6 +215,27 @@ impl GbaTimer {
             3 => 10,
             _ => unsafe { std::hint::unreachable_unchecked() },
         }
+    }
+
+    fn set_control(&mut self, control: u16) -> TimerStateChange {
+        let counter = self.counter();
+        let old_enabled = self.control.enabled();
+        self.control.value = control;
+        self.set_counter(counter); // We set it again because the prescaler may have changed.
+
+        if old_enabled != self.control.enabled() {
+            if self.active() {
+                TimerStateChange::Active
+            } else {
+                TimerStateChange::Inactive
+            }
+        } else {
+            TimerStateChange::None
+        }
+    }
+
+    fn reload_counter(&mut self) {
+        self.set_counter(self.reload);
     }
 
     /// Increments the timer and returns true if an overflow occurred.
@@ -114,9 +255,16 @@ impl GbaTimer {
             // At this point `value` contains the number of cycles that the counter overflowed by.
             // So we set cycles, reset the counter, and continue until no more overflows occur.
             cycles = value;
-            self.set_counter(0);
+            self.set_counter(self.reload);
         }
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum TimerStateChange {
+    None,
+    Active,
+    Inactive,
 }
 
 bitfields! (TimerControl: u16 { 
@@ -126,6 +274,7 @@ bitfields! (TimerControl: u16 {
     enabled, set_enabled: bool = [7, 7],
 });
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TimerIndex {
     TM0 = 0,
     TM1 = 1,

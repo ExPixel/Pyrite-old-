@@ -5,7 +5,7 @@ use crate::keypad::GbaKeypad;
 use crate::lcd::palette::GbaPalette;
 use crate::lcd::GbaLCD;
 use crate::sysctl::GbaSystemControl;
-use crate::timers::GbaTimers;
+use crate::timers::{GbaTimers, TimerIndex};
 use crate::util::memory::*;
 use pyrite_arm::memory::ArmMemory;
 use pyrite_common::bits_b;
@@ -722,6 +722,16 @@ impl GbaHardware {
                 .channel_mut(DMAChannelIndex::DMA3)
                 .set_control(data, &mut self.events),
 
+            // TIMERS
+            ioregs::TM0CNT_L => self.timers.write_timer_counter(TimerIndex::TM0, data),
+            ioregs::TM0CNT_H => self.timers.write_timer_control(TimerIndex::TM0, data),
+            ioregs::TM1CNT_L => self.timers.write_timer_counter(TimerIndex::TM1, data),
+            ioregs::TM1CNT_H => self.timers.write_timer_control(TimerIndex::TM1, data),
+            ioregs::TM2CNT_L => self.timers.write_timer_counter(TimerIndex::TM2, data),
+            ioregs::TM2CNT_H => self.timers.write_timer_control(TimerIndex::TM2, data),
+            ioregs::TM3CNT_L => self.timers.write_timer_counter(TimerIndex::TM3, data),
+            ioregs::TM3CNT_H => self.timers.write_timer_control(TimerIndex::TM3, data),
+
             _ => {
                 return false;
             }
@@ -759,6 +769,22 @@ impl GbaHardware {
             // System Control
             ioregs::WAITCNT => Some(self.sysctl.reg_waitcnt),
             ioregs::IMC => getw!(self.ramctl.reg_control),
+
+            // DMA
+            ioregs::DMA0CNT_H => Some(self.dma.channel(DMAChannelIndex::DMA0).control()),
+            ioregs::DMA1CNT_H => Some(self.dma.channel(DMAChannelIndex::DMA1).control()),
+            ioregs::DMA2CNT_H => Some(self.dma.channel(DMAChannelIndex::DMA2).control()),
+            ioregs::DMA3CNT_H => Some(self.dma.channel(DMAChannelIndex::DMA3).control()),
+
+            // TIMERS
+            ioregs::TM0CNT_L => Some(self.timers.read_timer_counter(TimerIndex::TM0)),
+            ioregs::TM0CNT_H => Some(self.timers.read_timer_control(TimerIndex::TM0)),
+            ioregs::TM1CNT_L => Some(self.timers.read_timer_counter(TimerIndex::TM1)),
+            ioregs::TM1CNT_H => Some(self.timers.read_timer_control(TimerIndex::TM1)),
+            ioregs::TM2CNT_L => Some(self.timers.read_timer_counter(TimerIndex::TM2)),
+            ioregs::TM2CNT_H => Some(self.timers.read_timer_control(TimerIndex::TM2)),
+            ioregs::TM3CNT_L => Some(self.timers.read_timer_counter(TimerIndex::TM3)),
+            ioregs::TM3CNT_H => Some(self.timers.read_timer_control(TimerIndex::TM3)),
 
             // Interrupt Control
             ioregs::IME => Some(self.irq.master_enable as u16),

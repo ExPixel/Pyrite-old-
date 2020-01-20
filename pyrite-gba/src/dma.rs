@@ -325,6 +325,10 @@ impl DMAChannel {
         self.original_count = new_count;
     }
 
+    pub fn control(&self) -> u16 {
+        self.control.value
+    }
+
     pub fn set_control(&mut self, new_control: u16, hw_events: &mut HardwareEventQueue) {
         let old_enabled = self.control.enabled();
         self.control.value = new_control;

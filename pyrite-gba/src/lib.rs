@@ -117,6 +117,11 @@ impl Gba {
         }
 
         let cycles = self.cpu.step(&mut self.hardware);
+
+        if self.hardware.timers.active() {
+            self.hardware.timers.step(cycles);
+        }
+
         let video_frame = self.hardware.lcd.step(
             cycles,
             &self.hardware.vram,
@@ -159,13 +164,13 @@ impl Gba {
             HardwareEvent::Halt => {
                 log::warn!("halt event is still unstable");
                 self.state = GbaSystemState::Halted;
-                self.cpu.set_idle(true);
+                self.cpu.set_idle(true, 4); // We don't want to be too fine grained here or performance is bad.
             }
 
             HardwareEvent::Stop => {
                 log::warn!("stop event is still unstable");
                 self.state = GbaSystemState::Stopped;
-                self.cpu.set_idle(true);
+                self.cpu.set_idle(true, 16); // we use big steps for stop because everything we need high fidelity for is off.
             }
 
             HardwareEvent::None => {

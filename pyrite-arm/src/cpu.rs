@@ -19,6 +19,9 @@ pub struct ArmCpu {
     /// This is true while the CPU should be idling and doing nothing when stepping.
     idle: bool,
 
+    /// The number of cycles used by the idle step.
+    idle_cycles: u32,
+
     /// Exception that should be handled on the next call to step instead of running the next
     /// instruction.
     pending_exception: Option<CpuException>,
@@ -37,6 +40,7 @@ impl ArmCpu {
             decoded_fn: Self::step_nop,
             fetched: 0,
             idle: false,
+            idle_cycles: 1,
             pending_exception: None,
             on_exception: None,
         }
@@ -200,7 +204,8 @@ impl ArmCpu {
     /// If `idle` is true, this will place the CPU into an idle state where calling `step` fill do
     /// nothing but return a fixed number of cycles (currently 1). The CPU's running state can be
     /// restored by calling `set_idle(false)`.
-    pub fn set_idle(&mut self, idle: bool) {
+    pub fn set_idle(&mut self, idle: bool, idle_cycles: u32) {
+        self.idle_cycles = idle_cycles;
         if idle != self.idle {
             self.idle = idle;
             self.resume_execution();
@@ -231,9 +236,8 @@ impl ArmCpu {
         self.decoded_fn = Self::step_exception;
     }
 
-    fn step_idle(_cpu: &mut ArmCpu, _memory: &mut dyn ArmMemory, _opcode: u32) -> u32 {
-        // @TODO add a way for configuring the IDLE step size?
-        1
+    fn step_idle(cpu: &mut ArmCpu, _memory: &mut dyn ArmMemory, _opcode: u32) -> u32 {
+        cpu.idle_cycles
     }
 
     fn step_exception(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, _opcode: u32) -> u32 {
