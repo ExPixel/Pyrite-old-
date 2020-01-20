@@ -1,3 +1,4 @@
+use crate::audio::GbaAudio;
 use crate::dma::{DMAChannelIndex, GbaDMA};
 use crate::ioregs;
 use crate::irq::GbaInterruptControl;
@@ -29,6 +30,7 @@ pub struct GbaHardware {
     pub(crate) sysctl: GbaSystemControl,
     pub(crate) ramctl: GbaRAMControl,
     pub lcd: GbaLCD,
+    pub audio: GbaAudio,
     pub keypad: GbaKeypad,
     pub irq: GbaInterruptControl,
     pub dma: GbaDMA,
@@ -68,6 +70,7 @@ impl GbaHardware {
             sysctl: GbaSystemControl::new(),
             ramctl: GbaRAMControl::new(),
             lcd: GbaLCD::new(),
+            audio: GbaAudio::new(),
             keypad: GbaKeypad::new(),
             irq: GbaInterruptControl::new(),
             dma: GbaDMA::new(),
@@ -612,12 +615,17 @@ impl GbaHardware {
             ioregs::BLDALPHA => self.lcd.registers.alpha = data,
             ioregs::BLDY => self.lcd.registers.brightness = data,
 
+            // Audio
+            ioregs::SOUNDBIAS | ioregs::SOUNDBIAS_H => {
+                self.audio.registers.bias.value = setw!(self.audio.registers.bias.value);
+            }
+
             // Keypad Input
             ioregs::KEYCNT => self.keypad.control = data,
 
             // System Control
             ioregs::WAITCNT => self.sysctl.set_reg_waitcnt(data),
-            ioregs::IMC | ioregs::IMC_HI => {
+            ioregs::IMC | ioregs::IMC_H => {
                 self.ramctl
                     .set_reg_control(setw!(self.ramctl.reg_control, data));
                 self.sysctl.update_ram_cycles(self.ramctl.reg_control);
@@ -763,13 +771,16 @@ impl GbaHardware {
             ioregs::BLDCNT => Some(self.lcd.registers.effects.value()),
             ioregs::BLDALPHA => Some(self.lcd.registers.alpha),
 
+            // Audio
+            ioregs::SOUNDBIAS | ioregs::SOUNDBIAS_H => getw!(self.audio.registers.bias.value),
+
             // Keypad Input
             ioregs::KEYINPUT => Some(self.keypad.input),
             ioregs::KEYCNT => Some(self.keypad.control),
 
             // System Control
             ioregs::WAITCNT => Some(self.sysctl.reg_waitcnt),
-            ioregs::IMC => getw!(self.ramctl.reg_control),
+            ioregs::IMC | ioregs::IMC_H => getw!(self.ramctl.reg_control),
 
             // DMA
             ioregs::DMA0CNT_H => Some(self.dma.channel(DMAChannelIndex::DMA0).control()),
@@ -827,14 +838,14 @@ impl GbaHardware {
     #[cold]
     fn bad_read(&self, bits: u8, addr: u32, message: &'static str) {
         self.bad_access.set(true);
-        log::warn!("bad {}-bit read from 0x{:08X}: {}", bits, addr, message);
+        log::error!("bad {}-bit read from 0x{:08X}: {}", bits, addr, message);
     }
 
     #[inline(never)]
     #[cold]
     fn bad_write(&self, bits: u8, addr: u32, value: u32, message: &'static str) {
         self.bad_access.set(true);
-        log::warn!(
+        log::error!(
             "bad {}-bit write of value 0x{:X} to 0x{:08X}: {}",
             bits,
             value,

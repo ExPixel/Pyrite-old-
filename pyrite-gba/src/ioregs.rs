@@ -58,6 +58,7 @@ pub const SOUNDCNT_L: u16 = 0x0080;
 pub const SOUNDCNT_H: u16 = 0x0082;
 pub const SOUNDCNT_X: u16 = 0x0084;
 pub const SOUNDBIAS: u16 = 0x0088;
+pub const SOUNDBIAS_H: u16 = 0x008A;
 pub const FIFO_A: u16 = 0x00A0;
 pub const FIFO_B: u16 = 0x00A4;
 
@@ -129,4 +130,4 @@ pub const POSTFLG: u16 = 0x0300;
 pub const HALTCNT: u16 = 0x0301;
 pub const BUG410: u16 = 0x0410;
 pub const IMC: u16 = 0x0800;
-pub const IMC_HI: u16 = 0x0802;
+pub const IMC_H: u16 = 0x0802;

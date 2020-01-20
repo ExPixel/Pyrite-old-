@@ -24,12 +24,11 @@ impl GbaTimers {
     }
 
     pub fn write_timer_counter(&mut self, timer_index: TimerIndex, counter: u16) {
-        self.flush_acc_cyles();
         self.timers[usize::from(timer_index)].reload = counter;
     }
 
     pub fn write_timer_control(&mut self, timer_index: TimerIndex, control: u16) {
-        self.flush_acc_cyles();
+        self.flush_acc_cycles();
 
         match self.timers[usize::from(timer_index)].set_control(control) {
             TimerStateChange::Active => {
@@ -85,12 +84,13 @@ impl GbaTimers {
         }
     }
 
-    fn flush_acc_cyles(&mut self) {
+    fn flush_acc_cycles(&mut self) {
         let acc = self.cycles_acc;
         self.timers
             .iter_mut()
             .filter(|timer| timer.active())
             .for_each(|timer| timer.counter += acc);
+        self.cycles_acc = 0;
     }
 
     fn calc_next_overflow(&mut self) {

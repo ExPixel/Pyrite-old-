@@ -165,7 +165,7 @@ impl GbaLCD {
             3 => bitmap::render_mode3(&self.registers, vram, oam, &mut self.pixels),
             4 => bitmap::render_mode4(&self.registers, vram, oam, &mut self.pixels),
             5 => bitmap::render_mode5(&self.registers, vram, oam, &mut self.pixels),
-            _ => eprintln!("bad mode {}", mode),
+            _ => log::warn!("bad mode {}", mode),
         }
     }
 }
@@ -567,7 +567,7 @@ pub struct LCDRegisters {
 impl LCDRegisters {
     #[inline(always)]
     pub fn set_dispstat(&mut self, value: u16) {
-        pub const DISPSTAT_WRITEABLE: u16 = 0xFFB4;
+        pub const DISPSTAT_WRITEABLE: u16 = 0xFFB8;
         self.dispstat.value =
             (self.dispstat.value & !DISPSTAT_WRITEABLE) | (value & DISPSTAT_WRITEABLE);
     }

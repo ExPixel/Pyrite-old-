@@ -77,6 +77,9 @@ macro_rules! define_obj_renderer {
                         return;
                     }
                 } else {
+                    if pixels.obj_cycles == 0 {
+                        return;
+                    }
                     if obj_display_width > pixels.obj_cycles {
                         obj_screen_right = (obj_screen_left + pixels.obj_cycles - 1) % 512;
                         pixels.obj_cycles = 0;

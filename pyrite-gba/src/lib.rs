@@ -1,5 +1,6 @@
 #[macro_use]
 mod util;
+pub mod audio;
 pub mod dma;
 mod hardware;
 #[allow(dead_code)]
@@ -52,10 +53,7 @@ impl Gba {
                         log::debug!("SWI from 0x{:08X}", exception_addr);
                         false
                     }
-                    CpuException::IRQ => {
-                        log::debug!("IRQ from 0x{:08X}", exception_addr);
-                        false
-                    }
+                    CpuException::IRQ => false,
                     _ => {
                         log::warn!("{} exception at 0x{:08X}", exception.name(), exception_addr);
                         // consume the exception
@@ -144,8 +142,7 @@ impl Gba {
 
         match event {
             HardwareEvent::IRQ(irq) => {
-                if self.cpu.registers.getf_i() && self.hardware.irq.request(irq) {
-                    log::warn!("IRQ event is still unstable");
+                if !self.cpu.registers.getf_i() && self.hardware.irq.request(irq) {
                     self.state = GbaSystemState::Running;
                     self.cpu.set_pending_exception_active(CpuException::IRQ);
                     self.hardware.dma.resume_transfer(&mut self.cpu); // will only resume if there is a DMA
@@ -157,7 +154,6 @@ impl Gba {
             }
 
             HardwareEvent::Halt => {
-                log::warn!("halt event is still unstable");
                 self.state = GbaSystemState::Halted;
                 self.cpu.set_idle(true, 4); // We don't want to be too fine grained here or performance is bad.
             }

@@ -1,3 +1,4 @@
+mod debugger;
 mod gba_imgui;
 mod logger;
 #[allow(dead_code)]
@@ -46,7 +47,7 @@ fn run_emulator() -> i32 {
                 return 1;
             }
         }
-        gba.reset(true);
+        gba.reset(false);
     } else {
         log::error!("error: must pass a GBA ROM as the first argument");
         return 1;
