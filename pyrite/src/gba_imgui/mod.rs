@@ -1,4 +1,5 @@
 mod widgets;
+use crate::debugger::{GbaDebugger, GbaStepSize};
 use crate::platform::opengl::GbaTexture;
 use pyrite_gba::Gba;
 
@@ -6,6 +7,7 @@ pub struct GbaImGui {
     gba: Box<Gba>,
     main_emulator_gui: widgets::EmulatorGUI,
     gba_texture: GbaTexture,
+    gba_debugger: GbaDebugger,
 }
 
 impl GbaImGui {
@@ -14,6 +16,7 @@ impl GbaImGui {
             gba: gba,
             main_emulator_gui: widgets::EmulatorGUI::new(),
             gba_texture: GbaTexture::new(),
+            gba_debugger: GbaDebugger::new(),
         };
         ret.init(window);
         ret
@@ -130,7 +133,26 @@ impl GbaImGui {
 
     fn render_gba_frame(&mut self) {
         let mut no_audio = pyrite_gba::NoAudioOutput;
-        self.gba.video_frame(&mut self.gba_texture, &mut no_audio);
+
+        if self.gba_debugger.debugging {
+            match self.gba_debugger.pop_step_size() {
+                Some(GbaStepSize::Instruction) => {
+                    self.gba.step(&mut self.gba_texture, &mut no_audio);
+                }
+
+                Some(GbaStepSize::VideoFrame) => {
+                    self.gba.video_frame(&mut self.gba_texture, &mut no_audio);
+                }
+
+                Some(GbaStepSize::VideoLine) => {
+                    todo!();
+                }
+
+                None => { /* NOP */ }
+            }
+        } else {
+            self.gba.video_frame(&mut self.gba_texture, &mut no_audio);
+        }
     }
 
     pub fn render_frame(&mut self, window: &glutin::Window) {
@@ -178,7 +200,7 @@ impl GbaImGui {
 
     fn render_gui(&mut self) {
         self.main_emulator_gui
-            .draw(&mut self.gba, &self.gba_texture);
+            .draw(&mut self.gba, &self.gba_texture, &mut self.gba_debugger);
     }
 }
 

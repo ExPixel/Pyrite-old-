@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 
+OBJDUMP=$DEVKITARM/arm-none-eabi/bin/objdump
+
 if [ $1 == "-t" ]
 then
-    arm-none-eabi-objdump -b binary -m armv4t -Mforce-thumb --adjust-vma=0x08000000 -D $2
+    $OBJDUMP -b binary -m armv4t -Mforce-thumb --adjust-vma=0x08000000 -D $2
 else
-    arm-none-eabi-objdump -b binary -m armv4t --adjust-vma=0x08000000 -D $1
+    $OBJDUMP -b binary -m armv4t --adjust-vma=0x08000000 -D $1
 fi

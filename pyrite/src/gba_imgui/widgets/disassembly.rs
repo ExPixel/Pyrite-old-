@@ -1,3 +1,4 @@
+use crate::debugger::GbaDebugger;
 use pyrite_arm::disasm::{disassemble_arm, disassemble_thumb};
 use pyrite_arm::{ArmCpu, ArmMemory};
 
@@ -74,7 +75,7 @@ impl DisassemblyWindow {
         return sizes;
     }
 
-    pub fn draw(&mut self, cpu: &ArmCpu, memory: &dyn ArmMemory) {
+    pub fn draw(&mut self, debugger: &mut GbaDebugger, cpu: &ArmCpu, memory: &dyn ArmMemory) {
         let sizes = self.calc_sizes();
         imgui::set_next_window_size_constraints(
             imgui::vec2(
@@ -93,12 +94,18 @@ impl DisassemblyWindow {
             &mut self.open,
             imgui::WindowFlags::NoScrollbar,
         ) {
-            self.draw_disassembly_window(&sizes, cpu, memory);
+            self.draw_disassembly_window(&sizes, debugger, cpu, memory);
         }
         imgui::end();
     }
 
-    fn draw_disassembly_window(&mut self, sizes: &Sizes, cpu: &ArmCpu, memory: &dyn ArmMemory) {
+    fn draw_disassembly_window(
+        &mut self,
+        sizes: &Sizes,
+        debugger: &mut GbaDebugger,
+        cpu: &ArmCpu,
+        memory: &dyn ArmMemory,
+    ) {
         let executing_address = cpu.next_exec_address();
 
         const SCROLLBAR_STEPS: i32 = 10000;
@@ -114,6 +121,23 @@ impl DisassemblyWindow {
         if imgui::button(imgui::str!("GOTO EXEC")) {
             self.cursor_address = executing_address;
             cursor_moved = true;
+        }
+
+        if debugger.debugging {
+            imgui::same_line(0.0);
+            if imgui::button(imgui::str!("RESUME")) {
+                debugger.debugging = false;
+            }
+
+            imgui::same_line(0.0);
+            if imgui::button(imgui::str!("STEP")) {
+                debugger.step(crate::debugger::GbaStepSize::Instruction);
+            }
+        } else {
+            imgui::same_line(0.0);
+            if imgui::button(imgui::str!("BREAK")) {
+                debugger.debugging = true;
+            }
         }
 
         imgui::begin_child(

@@ -1,5 +1,6 @@
 pub mod disassembly;
 pub mod memory_editor;
+use crate::debugger::GbaDebugger;
 
 use crate::platform::opengl::GbaTexture;
 use disassembly::DisassemblyWindow;
@@ -29,7 +30,7 @@ impl EmulatorGUI {
         }
     }
 
-    pub fn draw(&mut self, gba: &mut Gba, gba_texture: &GbaTexture) {
+    pub fn draw(&mut self, gba: &mut Gba, gba_texture: &GbaTexture, debugger: &mut GbaDebugger) {
         self.draw_menu_bar();
         if self.gba_display.open {
             self.gba_display.draw(&gba_texture);
@@ -38,7 +39,8 @@ impl EmulatorGUI {
             self.stats_window.draw();
         }
         if self.disassembly_window.open {
-            self.disassembly_window.draw(&gba.cpu, &gba.hardware);
+            self.disassembly_window
+                .draw(debugger, &gba.cpu, &gba.hardware);
         }
         if self.memory_editor_window.open {
             self.memory_editor_window
