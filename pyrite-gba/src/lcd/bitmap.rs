@@ -11,7 +11,7 @@ macro_rules! run_between_bm_objs {
         let object_priorities = ObjectPriority::sorted($OAM);
 
         // Setup the OBJ window.
-        if $Registers.dispcnt.display_layer(4) {
+        if $Registers.dispcnt.display_layer(4) && $Registers.dispcnt.display_window_obj()  {
             process_window_objects_bm(
                 $Registers,
                 object_priorities.objects_with_priority(4),

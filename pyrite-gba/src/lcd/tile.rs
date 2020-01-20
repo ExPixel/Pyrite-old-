@@ -9,7 +9,7 @@ pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &m
     let object_priorities = ObjectPriority::sorted(oam);
 
     // Setup the OBJ window.
-    if registers.dispcnt.display_layer(4) {
+    if registers.dispcnt.display_layer(4) && registers.dispcnt.display_window_obj() {
         process_window_objects_tm(
             registers,
             object_priorities.objects_with_priority(4),
@@ -76,7 +76,7 @@ pub fn render_mode1(
     let object_priorities = ObjectPriority::sorted(oam);
 
     // Setup the OBJ window.
-    if registers.dispcnt.display_layer(4) {
+    if registers.dispcnt.display_layer(4) && registers.dispcnt.display_window_obj() {
         process_window_objects_tm(
             registers,
             object_priorities.objects_with_priority(4),
@@ -165,7 +165,7 @@ pub fn render_mode2(
     let object_priorities = ObjectPriority::sorted(oam);
 
     // Setup the OBJ window.
-    if registers.dispcnt.display_layer(4) {
+    if registers.dispcnt.display_layer(4) && registers.dispcnt.display_window_obj() {
         process_window_objects_tm(
             registers,
             object_priorities.objects_with_priority(4),

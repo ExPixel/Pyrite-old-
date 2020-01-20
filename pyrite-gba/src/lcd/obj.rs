@@ -3,6 +3,12 @@ use crate::hardware::{OAM, VRAM};
 use crate::util::fixedpoint::{FixedPoint16, FixedPoint32};
 use crate::util::memory::{read_u16, read_u16_unchecked};
 
+const OBJ_WINDOW: bool = true;
+const OBJ_RENDER: bool = false;
+
+const BITMAP: bool = true;
+const TILEMAP: bool = false;
+
 macro_rules! define_obj_renderer {
     ($FunctionName:ident, $OBJWindowMode:expr, $BitmapMode:expr) => {
         pub fn $FunctionName(
@@ -215,7 +221,7 @@ macro_rules! define_obj_renderer {
 
                     for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize)
                     {
-                        if pixels.windows.enabled {
+                        if !$OBJWindowMode && pixels.windows.enabled {
                             if let Some(window_effects_mask) = pixels.windows.check_pixel(
                                 Layer::OBJ,
                                 obj_screen_draw as u16,
@@ -278,7 +284,7 @@ macro_rules! define_obj_renderer {
 
                     for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize)
                     {
-                        if pixels.windows.enabled {
+                        if !$OBJWindowMode && pixels.windows.enabled {
                             if let Some(window_effects_mask) = pixels.windows.check_pixel(
                                 Layer::OBJ,
                                 obj_screen_draw as u16,
@@ -338,10 +344,10 @@ macro_rules! define_obj_renderer {
     };
 }
 
-define_obj_renderer!(render_objects_tm, false, false); // tile mode
-define_obj_renderer!(render_objects_bm, false, true); // bitmap mode
-define_obj_renderer!(process_window_objects_tm, true, false); // tile mode, OBJ window objects
-define_obj_renderer!(process_window_objects_bm, true, true); // bitmap mode, OBJ window objects
+define_obj_renderer!(render_objects_tm, OBJ_RENDER, TILEMAP);
+define_obj_renderer!(render_objects_bm, OBJ_RENDER, BITMAP);
+define_obj_renderer!(process_window_objects_tm, OBJ_WINDOW, TILEMAP);
+define_obj_renderer!(process_window_objects_bm, OBJ_WINDOW, BITMAP);
 
 bitfields!(ObjAttr0: u16 {
     y, set_y: u16 = [0, 7],
