@@ -11,6 +11,9 @@ use crate::util::memory::*;
 use pyrite_arm::memory::ArmMemory;
 use pyrite_common::bits_b;
 
+// TODO remove this when sound registers are being implemented:
+static mut DEBUG_SOUND_REG_ACCESS: bool = false;
+
 pub type BIOS = [u8; 16 * 1024];
 pub type EWRAM = [u8; 256 * 1024];
 pub type IWRAM = [u8; 32 * 1024];
@@ -270,9 +273,12 @@ impl GbaHardware {
             if display_error {
                 self.bad_read(32, addr, "out of cartridge range");
             }
-            let lo = (addr >> 1) & 0xFFFF;
-            let hi = (lo + 1) & 0xFFFF;
-            return lo | (hi << 16);
+            return 0;
+
+            // NOTE this is for when there is no cartridge, not sure what to do above.
+            // let lo = (addr >> 1) & 0xFFFF;
+            // let hi = (lo + 1) & 0xFFFF;
+            // return lo | (hi << 16);
         }
         return unsafe { read_u32_unchecked(&self.gamepak, offset) };
     }
@@ -285,7 +291,10 @@ impl GbaHardware {
             if display_error {
                 self.bad_read(16, addr, "out of cartridge range");
             }
-            return (addr >> 1) as u16;
+            return 0;
+
+            // NOTE this is for when there is no cartridge, not sure what to do above.
+            // return (addr >> 1) as u16;
         }
         return unsafe { read_u16_unchecked(&self.gamepak, offset) };
     }
@@ -298,7 +307,10 @@ impl GbaHardware {
             if display_error {
                 self.bad_read(8, addr, "out of cartridge range");
             }
-            byte_of_halfword((addr >> 1) as u16, addr)
+            return 0;
+
+            // NOTE this is for when there is no cartridge, not sure what to do above.
+            // byte_of_halfword((addr >> 1) as u16, addr)
         }
     }
 
@@ -327,18 +339,31 @@ impl GbaHardware {
     }
 
     fn sram_read32(&self, addr: u32) -> u32 {
-        self.bad_read(32, addr, "sram");
-        0xC2C2C2C2
+        // repeats the byte:
+        (self.sram_read8(addr) as u32) * 0x01010101
     }
 
     fn sram_read16(&self, addr: u32) -> u16 {
-        self.bad_read(16, addr, "sram");
-        0xC2C2
+        // repeats the byte:
+        (self.sram_read8(addr) as u16) * 0x0101
     }
 
     fn sram_read8(&self, addr: u32) -> u8 {
-        self.bad_read(8, addr, "sram");
-        0xC2
+        // @TODO implement flash IDs
+        // some default values that Pokemon works with
+        const MANUFACTURER: u8 = 0xC2;
+        const DEVICE: u8 = 0x09;
+
+        if addr == 0xE000000 {
+            log::debug!("flash manufacturer read");
+            MANUFACTURER
+        } else if addr == 0xE000001 {
+            log::debug!("flash developer read");
+            DEVICE
+        } else {
+            self.bad_read(8, addr, "sram");
+            0
+        }
     }
 
     fn sram_write32(&mut self, addr: u32, value: u32) -> bool {
@@ -615,9 +640,17 @@ impl GbaHardware {
             ioregs::BLDALPHA => self.lcd.registers.alpha = data,
             ioregs::BLDY => self.lcd.registers.brightness = data,
 
-            // Audio
+            // Sound
             ioregs::SOUNDBIAS | ioregs::SOUNDBIAS_H => {
                 self.audio.registers.bias.value = setw!(self.audio.registers.bias.value);
+            }
+
+            // TODO implement the other sound registers
+            0x060..=0x0A8 => {
+                if unsafe { !DEBUG_SOUND_REG_ACCESS } {
+                    unsafe { DEBUG_SOUND_REG_ACCESS = true };
+                    log::warn!("attempted to access unimplemented sound I/O registers");
+                }
             }
 
             // Keypad Input
@@ -771,8 +804,17 @@ impl GbaHardware {
             ioregs::BLDCNT => Some(self.lcd.registers.effects.value()),
             ioregs::BLDALPHA => Some(self.lcd.registers.alpha),
 
-            // Audio
+            // Sound
             ioregs::SOUNDBIAS | ioregs::SOUNDBIAS_H => getw!(self.audio.registers.bias.value),
+
+            // TODO implement the other sound registers
+            0x060..=0x0A8 => {
+                if unsafe { !DEBUG_SOUND_REG_ACCESS } {
+                    unsafe { DEBUG_SOUND_REG_ACCESS = true };
+                    log::warn!("attempted to access unimplemented sound I/O registers");
+                }
+                Some(0)
+            }
 
             // Keypad Input
             ioregs::KEYINPUT => Some(self.keypad.input),
@@ -871,8 +913,10 @@ impl ArmMemory for GbaHardware {
     }
 
     fn read_code_halfword(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u16 {
+        // I don't rotate the value in here like I do for data because unaligned values shouldn't
+        // make it in here...hopefully.
         self.last_code_read = self.read_data_word(addr, seq, cycles);
-        return halfword_of_word(self.last_code_read, addr);
+        halfword_of_word(self.last_code_read, addr)
     }
 
     fn read_data_word(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u32 {
@@ -955,7 +999,7 @@ impl ArmMemory for GbaHardware {
     fn read_data_halfword(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u16 {
         let addr = addr & 0xFFFFFFFE; // halfword align the address
 
-        match Region::from_address(addr) {
+        let value = match Region::from_address(addr) {
             Region::BIOS => {
                 *cycles += 1;
                 self.bios_read16(addr)
@@ -1024,7 +1068,9 @@ impl ArmMemory for GbaHardware {
                 self.bad_read(16, addr, "unused region 0x0F");
                 halfword_of_word(self.last_code_read, addr)
             }
-        }
+        };
+
+        value.rotate_right((addr & 1) << 3)
     }
 
     fn read_data_byte(&mut self, addr: u32, seq: bool, cycles: &mut u32) -> u8 {
@@ -1401,11 +1447,11 @@ const fn byte_of_word(word: u32, addr: u32) -> u8 {
     (word >> ((addr % 4) * 8)) as u8
 }
 
-/// Select a byte of a 16-bit word depending on the given address.
-#[inline(always)]
-const fn byte_of_halfword(halfword: u16, addr: u32) -> u8 {
-    (halfword >> ((addr % 2) * 8)) as u8
-}
+// /// Select a byte of a 16-bit word depending on the given address.
+// #[inline(always)]
+// const fn byte_of_halfword(halfword: u16, addr: u32) -> u8 {
+//     (halfword >> ((addr % 2) * 8)) as u8
+// }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum HardwareEvent {

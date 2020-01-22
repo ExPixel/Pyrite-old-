@@ -148,7 +148,15 @@ impl GbaImGui {
                     todo!();
                 }
 
-                None => { /* NOP */ }
+                None => {
+                    if !self.gba_debugger.paused {
+                        self.gba_debugger.step_gba_video_frame(
+                            &mut self.gba,
+                            &mut self.gba_texture,
+                            &mut no_audio,
+                        );
+                    }
+                }
             }
         } else {
             self.gba.video_frame(&mut self.gba_texture, &mut no_audio);

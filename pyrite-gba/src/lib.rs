@@ -49,10 +49,7 @@ impl Gba {
             .set_exception_handler(Box::new(|_cpu, _memory, exception, exception_addr| {
                 match exception {
                     CpuException::Reset => false,
-                    CpuException::SWI => {
-                        log::debug!("SWI from 0x{:08X}", exception_addr);
-                        false
-                    }
+                    CpuException::SWI => false,
                     CpuException::IRQ => false,
                     _ => {
                         log::warn!("{} exception at 0x{:08X}", exception.name(), exception_addr);
@@ -142,7 +139,7 @@ impl Gba {
 
         match event {
             HardwareEvent::IRQ(irq) => {
-                if !self.cpu.registers.getf_i() && self.hardware.irq.request(irq) {
+                if self.cpu.exception_enabled(CpuException::IRQ) && self.hardware.irq.request(irq) {
                     self.state = GbaSystemState::Running;
                     self.cpu.set_pending_exception_active(CpuException::IRQ);
                     self.hardware.dma.resume_transfer(&mut self.cpu); // will only resume if there is a DMA

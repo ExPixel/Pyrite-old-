@@ -58,8 +58,7 @@ impl GbaTimers {
         if self.timers[usize::from(timer_index)].active() {
             // this is only relevant for counters that are currently active and aren't just
             // counter-up timers:
-            self.timers[usize::from(timer_index)].counter()
-                - ((self.cycles_acc >> self.timers[usize::from(timer_index)].prescaler()) as u16)
+            self.timers[usize::from(timer_index)].counter_with_offset(self.cycles_acc)
         } else {
             self.timers[usize::from(timer_index)].counter()
         }
@@ -206,6 +205,10 @@ impl GbaTimer {
 
     pub fn counter(&self) -> u16 {
         (self.counter >> self.prescaler()) as u16
+    }
+
+    fn counter_with_offset(&self, offset: u32) -> u16 {
+        ((self.counter + offset) >> self.prescaler()) as u16
     }
 
     pub fn cycles_to_overflow(&self) -> u32 {

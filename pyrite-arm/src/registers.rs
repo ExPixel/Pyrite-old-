@@ -142,7 +142,7 @@ impl ArmRegisters {
 
         #[cfg(feature = "track_register_writes")]
         {
-            let exec_addr = self.gp_registers[15] - (if self.getf_t() { 4 } else { 8 });
+            let exec_addr = self.gp_registers[15].wrapping_sub(if self.getf_t() { 4 } else { 8 });
             self.gp_registers_record[register as usize] = exec_addr;
         }
     }
@@ -365,13 +365,13 @@ impl ArmRegisters {
 
     /// Returns the current mode of the CPU.
     #[inline(always)]
-    pub fn read_mode(&mut self) -> CpuMode {
+    pub fn read_mode(&self) -> CpuMode {
         check_cpu_mode(self.cpsr & 0x1F)
     }
 
     /// Returns the current mode bits of the CPSR register (lowest 5bits) will all other bits set to 0.
     #[inline(always)]
-    pub fn read_mode_bits(&mut self) -> u32 {
+    pub fn read_mode_bits(&self) -> u32 {
         self.cpsr & 0x1F
     }
 

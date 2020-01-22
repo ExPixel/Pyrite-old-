@@ -593,6 +593,7 @@ pub fn thumb_ldrsh_reg(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32
     return cycles;
 }
 
+#[inline]
 pub fn thumb_str_imm5(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) -> u32 {
     let mut cycles = cpu.thumb_prefetch(memory);
 

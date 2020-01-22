@@ -15,13 +15,5 @@ cargo run -- <ROM>
 Screenshots
 ---
 
-**Affine Transformations**  
-![Affine Transformations](https://raw.githubusercontent.com/ExPixel/Pyrite/master/misc/screenshots/tonc_sbb_aff.png)
-
-**Windows**  
-![Windows](https://raw.githubusercontent.com/ExPixel/Pyrite/master/misc/screenshots/tonc_win_demo.png)
-
-**DMA + Windows**  
-![DMA + Windows](https://raw.githubusercontent.com/ExPixel/Pyrite/master/misc/screenshots/tonc_dma_demo.png)
-
-__Screenshots of games runnnig when I get there coming soon.__
+**Pokemon Leaf Green**  
+![Pokemon Leaf Green Screenshot](https://raw.githubusercontent.com/ExPixel/Pyrite/master/misc/screenshots/pokemon-leaf-green.png)

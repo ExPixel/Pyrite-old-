@@ -22,6 +22,7 @@ pub struct DisassemblyWindow {
     /// The address that is currently being hilighted.
     cursor_address: u32,
 
+    follow_pc: bool,
     min_address: u32,
     max_address: u32,
     disasm_buffer: String,
@@ -38,6 +39,7 @@ impl DisassemblyWindow {
             visible_rows: 16,
             first_address: 0,
             cursor_address: 0,
+            follow_pc: true,
             min_address: 0,
             max_address: 0x0FFFFFFF,
             disasm_buffer: String::new(),
@@ -118,15 +120,21 @@ impl DisassemblyWindow {
         imgui::same_line(0.0);
 
         let mut cursor_moved = false;
+
+        if self.follow_pc && self.cursor_address != executing_address {
+            self.cursor_address = executing_address;
+            cursor_moved = true;
+        }
+
         if imgui::button(imgui::str!("GOTO EXEC")) {
             self.cursor_address = executing_address;
             cursor_moved = true;
         }
 
-        if debugger.debugging {
+        if debugger.debugging && debugger.paused() {
             imgui::same_line(0.0);
             if imgui::button(imgui::str!("RESUME")) {
-                debugger.debugging = false;
+                debugger.resume();
             }
 
             imgui::same_line(0.0);
@@ -136,7 +144,7 @@ impl DisassemblyWindow {
         } else {
             imgui::same_line(0.0);
             if imgui::button(imgui::str!("BREAK")) {
-                debugger.debugging = true;
+                debugger.break_execution();
             }
         }
 
