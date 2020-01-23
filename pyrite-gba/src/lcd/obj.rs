@@ -468,6 +468,9 @@ pub struct ObjectPriority {
 }
 
 impl ObjectPriority {
+    pub const DISABLED: usize = 5;
+    pub const WINDOW: usize = 4;
+
     pub fn sorted(oam: &OAM) -> ObjectPriority {
         macro_rules! mkobj {
             ($Index:expr, $Priority:expr) => {
@@ -485,16 +488,16 @@ impl ObjectPriority {
             let attr_index = obj_index * 8;
             let attr0_hi = unsafe { *oam.get_unchecked(attr_index + 1) };
 
+            // Check if this object is disabled:
             if attr0_hi & 0x1 != 1 && (attr0_hi >> 1) & 0x1 == 1 {
-                // Check Affine and Disabled flag
                 priority_pos[5].1 += 1;
                 disabled_index -= 1;
                 objects[disabled_index] = mkobj!(obj_index, 5);
                 continue;
             }
 
+            // Check if ths mode of this object is window mode:
             if (attr0_hi >> 2) & 0x3 == 2 {
-                // Check OBJ Mode
                 priority_pos[4].1 += 1;
                 objects[enabled_index] |= mkobj!(obj_index, 4);
                 enabled_index += 1;

@@ -11,10 +11,10 @@ macro_rules! run_between_bm_objs {
         let object_priorities = ObjectPriority::sorted($OAM);
 
         // Setup the OBJ window.
-        if $Registers.dispcnt.display_layer(4) && $Registers.dispcnt.display_window_obj()  {
+        if $Registers.dispcnt.display_layer(Layer::OBJ) && $Registers.dispcnt.display_window_obj()  {
             process_window_objects_bm(
                 $Registers,
-                object_priorities.objects_with_priority(4),
+                object_priorities.objects_with_priority(ObjectPriority::WINDOW),
                 $VRAM,
                 $OAM,
                 $Pixels,
@@ -23,7 +23,7 @@ macro_rules! run_between_bm_objs {
 
         let bg2_priority = $Registers.bg_cnt[2].priority();
 
-        if $Registers.dispcnt.display_layer(4) {
+        if $Registers.dispcnt.display_layer(Layer::OBJ) {
             // Draw all OBJs that are below the bitmap layer (with a greather priority value).
             ((bg2_priority + 1)..=3).rev().for_each(|p| {
                 render_objects_bm(
@@ -38,7 +38,7 @@ macro_rules! run_between_bm_objs {
 
         $RenderBlock
 
-        if $Registers.dispcnt.display_layer(4) {
+        if $Registers.dispcnt.display_layer(Layer::OBJ) {
             // Draw ll OBJs that are above the bitmap layer (with a lower or equal priority value).
             (0u16..=bg2_priority)
                 .rev()
@@ -57,7 +57,7 @@ macro_rules! run_between_bm_objs {
 
 pub fn render_mode3(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &mut LCDLineBuffer) {
     run_between_bm_objs!(registers, vram, oam, pal, pixels, {
-        if registers.dispcnt.display_layer(2) {
+        if registers.dispcnt.display_layer(Layer::BG2) {
             render_mode3_bitmap(
                 registers.line as usize,
                 vram,
@@ -116,7 +116,7 @@ pub fn render_mode4(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &m
     const FRAMEBUFFER_SIZE: usize = 0x9600;
 
     run_between_bm_objs!(registers, vram, oam, pal, pixels, {
-        if registers.dispcnt.display_layer(2) {
+        if registers.dispcnt.display_layer(Layer::BG2) {
             let framebuffer_start = if registers.dispcnt.frame_select() == 0 {
                 FRAMEBUFFER0_OFFSET
             } else {
@@ -187,7 +187,7 @@ pub fn render_mode5(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &m
     const FRAMEBUFFER_SIZE: usize = 0xA000;
 
     run_between_bm_objs!(registers, vram, oam, pal, pixels, {
-        if registers.dispcnt.display_layer(2) {
+        if registers.dispcnt.display_layer(Layer::BG2) {
             let framebuffer_start = if registers.dispcnt.frame_select() == 0 {
                 FRAMEBUFFER0_OFFSET
             } else {

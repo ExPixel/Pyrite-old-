@@ -585,6 +585,7 @@ pub enum Layer {
 }
 
 impl Layer {
+    #[inline(always)]
     pub const fn index(self) -> u16 {
         self as u16
     }
@@ -795,9 +796,8 @@ bitfields! (BGControl: u16 {
 
 impl DisplayControl {
     /// Layers 0-3 are BG 0-3 respectively. Layer 4 is OBJ
-    pub fn display_layer(&self, layer: u16) -> bool {
-        assert!(layer <= 4, "display layer index must be in range [0, 4]");
-        ((self.value >> (layer + 8)) & 1) != 0
+    pub fn display_layer(&self, layer: Layer) -> bool {
+        ((self.value >> (layer.index() + 8)) & 1) != 0
     }
 }
 

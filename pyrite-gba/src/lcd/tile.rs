@@ -9,10 +9,10 @@ pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &m
     let object_priorities = ObjectPriority::sorted(oam);
 
     // Setup the OBJ window.
-    if registers.dispcnt.display_layer(4) && registers.dispcnt.display_window_obj() {
+    if registers.dispcnt.display_layer(Layer::OBJ) && registers.dispcnt.display_window_obj() {
         process_window_objects_tm(
             registers,
-            object_priorities.objects_with_priority(4),
+            object_priorities.objects_with_priority(ObjectPriority::WINDOW),
             vram,
             oam,
             pixels,
@@ -21,7 +21,8 @@ pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &m
 
     for priority in (0usize..=3).rev() {
         for bg_index in (0usize..=3).rev() {
-            if !registers.dispcnt.display_layer(bg_index as u16) {
+            let layer = Layer::from_bg(bg_index as u16);
+            if !registers.dispcnt.display_layer(layer) {
                 continue;
             }
             if registers.bg_cnt[bg_index].priority() == priority as u16 {
@@ -36,26 +37,14 @@ pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &m
                 );
 
                 if registers.bg_cnt[bg_index].palette256() {
-                    draw_text_bg_8bpp(
-                        Layer::from_bg(bg_index as u16),
-                        registers.line as u32,
-                        &textbg,
-                        vram,
-                        pixels,
-                    );
+                    draw_text_bg_8bpp(layer, registers.line as u32, &textbg, vram, pixels);
                 } else {
-                    draw_text_bg_4bpp(
-                        Layer::from_bg(bg_index as u16),
-                        registers.line as u32,
-                        &textbg,
-                        vram,
-                        pixels,
-                    );
+                    draw_text_bg_4bpp(layer, registers.line as u32, &textbg, vram, pixels);
                 }
             }
         }
 
-        if registers.dispcnt.display_layer(4) {
+        if registers.dispcnt.display_layer(Layer::OBJ) {
             render_objects_tm(
                 registers,
                 object_priorities.objects_with_priority(priority),
@@ -76,10 +65,10 @@ pub fn render_mode1(
     let object_priorities = ObjectPriority::sorted(oam);
 
     // Setup the OBJ window.
-    if registers.dispcnt.display_layer(4) && registers.dispcnt.display_window_obj() {
+    if registers.dispcnt.display_layer(Layer::OBJ) && registers.dispcnt.display_window_obj() {
         process_window_objects_tm(
             registers,
-            object_priorities.objects_with_priority(4),
+            object_priorities.objects_with_priority(ObjectPriority::WINDOW),
             vram,
             oam,
             pixels,
@@ -88,7 +77,8 @@ pub fn render_mode1(
 
     for priority in (0usize..=3).rev() {
         for bg_index in (0usize..=2).rev() {
-            if !registers.dispcnt.display_layer(bg_index as u16) {
+            let layer = Layer::from_bg(bg_index as u16);
+            if !registers.dispcnt.display_layer(layer) {
                 continue;
             }
             if registers.bg_cnt[bg_index].priority() == priority as u16 {
@@ -104,13 +94,7 @@ pub fn render_mode1(
                         second_target,
                     );
 
-                    draw_affine_bg(
-                        Layer::from_bg(bg_index as u16),
-                        registers.line as u32,
-                        &affinebg,
-                        vram,
-                        pixels,
-                    );
+                    draw_affine_bg(layer, registers.line as u32, &affinebg, vram, pixels);
                 } else {
                     let textbg = TextBG::new(
                         registers.bg_cnt[bg_index],
@@ -121,27 +105,15 @@ pub fn render_mode1(
                     );
 
                     if registers.bg_cnt[bg_index].palette256() {
-                        draw_text_bg_8bpp(
-                            Layer::from_bg(bg_index as u16),
-                            registers.line as u32,
-                            &textbg,
-                            vram,
-                            pixels,
-                        );
+                        draw_text_bg_8bpp(layer, registers.line as u32, &textbg, vram, pixels);
                     } else {
-                        draw_text_bg_4bpp(
-                            Layer::from_bg(bg_index as u16),
-                            registers.line as u32,
-                            &textbg,
-                            vram,
-                            pixels,
-                        );
+                        draw_text_bg_4bpp(layer, registers.line as u32, &textbg, vram, pixels);
                     }
                 }
             }
         }
 
-        if registers.dispcnt.display_layer(4) {
+        if registers.dispcnt.display_layer(Layer::OBJ) {
             render_objects_tm(
                 registers,
                 object_priorities.objects_with_priority(priority),
@@ -165,10 +137,10 @@ pub fn render_mode2(
     let object_priorities = ObjectPriority::sorted(oam);
 
     // Setup the OBJ window.
-    if registers.dispcnt.display_layer(4) && registers.dispcnt.display_window_obj() {
+    if registers.dispcnt.display_layer(Layer::OBJ) && registers.dispcnt.display_window_obj() {
         process_window_objects_tm(
             registers,
-            object_priorities.objects_with_priority(4),
+            object_priorities.objects_with_priority(ObjectPriority::WINDOW),
             vram,
             oam,
             pixels,
@@ -177,7 +149,8 @@ pub fn render_mode2(
 
     for priority in (0usize..=3).rev() {
         for bg_index in (2usize..=3).rev() {
-            if !registers.dispcnt.display_layer(bg_index as u16) {
+            let layer = Layer::from_bg(bg_index as u16);
+            if !registers.dispcnt.display_layer(layer) {
                 continue;
             }
             if registers.bg_cnt[bg_index].priority() == priority as u16 {
@@ -196,17 +169,11 @@ pub fn render_mode2(
                     second_target,
                 );
 
-                draw_affine_bg(
-                    Layer::from_bg(bg_index as u16),
-                    registers.line as u32,
-                    &affinebg,
-                    vram,
-                    pixels,
-                );
+                draw_affine_bg(layer, registers.line as u32, &affinebg, vram, pixels);
             }
         }
 
-        if registers.dispcnt.display_layer(4) {
+        if registers.dispcnt.display_layer(Layer::OBJ) {
             render_objects_tm(
                 registers,
                 object_priorities.objects_with_priority(priority),
