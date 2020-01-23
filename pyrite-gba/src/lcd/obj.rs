@@ -486,6 +486,8 @@ impl ObjectPriority {
 
         for obj_index in 0..128 {
             let attr_index = obj_index * 8;
+
+            // NOTE compile doesn't seem to be able to remove the bounds check here :(
             let attr0_hi = unsafe { *oam.get_unchecked(attr_index + 1) };
 
             // Check if this object is disabled:
@@ -504,7 +506,9 @@ impl ObjectPriority {
                 continue;
             }
 
+            // NOTE compile doesn't seem to be able to remove the bounds check here :(
             let attr2_hi = unsafe { *oam.get_unchecked(attr_index + 5) };
+
             let priority = (attr2_hi >> 2) & 0x3;
             priority_pos[priority as usize].1 += 1;
             objects[enabled_index] = mkobj!(obj_index, priority);
