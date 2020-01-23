@@ -137,7 +137,12 @@ impl GbaTimers {
         }
     }
 
-    fn safe_step_single_timer(&mut self, mut timer_index: TimerIndex, mut cycles: u32, hw_events: &mut HardwareEventQueue) {
+    fn safe_step_single_timer(
+        &mut self,
+        mut timer_index: TimerIndex,
+        mut cycles: u32,
+        hw_events: &mut HardwareEventQueue,
+    ) {
         let mut timer = usize::from(timer_index);
 
         loop {
@@ -296,7 +301,7 @@ pub enum TimerIndex {
 
 impl TimerIndex {
     #[inline]
-    pub fn next(self) -> Option<TimerIndex> { 
+    pub fn next(self) -> Option<TimerIndex> {
         match self {
             TimerIndex::TM0 => Some(TimerIndex::TM1),
             TimerIndex::TM1 => Some(TimerIndex::TM2),
