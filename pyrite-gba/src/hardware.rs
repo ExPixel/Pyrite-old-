@@ -11,8 +11,22 @@ use crate::util::memory::*;
 use pyrite_arm::memory::ArmMemory;
 use pyrite_common::bits_b;
 
-// TODO remove this when sound registers are being implemented:
+// @TODO remove these when they are implemented. These values are just here to make the emulator
+// less noisy.
 static mut DEBUG_SOUND_REG_ACCESS: bool = false;
+static mut DEBUG_SERIAL1_REG_ACCESS: bool = false;
+static mut DEBUG_SERIAL2_REG_ACCESS: bool = false;
+static mut DEBUG_SRAM_MEM_ACCESS: bool = false;
+static mut DEBUG_GAMEPAK_GPIO_WRITE: bool = false;
+
+macro_rules! warn_unimplemented {
+    ($StaticCheck:expr, $Message:expr) => {
+        if unsafe { !$StaticCheck } {
+            unsafe { $StaticCheck = true };
+            log::warn!($Message);
+        }
+    };
+}
 
 pub type BIOS = [u8; 16 * 1024];
 pub type EWRAM = [u8; 256 * 1024];
@@ -317,7 +331,14 @@ impl GbaHardware {
     #[cold]
     fn gamepak_write32(&mut self, addr: u32, value: u32, display_error: bool) -> bool {
         if display_error {
-            self.bad_write(32, addr, value, "gamepak");
+            if addr >= 0x080000C4 && addr <= 0x080000CA {
+                warn_unimplemented!(
+                    DEBUG_GAMEPAK_GPIO_WRITE,
+                    "attempted to write to unimplemented Cart I/O port"
+                );
+            } else {
+                self.bad_write(32, addr, value, "gamepak");
+            }
         }
         false
     }
@@ -325,7 +346,14 @@ impl GbaHardware {
     #[cold]
     fn gamepak_write16(&mut self, addr: u32, value: u16, display_error: bool) -> bool {
         if display_error {
-            self.bad_write(16, addr, value as u32, "gamepak");
+            if addr >= 0x080000C4 && addr <= 0x080000CA {
+                warn_unimplemented!(
+                    DEBUG_GAMEPAK_GPIO_WRITE,
+                    "attempted to write to unimplemented Cart I/O port"
+                );
+            } else {
+                self.bad_write(16, addr, value as u32, "gamepak");
+            }
         }
         false
     }
@@ -333,7 +361,14 @@ impl GbaHardware {
     #[cold]
     fn gamepak_write8(&mut self, addr: u32, value: u8, display_error: bool) -> bool {
         if display_error {
-            self.bad_write(8, addr, value as u32, "gamepak");
+            if addr >= 0x080000C4 && addr <= 0x080000CA {
+                warn_unimplemented!(
+                    DEBUG_GAMEPAK_GPIO_WRITE,
+                    "attempted to write to unimplemented Cart I/O port"
+                );
+            } else {
+                self.bad_write(8, addr, value as u32, "gamepak");
+            }
         }
         false
     }
@@ -361,23 +396,27 @@ impl GbaHardware {
             log::debug!("flash developer read");
             DEVICE
         } else {
-            self.bad_read(8, addr, "sram");
+            warn_unimplemented!(
+                DEBUG_SRAM_MEM_ACCESS,
+                "attempted to access unimplemented SRAM"
+            );
             0
         }
     }
 
     fn sram_write32(&mut self, addr: u32, value: u32) -> bool {
-        self.bad_write(32, addr, value, "sram");
-        false
+        self.sram_write8(addr, value.rotate_right(addr * 8) as u8)
     }
 
     fn sram_write16(&mut self, addr: u32, value: u16) -> bool {
-        self.bad_write(16, addr, value as u32, "sram");
-        false
+        self.sram_write8(addr, value.rotate_right(addr * 8) as u8)
     }
 
-    fn sram_write8(&mut self, addr: u32, value: u8) -> bool {
-        self.bad_write(8, addr, value as u32, "sram");
+    fn sram_write8(&mut self, _addr: u32, _value: u8) -> bool {
+        warn_unimplemented!(
+            DEBUG_SRAM_MEM_ACCESS,
+            "attempted to access unimplemented SRAM"
+        );
         false
     }
 
@@ -647,14 +686,30 @@ impl GbaHardware {
 
             // TODO implement the other sound registers
             0x060..=0x0A8 => {
-                if unsafe { !DEBUG_SOUND_REG_ACCESS } {
-                    unsafe { DEBUG_SOUND_REG_ACCESS = true };
-                    log::warn!("attempted to access unimplemented sound I/O registers");
-                }
+                warn_unimplemented!(
+                    DEBUG_SOUND_REG_ACCESS,
+                    "attempted to access unimplemented sound I/O registers"
+                );
+            }
+
+            // TODO implement the serial comm (1) registers
+            0x120..=0x12C => {
+                warn_unimplemented!(
+                    DEBUG_SERIAL1_REG_ACCESS,
+                    "attempted to access unimplemented serial communication (1) I/O registers"
+                );
             }
 
             // Keypad Input
             ioregs::KEYCNT => self.keypad.control = data,
+
+            // TODO implement the serial comm (2) registers
+            0x134..=0x15A => {
+                warn_unimplemented!(
+                    DEBUG_SERIAL2_REG_ACCESS,
+                    "attempted to access unimplemented serial communication (2) I/O registers"
+                );
+            }
 
             // System Control
             ioregs::WAITCNT => self.sysctl.set_reg_waitcnt(data),
@@ -809,16 +864,34 @@ impl GbaHardware {
 
             // TODO implement the other sound registers
             0x060..=0x0A8 => {
-                if unsafe { !DEBUG_SOUND_REG_ACCESS } {
-                    unsafe { DEBUG_SOUND_REG_ACCESS = true };
-                    log::warn!("attempted to access unimplemented sound I/O registers");
-                }
+                warn_unimplemented!(
+                    DEBUG_SOUND_REG_ACCESS,
+                    "attempted to access unimplemented sound I/O registers"
+                );
+                Some(0)
+            }
+
+            // TODO implement the serial comm (1) registers
+            0x120..=0x12C => {
+                warn_unimplemented!(
+                    DEBUG_SERIAL1_REG_ACCESS,
+                    "attempted to access unimplemented serial communication (1) I/O registers"
+                );
                 Some(0)
             }
 
             // Keypad Input
             ioregs::KEYINPUT => Some(self.keypad.input),
             ioregs::KEYCNT => Some(self.keypad.control),
+
+            // TODO implement the serial comm (2) registers
+            0x134..=0x15A => {
+                warn_unimplemented!(
+                    DEBUG_SERIAL2_REG_ACCESS,
+                    "attempted to access unimplemented serial communication (2) I/O registers"
+                );
+                Some(0)
+            }
 
             // System Control
             ioregs::WAITCNT => Some(self.sysctl.reg_waitcnt),
