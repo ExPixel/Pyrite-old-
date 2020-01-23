@@ -66,12 +66,8 @@ jobs:
 
         # Run Tests:
         - name: Test
-          run: cargo test
+          run: cargo test -- --include-ignored
         - name: Check Formatting
           run: cargo fmt --all -- --check
         - name: Clippy Lints
           run: cargo clippy --all-features -- -A warnings
-        - name: Expensive Tests
-          run: cargo test -- --ignored
-        - name: Benchmark
-          run: cargo bench
