@@ -63,11 +63,20 @@ impl Gba {
     pub fn reset(&mut self, skip_bios: bool) {
         use pyrite_arm::registers;
         self.cpu.registers.setf_f(); // Disables FIQ interrupts (always high on the GBA)
-        self.hardware.sysctl.set_reg_waitcnt(0x4317);
+
+        // Initialized by hardware to this value:
+        self.hardware.sysctl.set_imemctl(0x0D000020);
+
         if skip_bios {
-            let _ = self.cpu.set_pc(0x08000000, &mut self.hardware);
+            // TODO this is supposed to be initialized to 0x0000 but I don't know of the BIOS changes it
+            // so for now I'm just initializing it to the most common value:
+            self.hardware.sysctl.set_reg_waitcnt(0x4317);
+
+            let _ = self.cpu.set_pc(0x08000000, &mut self.hardware); // Start at the beginning of the ROM
             self.cpu.registers.setf_i(); // Disables IRQ interrupts
             self.cpu.registers.write_mode(registers::CpuMode::System);
+
+            // Set up user stack and data locations:
             self.cpu
                 .registers
                 .write_with_mode(registers::CpuMode::User, 13, 0x03007F00); // Also System
@@ -77,6 +86,9 @@ impl Gba {
             self.cpu
                 .registers
                 .write_with_mode(registers::CpuMode::Supervisor, 13, 0x03007FE0);
+
+            // Set the post boot flag:
+            self.hardware.sysctl.reg_postflg = true;
         } else {
             self.cpu.registers.setf_i(); // Disables IRQ interrupts
             let _ = self.cpu.set_pc(0x00000000, &mut self.hardware);

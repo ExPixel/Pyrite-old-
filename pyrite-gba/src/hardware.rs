@@ -9,7 +9,6 @@ use crate::sysctl::GbaSystemControl;
 use crate::timers::{GbaTimers, TimerIndex};
 use crate::util::memory::*;
 use pyrite_arm::memory::ArmMemory;
-use pyrite_common::bits_b;
 
 // @TODO remove these when they are implemented. These values are just here to make the emulator
 // less noisy.
@@ -45,7 +44,6 @@ pub struct GbaHardware {
     pub(crate) gamepak: Vec<u8>,
 
     pub(crate) sysctl: GbaSystemControl,
-    pub(crate) ramctl: GbaRAMControl,
     pub lcd: GbaLCD,
     pub audio: GbaAudio,
     pub keypad: GbaKeypad,
@@ -85,7 +83,6 @@ impl GbaHardware {
             gamepak: Vec::new(),
 
             sysctl: GbaSystemControl::new(),
-            ramctl: GbaRAMControl::new(),
             lcd: GbaLCD::new(),
             audio: GbaAudio::new(),
             keypad: GbaKeypad::new(),
@@ -132,9 +129,9 @@ impl GbaHardware {
             }
             Region::Unused0x1 => BAD_VALUE,
             Region::ExternalRAM => {
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     BAD_VALUE
-                } else if self.ramctl.external {
+                } else if self.sysctl.ram_external {
                     read_u32(&self.ewram, addr as usize % (256 * 1024))
                 } else {
                     read_u32(&self.iwram, addr as usize % (32 * 1024))
@@ -142,7 +139,7 @@ impl GbaHardware {
             }
 
             Region::InternalRAM => {
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     BAD_VALUE
                 } else {
                     read_u32(&self.iwram, addr as usize % (32 * 1024))
@@ -179,16 +176,16 @@ impl GbaHardware {
             }
             Region::Unused0x1 => BAD_VALUE,
             Region::ExternalRAM => {
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     BAD_VALUE
-                } else if self.ramctl.external {
+                } else if self.sysctl.ram_external {
                     read_u16(&self.ewram, addr as usize % (256 * 1024))
                 } else {
                     read_u16(&self.iwram, addr as usize % (32 * 1024))
                 }
             }
             Region::InternalRAM => {
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     BAD_VALUE
                 } else {
                     read_u16(&self.iwram, addr as usize % (32 * 1024))
@@ -222,16 +219,16 @@ impl GbaHardware {
             }
             Region::Unused0x1 => BAD_VALUE,
             Region::ExternalRAM => {
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     BAD_VALUE
-                } else if self.ramctl.external {
+                } else if self.sysctl.ram_external {
                     self.ewram[addr as usize % (256 * 1024)]
                 } else {
                     self.iwram[addr as usize % (32 * 1024)]
                 }
             }
             Region::InternalRAM => {
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     BAD_VALUE
                 } else {
                     self.iwram[addr as usize % (32 * 1024)]
@@ -525,6 +522,10 @@ impl GbaHardware {
                 self.dma.channel_mut(DMAChannelIndex::DMA3).set_source(data);
             }
 
+            ioregs::IMC => {
+                self.sysctl.set_imemctl(data);
+            }
+
             _ => {
                 let offset_hi = offset_lo + 2;
                 let lo_write = self.io_write_reg(offset_lo, data as u16);
@@ -550,8 +551,6 @@ impl GbaHardware {
     }
 
     fn io_write8(&mut self, addr: u32, data: u8, display_error: bool) -> bool {
-        // const IMC_END: u16 = ioregs::IMC + 3;
-
         let offset = Self::io_off(addr);
         match offset {
             ioregs::POSTFLG => {
@@ -713,11 +712,8 @@ impl GbaHardware {
 
             // System Control
             ioregs::WAITCNT => self.sysctl.set_reg_waitcnt(data),
-            ioregs::IMC | ioregs::IMC_H => {
-                self.ramctl
-                    .set_reg_control(setw!(self.ramctl.reg_control, data));
-                self.sysctl.update_ram_cycles(self.ramctl.reg_control);
-            }
+            ioregs::IMC => self.sysctl.set_imemctl_lo(data),
+            ioregs::IMC_H => self.sysctl.set_imemctl_hi(data),
 
             // Interrupt Control
             ioregs::IME => {
@@ -895,7 +891,8 @@ impl GbaHardware {
 
             // System Control
             ioregs::WAITCNT => Some(self.sysctl.reg_waitcnt),
-            ioregs::IMC | ioregs::IMC_H => getw!(self.ramctl.reg_control),
+            ioregs::IMC => Some(self.sysctl.reg_imemctl as u16),
+            ioregs::IMC_H => Some((self.sysctl.reg_imemctl >> 16) as u16),
 
             // DMA
             ioregs::DMA0CNT_H => Some(self.dma.channel(DMAChannelIndex::DMA0).control()),
@@ -1006,11 +1003,11 @@ impl ArmMemory for GbaHardware {
                 self.last_code_read
             }
             Region::ExternalRAM => {
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     *cycles += 1;
                     self.bad_read(32, addr, "disabled RAM");
                     self.last_code_read
-                } else if !self.ramctl.external {
+                } else if !self.sysctl.ram_external {
                     *cycles += 1;
                     read_u32(&self.iwram, addr as usize % (32 * 1024))
                 } else {
@@ -1021,7 +1018,7 @@ impl ArmMemory for GbaHardware {
 
             Region::InternalRAM => {
                 *cycles += 1;
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     self.bad_read(32, addr, "disabled RAM");
                     self.last_code_read
                 } else {
@@ -1083,11 +1080,11 @@ impl ArmMemory for GbaHardware {
                 halfword_of_word(self.last_code_read, addr)
             }
             Region::ExternalRAM => {
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     *cycles += 1;
                     self.bad_read(16, addr, "disabled RAM");
                     halfword_of_word(self.last_code_read, addr)
-                } else if self.ramctl.external {
+                } else if self.sysctl.ram_external {
                     *cycles += 1;
                     read_u16(&self.ewram, addr as usize % (256 * 1024))
                 } else {
@@ -1097,7 +1094,7 @@ impl ArmMemory for GbaHardware {
             }
             Region::InternalRAM => {
                 *cycles += 1;
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     self.bad_read(16, addr, "disabled RAM");
                     halfword_of_word(self.last_code_read, addr)
                 } else {
@@ -1158,11 +1155,11 @@ impl ArmMemory for GbaHardware {
                 byte_of_word(self.last_code_read, addr)
             }
             Region::ExternalRAM => {
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     *cycles += 1;
                     self.bad_read(8, addr, "disabled RAM");
                     byte_of_word(self.last_code_read, addr)
-                } else if !self.ramctl.external {
+                } else if !self.sysctl.ram_external {
                     *cycles += 1;
                     self.iwram[addr as usize % (32 * 1024)]
                 } else {
@@ -1172,7 +1169,7 @@ impl ArmMemory for GbaHardware {
             }
             Region::InternalRAM => {
                 *cycles += 1;
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     self.bad_read(8, addr, "disabled RAM");
                     byte_of_word(self.last_code_read, addr)
                 } else {
@@ -1223,10 +1220,10 @@ impl ArmMemory for GbaHardware {
 
         match Region::from_address(addr) {
             Region::ExternalRAM => {
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     *cycles += 1;
                     self.bad_write(32, addr, data, "disabled RAM");
-                } else if !self.ramctl.external {
+                } else if !self.sysctl.ram_external {
                     *cycles += 1;
                     write_u32(&mut self.iwram, addr as usize % (32 * 1024), data)
                 } else {
@@ -1236,7 +1233,7 @@ impl ArmMemory for GbaHardware {
             }
             Region::InternalRAM => {
                 *cycles += 1;
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     self.bad_write(32, addr, data, "disabled RAM");
                 } else {
                     write_u32(&mut self.iwram, addr as usize % (32 * 1024), data)
@@ -1286,10 +1283,10 @@ impl ArmMemory for GbaHardware {
 
         match Region::from_address(addr) {
             Region::ExternalRAM => {
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     *cycles += 1;
                     self.bad_write(16, addr, data as u32, "disabled RAM");
-                } else if !self.ramctl.external {
+                } else if !self.sysctl.ram_external {
                     *cycles += 1;
                     write_u16(&mut self.iwram, addr as usize % (32 * 1024), data);
                 } else {
@@ -1299,7 +1296,7 @@ impl ArmMemory for GbaHardware {
             }
             Region::InternalRAM => {
                 *cycles += 1;
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     self.bad_write(16, addr, data as u32, "disabled RAM");
                 } else {
                     write_u16(&mut self.iwram, addr as usize % (32 * 1024), data)
@@ -1347,10 +1344,10 @@ impl ArmMemory for GbaHardware {
     fn write_data_byte(&mut self, addr: u32, data: u8, seq: bool, cycles: &mut u32) {
         match Region::from_address(addr) {
             Region::ExternalRAM => {
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     *cycles += 1;
                     self.bad_write(8, addr, data as u32, "disabled RAM");
-                } else if !self.ramctl.external {
+                } else if !self.sysctl.ram_external {
                     *cycles += 1;
                     self.iwram[addr as usize % (32 * 1024)] = data
                 } else {
@@ -1360,7 +1357,7 @@ impl ArmMemory for GbaHardware {
             }
             Region::InternalRAM => {
                 *cycles += 1;
-                if self.ramctl.disabled {
+                if self.sysctl.ram_disabled {
                     self.bad_write(8, addr, data as u32, "disabled RAM");
                 } else {
                     self.iwram[addr as usize % (32 * 1024)] = data
@@ -1439,7 +1436,7 @@ impl ArmMemory for GbaHardware {
             Region::BIOS => 1,
             Region::Unused0x1 => 1,
             Region::ExternalRAM => {
-                if self.ramctl.disabled || !self.ramctl.external {
+                if self.sysctl.ram_disabled || !self.sysctl.ram_external {
                     1
                 } else {
                     self.sysctl.ram_cycles.word.get(true) // sequential and non-sequential are the same
@@ -1462,7 +1459,7 @@ impl ArmMemory for GbaHardware {
             Region::BIOS => 1,
             Region::Unused0x1 => 1,
             Region::ExternalRAM => {
-                if self.ramctl.disabled || !self.ramctl.external {
+                if self.sysctl.ram_disabled || !self.sysctl.ram_external {
                     1
                 } else {
                     self.sysctl.ram_cycles.halfword.get(true) // sequential and non-sequential are the same
@@ -1590,36 +1587,6 @@ impl HardwareEventQueue {
     #[inline]
     pub fn count(&self) -> usize {
         self.count
-    }
-}
-
-pub struct GbaRAMControl {
-    /// True if RAM is disabled.
-    disabled: bool,
-
-    /// True if external work RAM is enabled.
-    external: bool,
-
-    /// Memory control register.
-    reg_control: u32,
-}
-
-impl GbaRAMControl {
-    pub fn new() -> GbaRAMControl {
-        GbaRAMControl {
-            disabled: false,
-            external: true,
-            reg_control: 0,
-        }
-    }
-
-    /// Called after the internal memory control has been updated and internal values need to be
-    /// changed.
-    #[inline]
-    pub fn set_reg_control(&mut self, value: u32) {
-        self.reg_control = value;
-        self.disabled = bits_b!(self.reg_control, 0, 0);
-        self.external = bits_b!(self.reg_control, 5, 5);
     }
 }
 

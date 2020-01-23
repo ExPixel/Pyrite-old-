@@ -1,4 +1,4 @@
-use pyrite_common::bits;
+use pyrite_common::{bits, bits_b};
 
 macro_rules! set_timings {
     ($Width:ident, $Region:expr, 1, $FirstAccess:expr, $SecondAccess:expr) => {
@@ -55,9 +55,13 @@ pub struct GbaSystemControl {
     pub gamepak_cycles: [RegionCycles; 3],
     pub sram_cycles: RegionCycles,
 
+    pub ram_disabled: bool,
+    pub ram_external: bool,
+
     // registers:
     pub reg_waitcnt: u16,
     pub reg_postflg: bool,
+    pub reg_imemctl: u32,
 }
 
 impl GbaSystemControl {
@@ -71,18 +75,37 @@ impl GbaSystemControl {
             ],
             sram_cycles: RegionCycles::default(),
 
+            ram_disabled: false,
+            ram_external: true,
+
             reg_waitcnt: 0,
             reg_postflg: false,
+            reg_imemctl: 0,
         }
     }
 
-    pub fn update_ram_cycles(&mut self, internal_memory_control: u32) {
-        let ram_cycles = 15 - bits!(internal_memory_control, 24, 27) as u8;
+    pub fn set_imemctl_lo(&mut self, lo: u16) {
+        let value = (self.reg_imemctl & 0xFFFF0000) | (lo as u32);
+        self.set_imemctl(value);
+    }
 
+    pub fn set_imemctl_hi(&mut self, hi: u16) {
+        let value = (self.reg_imemctl & 0x0000FFFF) | ((hi as u32) << 16);
+        self.set_imemctl(value);
+    }
+
+    /// Set internal memory control.
+    pub fn set_imemctl(&mut self, internal_memory_control: u32) {
+        self.reg_imemctl = internal_memory_control;
+
+        let ram_cycles = 15 - bits!(internal_memory_control, 24, 27) as u8;
         set_timings!(byte, self.ram_cycles, 1, ram_cycles, ram_cycles);
         set_timings!(halfword, self.ram_cycles, 1, ram_cycles, ram_cycles);
         // 16bit bus so a 32bit access is 2 16bit accesses
         set_timings!(word, self.ram_cycles, 2, ram_cycles, ram_cycles);
+
+        self.ram_disabled = bits_b!(internal_memory_control, 0, 0);
+        self.ram_external = bits_b!(internal_memory_control, 5, 5);
     }
 
     pub fn set_reg_waitcnt(&mut self, waitcnt: u16) {
