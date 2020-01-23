@@ -489,7 +489,7 @@ impl ObjectPriority {
             let attr0_hi = unsafe { *oam.get_unchecked(attr_index + 1) };
 
             // Check if this object is disabled:
-            if attr0_hi & 0x1 != 1 && (attr0_hi >> 1) & 0x1 == 1 {
+            if attr0_hi & 0x1 == 0 && (attr0_hi >> 1) & 0x1 != 0 {
                 priority_pos[5].1 += 1;
                 disabled_index -= 1;
                 objects[disabled_index] = mkobj!(obj_index, 5);
@@ -505,7 +505,7 @@ impl ObjectPriority {
             }
 
             let attr2_hi = unsafe { *oam.get_unchecked(attr_index + 5) };
-            let priority = (attr2_hi >> 3) & 0x3;
+            let priority = (attr2_hi >> 2) & 0x3;
             priority_pos[priority as usize].1 += 1;
             objects[enabled_index] = mkobj!(obj_index, priority);
             enabled_index += 1;
