@@ -76,13 +76,17 @@ impl Gba {
             self.cpu.registers.setf_i(); // Disables IRQ interrupts
             self.cpu.registers.write_mode(registers::CpuMode::System);
 
-            // Set up user stack and data locations:
+            // Set up user stack base address:
             self.cpu
                 .registers
-                .write_with_mode(registers::CpuMode::User, 13, 0x03007F00); // Also System
+                .write_with_mode(registers::CpuMode::User, 13, 0x03007F00);
+
+            // Set up interrupt stack base address:
             self.cpu
                 .registers
                 .write_with_mode(registers::CpuMode::IRQ, 13, 0x03007FA0);
+
+            // Set up BIOS stack base address:
             self.cpu
                 .registers
                 .write_with_mode(registers::CpuMode::Supervisor, 13, 0x03007FE0);
@@ -118,6 +122,16 @@ impl Gba {
             self.process_all_hardware_events();
         }
 
+        // NOTE the call to `cpu.step` here is kind of misleading.
+        // Despite `step` being only one line:
+        //
+        //     (self.decoded_fn)(self, memory, self.decoded_op)
+        //
+        // It handles running instructions, DMAs, exceptions, and CPU idling when the CPU is in the
+        // halted or stopped state. `decoded_fn` does not always actually refer to code meant for
+        // running a CPU instruction but can also just be some other arbitrary function set by
+        // somewhere else in teh emulator. The destination of `decoded_fn` is changed via the
+        // `set_idle` and `override_execution` functions.
         let cycles = self.cpu.step(&mut self.hardware);
 
         if self.hardware.timers.active() {
@@ -138,7 +152,7 @@ impl Gba {
         return (video_frame, audio_frame);
     }
 
-    #[cold]
+    #[inline]
     fn process_all_hardware_events(&mut self) {
         while self.hardware.events.count() > 0 {
             let event = self.hardware.events.pop();
@@ -153,8 +167,13 @@ impl Gba {
             HardwareEvent::IRQ(irq) => {
                 if self.cpu.exception_enabled(CpuException::IRQ) && self.hardware.irq.request(irq) {
                     self.state = GbaSystemState::Running;
+
+                    // This will automatically put the CPU in an active state if it's idling.
                     self.cpu.set_pending_exception_active(CpuException::IRQ);
-                    self.hardware.dma.resume_transfer(&mut self.cpu); // will only resume if there is a DMA
+
+                    // Calling `set_pending_exception_active` will change the CPU's next execution
+                    // so we call this to resume a DMA transfer if one was in progress:
+                    self.hardware.dma.resume_transfer(&mut self.cpu);
                 }
             }
 
@@ -164,13 +183,16 @@ impl Gba {
 
             HardwareEvent::Halt => {
                 self.state = GbaSystemState::Halted;
-                self.cpu.set_idle(true, 4); // We don't want to be too fine grained here or performance is bad.
+
+                // We don't want to be too fine grained here or performance is bad.
+                self.cpu.set_idle(true, 4);
             }
 
             HardwareEvent::Stop => {
-                log::warn!("stop event is still unstable");
                 self.state = GbaSystemState::Stopped;
-                self.cpu.set_idle(true, 16); // we use big steps for stop because everything we need high fidelity for is off.
+
+                // we use big steps for stop because everything we need high fidelity for is off.
+                self.cpu.set_idle(true, 16);
             }
 
             HardwareEvent::None => {
