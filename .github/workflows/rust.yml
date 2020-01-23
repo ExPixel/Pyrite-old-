@@ -76,7 +76,9 @@ jobs:
 
         # Run Tests:
         - name: Test
-          run: cargo test -- --include-ignored
+          run: cargo test
+        - name: Test (Ignored)
+          run: cargo test -- ignored
         - name: Check Formatting
           run: cargo fmt --all -- --check
         - name: Clippy Lints
