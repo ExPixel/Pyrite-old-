@@ -199,20 +199,17 @@ macro_rules! define_obj_renderer {
                 } else {
                     let semi_transparent = attrs.0.mode() == ObjMode::SemiTransparent;
                     Pixel::layer_mask(Layer::OBJ)
-                        | (if first_target | semi_transparent {
-                            Pixel::FIRST_TARGET
-                        } else {
-                            0
-                        })
+                        | (if first_target { Pixel::FIRST_TARGET } else { 0 })
                         | (if second_target {
                             Pixel::SECOND_TARGET
                         } else {
                             0
-                        } | (if semi_transparent {
-                            Pixel::SEMI_TRANSPARENT
+                        })
+                        | (if semi_transparent {
+                            Pixel::SEMI_TRANSPARENT | Pixel::FIRST_TARGET
                         } else {
                             0
-                        }))
+                        })
                 };
 
                 if attrs.0.palette256() {
