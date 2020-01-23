@@ -32,7 +32,6 @@ jobs:
           with:
               toolchain: ${{ matrix.rust_channel }}
               override: true
-              profile: minimal
 
         - name: Cache Cargo Registry
           uses: actions/cache@v1
