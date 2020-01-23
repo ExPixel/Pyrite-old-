@@ -22,10 +22,9 @@ pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &m
     for priority in (0usize..=3).rev() {
         for bg_index in (0usize..=3).rev() {
             let layer = Layer::from_bg(bg_index as u16);
-            if !registers.dispcnt.display_layer(layer) {
-                continue;
-            }
-            if registers.bg_cnt[bg_index].priority() == priority as u16 {
+            if registers.dispcnt.display_layer(layer)
+                && registers.bg_cnt[bg_index].priority() == priority as u16
+            {
                 let first_target = registers.effects.is_first_target(bg_index as u16);
                 let second_target = registers.effects.is_second_target(bg_index as u16);
                 let textbg = TextBG::new(
@@ -78,10 +77,9 @@ pub fn render_mode1(
     for priority in (0usize..=3).rev() {
         for bg_index in (0usize..=2).rev() {
             let layer = Layer::from_bg(bg_index as u16);
-            if !registers.dispcnt.display_layer(layer) {
-                continue;
-            }
-            if registers.bg_cnt[bg_index].priority() == priority as u16 {
+            if registers.dispcnt.display_layer(layer)
+                && registers.bg_cnt[bg_index].priority() == priority as u16
+            {
                 let first_target = registers.effects.is_first_target(bg_index as u16);
                 let second_target = registers.effects.is_second_target(bg_index as u16);
 
@@ -150,10 +148,9 @@ pub fn render_mode2(
     for priority in (0usize..=3).rev() {
         for bg_index in (2usize..=3).rev() {
             let layer = Layer::from_bg(bg_index as u16);
-            if !registers.dispcnt.display_layer(layer) {
-                continue;
-            }
-            if registers.bg_cnt[bg_index].priority() == priority as u16 {
+            if registers.dispcnt.display_layer(layer)
+                && registers.bg_cnt[bg_index].priority() == priority as u16
+            {
                 let first_target = registers.effects.is_first_target(bg_index as u16);
                 let second_target = registers.effects.is_second_target(bg_index as u16);
 
