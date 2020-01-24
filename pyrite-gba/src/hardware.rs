@@ -420,8 +420,17 @@ impl GbaHardware {
     fn io_read32(&self, addr: u32, display_error: bool) -> u32 {
         // the address is 32-bit aligned by this point so adding 2 like this is safe.
         let offset_lo = Self::io_off(addr);
-        let offset_hi = offset_lo + 2;
 
+        match offset_lo {
+            ioregs::DMA0CNT_L => return self.dma.channel(DMAChannelIndex::DMA0).control() as u32,
+            ioregs::DMA1CNT_L => return self.dma.channel(DMAChannelIndex::DMA1).control() as u32,
+            ioregs::DMA2CNT_L => return self.dma.channel(DMAChannelIndex::DMA2).control() as u32,
+            ioregs::DMA3CNT_L => return self.dma.channel(DMAChannelIndex::DMA3).control() as u32,
+            ioregs::IMC => return self.sysctl.reg_imemctl,
+            _ => {}
+        }
+
+        let offset_hi = offset_lo + 2;
         match (self.io_read_reg(offset_lo), self.io_read_reg(offset_hi)) {
             (Some(lo), Some(hi)) => {
                 return (lo as u32) | ((hi as u32) << 16);
@@ -520,6 +529,30 @@ impl GbaHardware {
 
             ioregs::DMA3SAD => {
                 self.dma.channel_mut(DMAChannelIndex::DMA3).set_source(data);
+            }
+
+            ioregs::DMA0DAD => {
+                self.dma
+                    .channel_mut(DMAChannelIndex::DMA0)
+                    .set_destination(data);
+            }
+
+            ioregs::DMA1DAD => {
+                self.dma
+                    .channel_mut(DMAChannelIndex::DMA1)
+                    .set_destination(data);
+            }
+
+            ioregs::DMA2DAD => {
+                self.dma
+                    .channel_mut(DMAChannelIndex::DMA2)
+                    .set_destination(data);
+            }
+
+            ioregs::DMA3DAD => {
+                self.dma
+                    .channel_mut(DMAChannelIndex::DMA3)
+                    .set_destination(data);
             }
 
             ioregs::IMC => {
