@@ -54,7 +54,7 @@ jobs:
 
         - name: Configure Chocolatey
           run: |
-              choco search llvm --exact >> .choco-install-list
+              choco search llvm --exact --limit-output >> .choco-install-list
               choco config set cacheLocation .choco-cache
               type .choco-install-list
           if: matrix.os == 'windows-latest'
