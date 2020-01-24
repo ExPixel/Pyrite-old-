@@ -262,7 +262,7 @@ impl LCDLineBuffer {
             SpecialEffect::AlphaBlending => {
                 for x in 0..240 {
                     let Pixels2 { top, bot } = self.unmixed[x];
-                    if !top.first_target() || !bot.second_target() {
+                    if !top.semi_transparent_or_first_target() || !bot.second_target() {
                         self.mixed[x] = self.lookup_color(palette, bm_color, top);
                     } else {
                         self.mixed[x] = Self::alpha_blend(
@@ -346,8 +346,19 @@ impl LCDLineBuffer {
                 // if we're not blending be can just copy the top most pixel into the mixed line
                 // buffer.
                 for x in 0..240 {
-                    let Pixels2 { top, bot: _bot } = self.unmixed[x];
-                    self.mixed[x] = self.lookup_color(palette, bm_color, top);
+                    let Pixels2 { top, bot } = self.unmixed[x];
+
+                    // Semi-Transparent OBJ pixels force alpha blending as first target:
+                    if top.semi_transparent() && bot.second_target() {
+                        self.mixed[x] = Self::alpha_blend(
+                            self.lookup_color(palette, bm_color, top),
+                            self.lookup_color(palette, bm_color, bot),
+                            eva,
+                            evb,
+                        );
+                    } else {
+                        self.mixed[x] = self.lookup_color(palette, bm_color, top);
+                    }
                 }
             }
         }
@@ -424,16 +435,16 @@ impl Default for Pixels2 {
 /// * 0 -  7: Color palette entry. If this is a pixel from a bitmap mode it will be an index into the
 ///           bitmap palette.
 /// * 8 - 10: The layer of this pixel.
-/// *     11: If this is 1, this is a first target pixel.
-/// *     12: If this is 1, this is a second target pixel.
-/// *     13: If this is 1, this is a semi-transparent OBJ pixel.
+/// *     11: If this is 1, this is a semi-transparent OBJ pixel.
+/// *     12: If this is 1, this is a first target pixel.
+/// *     13: If this is 1, this is a second target pixel.
 #[derive(Clone, Copy)]
 pub struct Pixel(pub u16);
 
 impl Pixel {
-    pub const FIRST_TARGET: u16 = 0x0800;
-    pub const SECOND_TARGET: u16 = 0x1000;
-    pub const SEMI_TRANSPARENT: u16 = 0x2000;
+    pub const SEMI_TRANSPARENT: u16 = 1 << 11;
+    pub const FIRST_TARGET: u16 = 1 << 12;
+    pub const SECOND_TARGET: u16 = 1 << 13;
 
     /// When this mask is ANDed with a pixel. It will either leave the FIRST_TARGET and
     /// SECOND_TARGET bits alone or remove them completely if special effects are disabled by a
@@ -468,6 +479,11 @@ impl Pixel {
     #[inline(always)]
     pub const fn semi_transparent(self) -> bool {
         (self.0 & Self::SEMI_TRANSPARENT) != 0
+    }
+
+    #[inline(always)]
+    pub const fn semi_transparent_or_first_target(self) -> bool {
+        (self.0 & (Self::SEMI_TRANSPARENT | Self::FIRST_TARGET)) != 0
     }
 
     // @TODO mark this as const when `Layer::from_index` becomes const.

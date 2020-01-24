@@ -206,7 +206,7 @@ macro_rules! define_obj_renderer {
                             0
                         })
                         | (if semi_transparent {
-                            Pixel::SEMI_TRANSPARENT | Pixel::FIRST_TARGET
+                            Pixel::SEMI_TRANSPARENT
                         } else {
                             0
                         })
