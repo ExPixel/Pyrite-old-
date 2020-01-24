@@ -418,6 +418,15 @@ impl Default for Pixels2 {
     }
 }
 
+/// Contains a pixel's color and some metadata:
+///
+/// BITS:
+/// * 0 -  7: Color palette entry. If this is a pixel from a bitmap mode it will be an index into the
+///           bitmap palette.
+/// * 8 - 10: The layer of this pixel.
+/// *     11: If this is 1, this is a first target pixel.
+/// *     12: If this is 1, this is a second target pixel.
+/// *     13: If this is 1, this is a semi-transparent OBJ pixel.
 #[derive(Clone, Copy)]
 pub struct Pixel(pub u16);
 
