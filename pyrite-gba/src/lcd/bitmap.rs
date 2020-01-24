@@ -61,8 +61,8 @@ pub fn render_mode3(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &m
             render_mode3_bitmap(
                 registers.line as usize,
                 vram,
-                registers.effects.is_first_target(2),
-                registers.effects.is_second_target(2),
+                registers.effects.is_first_target(Layer::BG2),
+                registers.effects.is_second_target(Layer::BG2),
                 pixels,
             );
         }
@@ -130,8 +130,8 @@ pub fn render_mode4(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &m
                 unsafe {
                     std::mem::transmute((&vram[framebuffer_start..framebuffer_end]).as_ptr())
                 },
-                registers.effects.is_first_target(2),
-                registers.effects.is_second_target(2),
+                registers.effects.is_first_target(Layer::BG2),
+                registers.effects.is_second_target(Layer::BG2),
                 pixels,
             );
         }
@@ -202,8 +202,8 @@ pub fn render_mode5(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &m
                     unsafe {
                         std::mem::transmute((&vram[framebuffer_start..framebuffer_end]).as_ptr())
                     },
-                    registers.effects.is_first_target(2),
-                    registers.effects.is_second_target(2),
+                    registers.effects.is_first_target(Layer::BG2),
+                    registers.effects.is_second_target(Layer::BG2),
                     pixels,
                 );
             }

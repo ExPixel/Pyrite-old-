@@ -25,8 +25,8 @@ pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &m
             if registers.dispcnt.display_layer(layer)
                 && registers.bg_cnt[bg_index].priority() == priority as u16
             {
-                let first_target = registers.effects.is_first_target(bg_index as u16);
-                let second_target = registers.effects.is_second_target(bg_index as u16);
+                let first_target = registers.effects.is_first_target(layer);
+                let second_target = registers.effects.is_second_target(layer);
                 let textbg = TextBG::new(
                     registers.bg_cnt[bg_index],
                     registers.bg_ofs[bg_index],
@@ -80,8 +80,8 @@ pub fn render_mode1(
             if registers.dispcnt.display_layer(layer)
                 && registers.bg_cnt[bg_index].priority() == priority as u16
             {
-                let first_target = registers.effects.is_first_target(bg_index as u16);
-                let second_target = registers.effects.is_second_target(bg_index as u16);
+                let first_target = registers.effects.is_first_target(layer);
+                let second_target = registers.effects.is_second_target(layer);
 
                 if bg_index == 2 {
                     let affinebg = AffineBG::new(
@@ -151,8 +151,8 @@ pub fn render_mode2(
             if registers.dispcnt.display_layer(layer)
                 && registers.bg_cnt[bg_index].priority() == priority as u16
             {
-                let first_target = registers.effects.is_first_target(bg_index as u16);
-                let second_target = registers.effects.is_second_target(bg_index as u16);
+                let first_target = registers.effects.is_first_target(layer);
+                let second_target = registers.effects.is_second_target(layer);
 
                 let affinebg = AffineBG::new(
                     registers.bg_cnt[bg_index],

@@ -22,8 +22,8 @@ macro_rules! define_obj_renderer {
                 return;
             }
 
-            let first_target = registers.effects.is_first_target(4);
-            let second_target = registers.effects.is_second_target(4);
+            let first_target = registers.effects.is_first_target(Layer::OBJ);
+            let second_target = registers.effects.is_second_target(Layer::OBJ);
 
             for obj_index in objects.iter().map(|x| (*x & 0xFF) as usize) {
                 let attr_index = obj_index * 8;

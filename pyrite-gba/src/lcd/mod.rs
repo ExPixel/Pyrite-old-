@@ -816,20 +816,12 @@ impl EffectsSelection {
         self.inner = value;
     }
 
-    pub fn is_first_target(&self, layer: u16) -> bool {
-        assert!(
-            layer <= 5,
-            "first target layer index must be in range [0, 5]"
-        );
-        return (self.inner & (1 << layer)) != 0;
+    pub fn is_first_target(&self, layer: Layer) -> bool {
+        return (self.inner & (1 << layer.index())) != 0;
     }
 
-    pub fn is_second_target(&self, layer: u16) -> bool {
-        assert!(
-            layer <= 5,
-            "second target layer index must be in range [0, 5]"
-        );
-        return (self.inner & (1 << (layer + 8))) != 0;
+    pub fn is_second_target(&self, layer: Layer) -> bool {
+        return (self.inner & (1 << (layer.index() + 8))) != 0;
     }
 
     pub fn effect(&self) -> SpecialEffect {
