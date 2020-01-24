@@ -17,11 +17,6 @@ fn main() {
 }
 
 fn run_emulator() -> i32 {
-    let mut window = platform::glutin::window::Window::new("Pyrite", 240.0 * 3.0, 160.0 * 3.0);
-    if let Err(_) = window.set_position_center() {
-        log::error!("failed to place the window in the center of the screen");
-    }
-
     let mut gba = Gba::alloc();
 
     const BIOS_FILE: &str = "roms/legal/gba-bios.bin";
@@ -53,12 +48,8 @@ fn run_emulator() -> i32 {
         return 1;
     }
 
-    let mut imgui_ui = gba_imgui::GbaImGui::new(gba, window.glutin_window());
-    while !window.close_requested() {
-        window.handle_events_with_handler(|window, event| imgui_ui.handle_event(window, event));
-        imgui_ui.render_frame(window.glutin_window());
-        window.flip();
-    }
+    let imgui_ui = gba_imgui::GbaImGui::new(gba);
+    imgui_ui.run();
 
     return 0;
 }

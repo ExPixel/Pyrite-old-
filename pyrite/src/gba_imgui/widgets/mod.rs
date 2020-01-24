@@ -323,20 +323,10 @@ impl EmulatorStatsWindow {
                 gba_max_frame_delay,
                 1000.0 / gba_max_frame_delay
             ));
-            let frame_percentage = if gba_frame_delay >= emu_frame_delay {
-                100.0
-            } else {
-                (gba_frame_delay * 100.0) / emu_frame_delay
-            };
-            let average_frame_percentage = if gba_average_frame_delay >= emu_average_frame_delay {
-                100.0
-            } else {
-                (gba_average_frame_delay * 100.0) / emu_average_frame_delay
-            };
+            let gba_speed_percentage = ((1000.0 / 60.0) / gba_frame_delay) * 100.0;
             imgui::text(imgui::str_gbuf!(
-                "    Frame %%: {:.02}%% ({:.0}%% average)",
-                frame_percentage,
-                average_frame_percentage
+                "        {:.02}%%  GBA Speed",
+                gba_speed_percentage,
             ));
 
             // BEGIN IMGUI FRAME TIMES
@@ -382,21 +372,6 @@ impl EmulatorStatsWindow {
             ));
             imgui::text(imgui::str_gbuf!("        Min: {:.02}", gui_min_frame_delay));
             imgui::text(imgui::str_gbuf!("        Max: {:.02}", gui_max_frame_delay));
-            let frame_percentage = if gui_frame_delay >= emu_frame_delay {
-                100.0
-            } else {
-                (gui_frame_delay * 100.0) / emu_frame_delay
-            };
-            let average_frame_percentage = if gui_average_frame_delay >= emu_average_frame_delay {
-                100.0
-            } else {
-                (gui_average_frame_delay * 100.0) / emu_average_frame_delay
-            };
-            imgui::text(imgui::str_gbuf!(
-                "    Frame %%: {:.02}%% ({:.0}%% average)",
-                frame_percentage,
-                average_frame_percentage
-            ));
         }
         imgui::end();
     }
