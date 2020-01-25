@@ -3,7 +3,7 @@ use super::{
     apply_mosaic, AffineBGParams, BGControl, BGOffset, LCDLineBuffer, LCDRegisters, Layer, Pixel,
 };
 use crate::hardware::{OAM, VRAM};
-use crate::util::memory::read_u16_unchecked;
+use crate::util::memory::{read_u16_unchecked, read_u32_unchecked};
 
 pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &mut LCDLineBuffer) {
     let object_priorities = ObjectPriority::sorted(oam);
@@ -248,6 +248,20 @@ pub fn draw_affine_bg(
     }
 }
 
+macro_rules! write_4bpp {
+    ($Dest:expr, $DestOffset:expr, $Palette:expr, $Nibbles:expr) => {
+        $Dest[$DestOffset as usize] = ($Palette * 16) + ($Nibbles as u8 & 0xF);
+        $Dest[$DestOffset as usize + 1] = ($Palette * 16) + ($Nibbles as u8 >> 4);
+    };
+}
+
+macro_rules! write_4bpp_rev {
+    ($Dest:expr, $DestOffset:expr, $Palette:expr, $Nibbles:expr) => {
+        $Dest[$DestOffset as usize] = ($Palette * 16) + ($Nibbles as u8 >> 4);
+        $Dest[$DestOffset as usize + 1] = ($Palette * 16) + ($Nibbles as u8 & 0xF);
+    };
+}
+
 pub fn draw_text_bg_4bpp(
     layer: Layer,
     line: u32,
@@ -292,11 +306,10 @@ pub fn draw_text_bg_4bpp(
         let hflip = (tile_info & 0x400) != 0;
         let vflip = (tile_info & 0x800) != 0;
 
-        let tx = if hflip { 7 - (scx % 8) } else { scx % 8 };
         let ty = if vflip { 7 - ty } else { ty };
 
         let tile_data_start = bg.char_base + (BYTES_PER_TILE * tile_number);
-        let mut pixel_offset = tile_data_start + (ty * BYTES_PER_LINE) + tx / 2;
+        let mut pixel_offset = (tile_data_start + (ty * BYTES_PER_LINE)) as usize;
         if pixel_offset >= 0x10000 {
             dx += 1;
             continue;
@@ -304,17 +317,25 @@ pub fn draw_text_bg_4bpp(
 
         // try to do 8 pixels at a time if possible:
         if bg.mosaic_x <= 1 && (scx % 8) == 0 && dx <= 232 {
-            let pinc = if hflip { -1i32 as u32 } else { 1u32 };
-            for _ in 0..4 {
-                let palette_entry = vram[pixel_offset as usize];
-                let lo_palette_entry = palette_entry & 0xF;
-                let hi_palette_entry = palette_entry >> 4;
-                pixel_buffer[dx as usize] = (tile_palette * 16) + lo_palette_entry;
-                pixel_buffer[dx as usize + 1] = (tile_palette * 16) + hi_palette_entry;
-                dx += 2;
-                pixel_offset = pixel_offset.wrapping_add(pinc);
+            // we read all 8 nibbles (4 bytes) in one go:
+            let pixels8 = unsafe { read_u32_unchecked(vram, pixel_offset) };
+            if hflip {
+                write_4bpp_rev!(pixel_buffer, dx + 0, tile_palette, pixels8 >> 24);
+                write_4bpp_rev!(pixel_buffer, dx + 2, tile_palette, pixels8 >> 16);
+                write_4bpp_rev!(pixel_buffer, dx + 4, tile_palette, pixels8 >> 8);
+                write_4bpp_rev!(pixel_buffer, dx + 6, tile_palette, pixels8);
+            } else {
+                write_4bpp!(pixel_buffer, dx + 0, tile_palette, pixels8);
+                write_4bpp!(pixel_buffer, dx + 2, tile_palette, pixels8 >> 8);
+                write_4bpp!(pixel_buffer, dx + 4, tile_palette, pixels8 >> 16);
+                write_4bpp!(pixel_buffer, dx + 6, tile_palette, pixels8 >> 24);
             }
+            dx += 8;
         } else {
+            // get the x offset of the pixel:
+            let tx = if hflip { 7 - (scx % 8) } else { scx % 8 };
+            pixel_offset += tx as usize / 2;
+
             let palette_entry = (vram[pixel_offset as usize] >> ((tx % 2) << 2)) & 0xF;
             pixel_buffer[dx as usize] = (tile_palette * 16) + palette_entry;
             dx += 1;
