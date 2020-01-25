@@ -15,5 +15,11 @@ cargo run -- <ROM>
 Screenshots
 ---
 
+**Pokemon Emerald**  
+![Pokemon Emerald Screenshot](https://raw.githubusercontent.com/ExPixel/Pyrite/master/misc/screenshots/pokemon-emerald.png)
+
 **Pokemon Leaf Green**  
 ![Pokemon Leaf Green Screenshot](https://raw.githubusercontent.com/ExPixel/Pyrite/master/misc/screenshots/pokemon-leaf-green.png)
+
+**Final Fantasy 6 Advance**  
+![Final Fantasy 6 Advance](https://raw.githubusercontent.com/ExPixel/Pyrite/master/misc/screenshots/final-fantasy-6-advance.png)
