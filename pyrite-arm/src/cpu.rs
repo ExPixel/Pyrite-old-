@@ -259,7 +259,7 @@ impl ArmCpu {
     }
 
     fn step_arm(cpu: &mut ArmCpu, memory: &mut dyn ArmMemory, opcode: u32) -> u32 {
-        if check_condition((opcode >> 28) & 0xF, &cpu.registers) {
+        if check_condition(opcode >> 28, &cpu.registers) {
             let arm_fn = Self::decode_arm(opcode);
             return arm_fn(cpu, memory, opcode);
         } else {
@@ -394,7 +394,7 @@ pub(crate) fn check_condition(cond: u32, regs: &ArmRegisters) -> bool {
         0xE => true, // E:   AL     -             always (the "AL" suffix can be omitted)
         0xF => false, // F:   NV     -             never (ARMv1,v2 only) (Reserved ARMv3 and up)
         // :(
-        _ => panic!("bad condition code: 0x{:08X} ({:04b})", cond, cond),
+        _ => unreachable!("bad condition code: 0x{:08X} ({:04b})", cond, cond),
     }
 }
 
