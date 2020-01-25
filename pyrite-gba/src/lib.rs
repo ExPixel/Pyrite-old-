@@ -152,7 +152,7 @@ impl Gba {
         return (video_frame, audio_frame);
     }
 
-    #[inline]
+    #[cold]
     fn process_all_hardware_events(&mut self) {
         while self.hardware.events.count() > 0 {
             let event = self.hardware.events.pop();
