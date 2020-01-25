@@ -620,6 +620,8 @@ impl GbaHardware {
         }
     }
 
+    // TODO: remove this allow attribute
+    #[allow(overlapping_patterns, unreachable_patterns)]
     fn io_write_reg(&mut self, offset: u16, data: u16) -> bool {
         /// Sets the 16bit value in a word.
         macro_rules! setw {
@@ -715,33 +717,8 @@ impl GbaHardware {
             ioregs::SOUNDBIAS | ioregs::SOUNDBIAS_H => {
                 self.audio.registers.bias.value = setw!(self.audio.registers.bias.value);
             }
-
-            // TODO implement the other sound registers
-            0x060..=0x0A8 => {
-                warn_unimplemented!(
-                    DEBUG_SOUND_REG_ACCESS,
-                    "attempted to access unimplemented sound I/O registers"
-                );
-            }
-
-            // TODO implement the serial comm (1) registers
-            0x120..=0x12C => {
-                warn_unimplemented!(
-                    DEBUG_SERIAL1_REG_ACCESS,
-                    "attempted to access unimplemented serial communication (1) I/O registers"
-                );
-            }
-
             // Keypad Input
             ioregs::KEYCNT => self.keypad.control = data,
-
-            // TODO implement the serial comm (2) registers
-            0x134..=0x15A => {
-                warn_unimplemented!(
-                    DEBUG_SERIAL2_REG_ACCESS,
-                    "attempted to access unimplemented serial communication (2) I/O registers"
-                );
-            }
 
             // System Control
             ioregs::WAITCNT => self.sysctl.set_reg_waitcnt(data),
@@ -858,6 +835,54 @@ impl GbaHardware {
             ioregs::TM3CNT_L => self.timers.write_timer_counter(TimerIndex::TM3, data),
             ioregs::TM3CNT_H => self.timers.write_timer_control(TimerIndex::TM3, data),
 
+            // TODO figure this out some time:
+            // Unused areas that are still written to I think (???):
+            0x04E => (),
+            0x056 => (),
+            0x066 => (),
+            0x06A => (),
+            0x06E => (),
+            0x076 => (),
+            0x07A => (),
+            0x07E => (),
+            0x086 => (),
+            0x08A => (),
+            0x0A8 => (),
+            0x0E0 => (),
+            0x110 => (),
+            0x12C => (),
+            0x136 => (), // Old infrared register
+            0x138 => (),
+            0x142 => (),
+            0x15A => (),
+            0x206 => (),
+            0x20A => (),
+            0x302 => (),
+
+            // TODO implement the other sound registers
+            0x060..=0x0A8 => {
+                warn_unimplemented!(
+                    DEBUG_SOUND_REG_ACCESS,
+                    "attempted to access unimplemented sound I/O registers"
+                );
+            }
+
+            // TODO implement the serial comm (1) registers
+            0x120..=0x12C => {
+                warn_unimplemented!(
+                    DEBUG_SERIAL1_REG_ACCESS,
+                    "attempted to access unimplemented serial communication (1) I/O registers"
+                );
+            }
+
+            // TODO implement the serial comm (2) registers
+            0x134..=0x15A => {
+                warn_unimplemented!(
+                    DEBUG_SERIAL2_REG_ACCESS,
+                    "attempted to access unimplemented serial communication (2) I/O registers"
+                );
+            }
+
             _ => {
                 return false;
             }
@@ -866,6 +891,8 @@ impl GbaHardware {
         return true;
     }
 
+    // TODO: remove this allow attribute
+    #[allow(overlapping_patterns, unreachable_patterns)]
     fn io_read_reg(&self, offset: u16) -> Option<u16> {
         macro_rules! getw {
             ($Word:expr) => {{
@@ -891,36 +918,9 @@ impl GbaHardware {
             // Sound
             ioregs::SOUNDBIAS | ioregs::SOUNDBIAS_H => getw!(self.audio.registers.bias.value),
 
-            // TODO implement the other sound registers
-            0x060..=0x0A8 => {
-                warn_unimplemented!(
-                    DEBUG_SOUND_REG_ACCESS,
-                    "attempted to access unimplemented sound I/O registers"
-                );
-                Some(0)
-            }
-
-            // TODO implement the serial comm (1) registers
-            0x120..=0x12C => {
-                warn_unimplemented!(
-                    DEBUG_SERIAL1_REG_ACCESS,
-                    "attempted to access unimplemented serial communication (1) I/O registers"
-                );
-                Some(0)
-            }
-
             // Keypad Input
             ioregs::KEYINPUT => Some(self.keypad.input),
             ioregs::KEYCNT => Some(self.keypad.control),
-
-            // TODO implement the serial comm (2) registers
-            0x134..=0x15A => {
-                warn_unimplemented!(
-                    DEBUG_SERIAL2_REG_ACCESS,
-                    "attempted to access unimplemented serial communication (2) I/O registers"
-                );
-                Some(0)
-            }
 
             // System Control
             ioregs::WAITCNT => Some(self.sysctl.reg_waitcnt),
@@ -947,6 +947,58 @@ impl GbaHardware {
             ioregs::IME => Some(self.irq.master_enable as u16),
             ioregs::IE => Some(self.irq.enabled),
             ioregs::IF => Some(self.irq.read_if()),
+
+            // TODO figure this out some time:
+            // Unused areas that are still read from I think (???):
+            0x04E => Some(0),
+            0x056 => Some(0),
+            0x066 => Some(0),
+            0x06A => Some(0),
+            0x06E => Some(0),
+            0x076 => Some(0),
+            0x07A => Some(0),
+            0x07E => Some(0),
+            0x086 => Some(0),
+            0x08A => Some(0),
+            0x0A8 => Some(0),
+            0x0E0 => Some(0),
+            0x110 => Some(0),
+            0x12C => Some(0),
+            0x136 => Some(0), // Old infrared register
+            0x138 => Some(0),
+            0x142 => Some(0),
+            0x15A => Some(0),
+            0x206 => Some(0),
+            0x20A => Some(0),
+            0x302 => Some(0),
+
+            // TODO implement the other sound registers
+            0x060..=0x0A8 => {
+                warn_unimplemented!(
+                    DEBUG_SOUND_REG_ACCESS,
+                    "attempted to access unimplemented sound I/O registers"
+                );
+                Some(0)
+            }
+
+            // TODO implement the serial comm (1) registers
+            0x120..=0x12C => {
+                warn_unimplemented!(
+                    DEBUG_SERIAL1_REG_ACCESS,
+                    "attempted to access unimplemented serial communication (1) I/O registers"
+                );
+                Some(0)
+            }
+
+            // TODO implement the serial comm (2) registers
+            0x134..=0x15A => {
+                warn_unimplemented!(
+                    DEBUG_SERIAL2_REG_ACCESS,
+                    "attempted to access unimplemented serial communication (2) I/O registers"
+                );
+                Some(0)
+            }
+
             _ => None,
         }
     }
