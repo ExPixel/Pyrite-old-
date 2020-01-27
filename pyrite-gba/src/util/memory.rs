@@ -66,6 +66,11 @@ macro_rules! write_bytes_le {
 }
 
 #[inline]
+pub unsafe fn read_u64_unchecked(mem: &[u8], offset: usize) -> u64 {
+    read_bytes_le_no_bounds_check!(mem.get_unchecked(offset), u64, 8)
+}
+
+#[inline]
 pub fn read_u32(mem: &[u8], offset: usize) -> u32 {
     read_bytes_le!(&mem[offset..], u32, 4)
 }
@@ -83,6 +88,10 @@ pub fn read_u16(mem: &[u8], offset: usize) -> u16 {
 #[inline]
 pub unsafe fn read_u16_unchecked(mem: &[u8], offset: usize) -> u16 {
     read_bytes_le_no_bounds_check!(mem.get_unchecked(offset), u16, 2)
+}
+
+pub fn write_u64(mem: &mut [u8], offset: usize, value: u64) {
+    write_bytes_le!(&mut mem[offset..], value, u64, 8);
 }
 
 #[inline]

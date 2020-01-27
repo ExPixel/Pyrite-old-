@@ -3,7 +3,7 @@ use super::{
     apply_mosaic, AffineBGParams, BGControl, BGOffset, LCDLineBuffer, LCDRegisters, Layer, Pixel,
 };
 use crate::hardware::{OAM, VRAM};
-use crate::util::memory::{read_u16_unchecked, read_u32_unchecked};
+use crate::util::memory::{read_u16_unchecked, read_u32_unchecked, read_u64_unchecked, write_u64};
 
 pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &mut LCDLineBuffer) {
     let object_priorities = ObjectPriority::sorted(oam);
@@ -435,11 +435,11 @@ pub fn draw_text_bg_8bpp(
 
         // try to do 8 pixels at a time if possible:
         if bg.mosaic_x <= 1 && (scx % 8) == 0 && dx <= 232 {
-            pixel_buffer[dx as usize..(dx as usize + 8)]
-                .copy_from_slice(&vram[pixel_offset as usize..(pixel_offset as usize + 8)]);
+            let mut pixels8 = unsafe { read_u64_unchecked(vram, pixel_offset as usize) };
             if hflip {
-                pixel_buffer[dx as usize..(dx as usize + 8)].reverse();
+                pixels8 = pixels8.swap_bytes();
             }
+            write_u64(&mut pixel_buffer, dx as usize, pixels8);
             dx += 8;
         } else {
             if hflip {
