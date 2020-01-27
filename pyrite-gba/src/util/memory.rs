@@ -65,6 +65,20 @@ macro_rules! write_bytes_le {
     }};
 }
 
+macro_rules! write_bytes_le_no_bounds_check {
+    ($Dst:expr, $Data:expr, $Type:ty, $Size:expr) => {{
+        let dst = $Dst;
+
+        let data: $Type = if cfg!(target_endian = "little") {
+            $Data
+        } else {
+            $Data.swap_bytes()
+        };
+
+        std::ptr::copy_nonoverlapping(&data as *const $Type as *const u8, dst.as_mut_ptr(), $Size);
+    }};
+}
+
 #[inline]
 pub unsafe fn read_u64_unchecked(mem: &[u8], offset: usize) -> u64 {
     read_bytes_le_no_bounds_check!(mem.get_unchecked(offset), u64, 8)
@@ -90,8 +104,12 @@ pub unsafe fn read_u16_unchecked(mem: &[u8], offset: usize) -> u16 {
     read_bytes_le_no_bounds_check!(mem.get_unchecked(offset), u16, 2)
 }
 
-pub fn write_u64(mem: &mut [u8], offset: usize, value: u64) {
-    write_bytes_le!(&mut mem[offset..], value, u64, 8);
+// pub fn write_u64(mem: &mut [u8], offset: usize, value: u64) {
+//     write_bytes_le!(&mut mem[offset..], value, u64, 8);
+// }
+
+pub unsafe fn write_u64_unchecked(mem: &mut [u8], offset: usize, value: u64) {
+    write_bytes_le_no_bounds_check!(&mut mem[offset..], value, u64, 8);
 }
 
 #[inline]

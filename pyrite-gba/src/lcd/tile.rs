@@ -3,7 +3,9 @@ use super::{
     apply_mosaic, AffineBGParams, BGControl, BGOffset, LCDLineBuffer, LCDRegisters, Layer, Pixel,
 };
 use crate::hardware::{OAM, VRAM};
-use crate::util::memory::{read_u16_unchecked, read_u32_unchecked, read_u64_unchecked, write_u64};
+use crate::util::memory::{
+    read_u16_unchecked, read_u32_unchecked, read_u64_unchecked, write_u64_unchecked,
+};
 
 pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &mut LCDLineBuffer) {
     let object_priorities = ObjectPriority::sorted(oam);
@@ -439,7 +441,10 @@ pub fn draw_text_bg_8bpp(
             if hflip {
                 pixels8 = pixels8.swap_bytes();
             }
-            write_u64(&mut pixel_buffer, dx as usize, pixels8);
+
+            // The bounds check is already done by dx <= 232
+            unsafe { write_u64_unchecked(&mut pixel_buffer, dx as usize, pixels8) };
+
             dx += 8;
         } else {
             if hflip {
