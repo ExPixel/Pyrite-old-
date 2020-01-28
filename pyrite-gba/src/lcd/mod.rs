@@ -550,7 +550,17 @@ impl LCDPixelBits {
 
     #[inline]
     pub fn is_all_zeroes(&self) -> bool {
-        self.bits.iter().fold(0, |acc, &v| acc | v) == 0
+        self.bits[0] == 0
+            && self.bits[1] == 0
+            && self.bits[2] == 0
+            && (self.bits[3] & 0x0000FFFFFFFFFFFF) == 0
+    }
+
+    pub fn is_all_ones(&self) -> bool {
+        self.bits[0] == !0
+            && self.bits[1] == !0
+            && self.bits[2] == !0
+            && self.bits[3] == 0x0000FFFFFFFFFFFF
     }
 }
 
@@ -726,8 +736,38 @@ impl WindowInfo {
         }
     }
 
+    /// Returns false if no windows contain any part of this line.
+    pub(crate) fn line_visible(&self, layer: Layer, y: u16) -> bool {
+        let mut visible = false;
+
+        if self.win0_enabled && self.winin.layer_enabled(Window::Win0, layer) {
+            visible |= self.win0_bounds.contains_vertical(y);
+            if self.win0_bounds.left == 0 && self.win0_bounds.right >= 240 {
+                return visible;
+            }
+        }
+
+        if self.win1_enabled && self.winin.layer_enabled(Window::Win1, layer) {
+            visible |= self.win1_bounds.contains_vertical(y);
+            if self.win1_bounds.left == 0 && self.win1_bounds.right >= 240 {
+                return visible;
+            }
+        }
+
+        if self.win_obj_enabled && self.winout.layer_enabled(Window::OBJ, layer) {
+            visible |= !self.obj_window.is_all_zeroes();
+            if self.obj_window.is_all_ones() {
+                return visible;
+            }
+        }
+
+        visible |= self.winout.layer_enabled(Window::Outside, layer);
+
+        return visible;
+    }
+
     /// Returns Some(window) if a pixel is contained inside of a given window.
-    pub(crate) fn check_pixel(&self, layer: Layer, x: u16, y: u16) -> Option<u16> {
+    pub(crate) fn check_visibility(&self, layer: Layer, x: u16, y: u16) -> Option<u16> {
         if self.win0_enabled && self.win0_bounds.contains(x, y) {
             if self.winin.layer_enabled(Window::Win0, layer) {
                 return Some(self.window_effects_masks[Window::Win0.index()]);
@@ -1004,6 +1044,24 @@ impl WindowBounds {
         let v1 = (self.top <= self.bottom) & ((y >= self.top) & (y < self.bottom));
         let v2 = (self.top > self.bottom) & ((y >= self.top) | (y < self.bottom));
         return v1 | v2;
+    }
+
+    #[inline(always)]
+    pub fn contains_horizontal(&self, x: u16) -> bool {
+        if self.left <= self.right {
+            (x >= self.left) & (x < self.right)
+        } else {
+            (x >= self.left) | (x < self.right)
+        }
+    }
+
+    #[inline(always)]
+    pub fn contains_vertical(&self, y: u16) -> bool {
+        if self.top <= self.bottom {
+            (y >= self.top) & (y < self.bottom)
+        } else {
+            (y >= self.top) | (y < self.bottom)
+        }
     }
 
     pub(crate) fn set_h(&mut self, h: u16) {

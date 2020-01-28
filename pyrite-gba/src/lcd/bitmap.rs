@@ -57,7 +57,9 @@ macro_rules! run_between_bm_objs {
 
 pub fn render_mode3(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &mut LCDLineBuffer) {
     run_between_bm_objs!(registers, vram, oam, pal, pixels, {
-        if registers.dispcnt.display_layer(Layer::BG2) {
+        if registers.dispcnt.display_layer(Layer::BG2)
+            && (!pixels.windows.enabled || pixels.windows.line_visible(Layer::BG2, registers.line))
+        {
             render_mode3_bitmap(
                 registers.line as usize,
                 vram,
@@ -92,7 +94,7 @@ fn render_mode3_bitmap(
             if let Some(window_effects_mask) =
                 pixels
                     .windows
-                    .check_pixel(Layer::BG2, x as u16, line as u16)
+                    .check_visibility(Layer::BG2, x as u16, line as u16)
             {
                 Pixel(pflags & window_effects_mask)
             } else {
@@ -116,7 +118,9 @@ pub fn render_mode4(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &m
     const FRAMEBUFFER_SIZE: usize = 0x9600;
 
     run_between_bm_objs!(registers, vram, oam, pal, pixels, {
-        if registers.dispcnt.display_layer(Layer::BG2) {
+        if registers.dispcnt.display_layer(Layer::BG2)
+            && (!pixels.windows.enabled || pixels.windows.line_visible(Layer::BG2, registers.line))
+        {
             let framebuffer_start = if registers.dispcnt.frame_select() == 0 {
                 FRAMEBUFFER0_OFFSET
             } else {
@@ -161,7 +165,7 @@ fn render_mode4_bitmap(
             if let Some(window_effects_mask) =
                 pixels
                     .windows
-                    .check_pixel(Layer::BG2, x as u16, line as u16)
+                    .check_visibility(Layer::BG2, x as u16, line as u16)
             {
                 pflags & window_effects_mask
             } else {
@@ -187,7 +191,9 @@ pub fn render_mode5(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &m
     const FRAMEBUFFER_SIZE: usize = 0xA000;
 
     run_between_bm_objs!(registers, vram, oam, pal, pixels, {
-        if registers.dispcnt.display_layer(Layer::BG2) {
+        if registers.dispcnt.display_layer(Layer::BG2)
+            && (!pixels.windows.enabled || pixels.windows.line_visible(Layer::BG2, registers.line))
+        {
             let framebuffer_start = if registers.dispcnt.frame_select() == 0 {
                 FRAMEBUFFER0_OFFSET
             } else {
@@ -234,7 +240,7 @@ fn render_mode5_bitmap(
             if let Some(window_effects_mask) =
                 pixels
                     .windows
-                    .check_pixel(Layer::BG2, x as u16, line as u16)
+                    .check_visibility(Layer::BG2, x as u16, line as u16)
             {
                 Pixel(pflags & window_effects_mask)
             } else {

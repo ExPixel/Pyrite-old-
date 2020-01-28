@@ -26,6 +26,7 @@ pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &m
             let layer = Layer::from_bg(bg_index as u16);
             if registers.dispcnt.display_layer(layer)
                 && registers.bg_cnt[bg_index].priority() == priority as u16
+                && (!pixels.windows.enabled || pixels.windows.line_visible(layer, registers.line))
             {
                 let first_target = registers.effects.is_first_target(layer);
                 let second_target = registers.effects.is_second_target(layer);
@@ -81,6 +82,7 @@ pub fn render_mode1(
             let layer = Layer::from_bg(bg_index as u16);
             if registers.dispcnt.display_layer(layer)
                 && registers.bg_cnt[bg_index].priority() == priority as u16
+                && (!pixels.windows.enabled || pixels.windows.line_visible(layer, registers.line))
             {
                 let first_target = registers.effects.is_first_target(layer);
                 let second_target = registers.effects.is_second_target(layer);
@@ -152,6 +154,7 @@ pub fn render_mode2(
             let layer = Layer::from_bg(bg_index as u16);
             if registers.dispcnt.display_layer(layer)
                 && registers.bg_cnt[bg_index].priority() == priority as u16
+                && (!pixels.windows.enabled || pixels.windows.line_visible(layer, registers.line))
             {
                 let first_target = registers.effects.is_first_target(layer);
                 let second_target = registers.effects.is_second_target(layer);
@@ -237,7 +240,9 @@ pub fn draw_affine_bg(
                     pixels.push_pixel(idx, Pixel(pixel_mask | (entry as u16)));
                 } else {
                     if let Some(window_effects_mask) =
-                        pixels.windows.check_pixel(layer, idx as u16, line as u16)
+                        pixels
+                            .windows
+                            .check_visibility(layer, idx as u16, line as u16)
                     {
                         pixels.push_pixel(
                             idx,
@@ -373,7 +378,9 @@ pub fn draw_text_bg_4bpp(
                 continue;
             }
             if let Some(window_effects_mask) =
-                pixels.windows.check_pixel(layer, x as u16, line as u16)
+                pixels
+                    .windows
+                    .check_visibility(layer, x as u16, line as u16)
             {
                 pixels.push_pixel(
                     x,
@@ -488,7 +495,9 @@ pub fn draw_text_bg_8bpp(
                 continue;
             }
             if let Some(window_effects_mask) =
-                pixels.windows.check_pixel(layer, x as u16, line as u16)
+                pixels
+                    .windows
+                    .check_visibility(layer, x as u16, line as u16)
             {
                 pixels.push_pixel(
                     x,

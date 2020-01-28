@@ -22,6 +22,11 @@ macro_rules! define_obj_renderer {
                 return;
             }
 
+            if (pixels.windows.enabled && !pixels.windows.line_visible(Layer::OBJ, registers.line))
+            {
+                return;
+            }
+
             let first_target = registers.effects.is_first_target(Layer::OBJ);
             let second_target = registers.effects.is_second_target(Layer::OBJ);
 
@@ -219,7 +224,7 @@ macro_rules! define_obj_renderer {
                     for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize)
                     {
                         if !$OBJWindowMode && pixels.windows.enabled {
-                            if let Some(window_effects_mask) = pixels.windows.check_pixel(
+                            if let Some(window_effects_mask) = pixels.windows.check_visibility(
                                 Layer::OBJ,
                                 obj_screen_draw as u16,
                                 registers.line,
@@ -282,7 +287,7 @@ macro_rules! define_obj_renderer {
                     for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize)
                     {
                         if !$OBJWindowMode && pixels.windows.enabled {
-                            if let Some(window_effects_mask) = pixels.windows.check_pixel(
+                            if let Some(window_effects_mask) = pixels.windows.check_visibility(
                                 Layer::OBJ,
                                 obj_screen_draw as u16,
                                 registers.line,
