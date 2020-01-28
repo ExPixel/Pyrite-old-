@@ -1,74 +1,22 @@
-use super::obj::{process_window_objects_bm, render_objects_bm, ObjectPriority};
 use super::{LCDLineBuffer, LCDRegisters, Layer, Pixel};
-use crate::hardware::{OAM, VRAM};
+use crate::hardware::VRAM;
 use crate::util::memory::read_u16_unchecked;
 
 pub type Mode4FrameBuffer = [u8; 0x9600];
 pub type Mode5FrameBuffer = [u8; 0xA000];
 
-macro_rules! run_between_bm_objs {
-    ($Registers:expr, $VRAM:expr, $OAM:expr, $PAL:expr, $Pixels:expr, $RenderBlock:block) => {
-        let object_priorities = ObjectPriority::sorted($OAM);
-
-        // Setup the OBJ window.
-        if $Registers.dispcnt.display_layer(Layer::OBJ) && $Registers.dispcnt.display_window_obj()  {
-            process_window_objects_bm(
-                $Registers,
-                object_priorities.objects_with_priority(ObjectPriority::WINDOW),
-                $VRAM,
-                $OAM,
-                $Pixels,
-            );
-        }
-
-        let bg2_priority = $Registers.bg_cnt[2].priority();
-
-        if $Registers.dispcnt.display_layer(Layer::OBJ) {
-            // Draw all OBJs that are below the bitmap layer (with a greather priority value).
-            ((bg2_priority + 1)..=3).rev().for_each(|p| {
-                render_objects_bm(
-                    $Registers,
-                    object_priorities.objects_with_priority(p as usize),
-                    $VRAM,
-                    $OAM,
-                    $Pixels,
-                )
-            });
-        }
-
-        $RenderBlock
-
-        if $Registers.dispcnt.display_layer(Layer::OBJ) {
-            // Draw ll OBJs that are above the bitmap layer (with a lower or equal priority value).
-            (0u16..=bg2_priority)
-                .rev()
-                .for_each(|p| {
-                    render_objects_bm(
-                        $Registers,
-                        object_priorities.objects_with_priority(p as usize),
-                        $VRAM,
-                        $OAM,
-                        $Pixels,
-                    )
-                });
-        }
-    };
-}
-
-pub fn render_mode3(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &mut LCDLineBuffer) {
-    run_between_bm_objs!(registers, vram, oam, pal, pixels, {
-        if registers.dispcnt.display_layer(Layer::BG2)
-            && (!pixels.windows.enabled || pixels.windows.line_visible(Layer::BG2, registers.line))
-        {
-            render_mode3_bitmap(
-                registers.line as usize,
-                vram,
-                registers.effects.is_first_target(Layer::BG2),
-                registers.effects.is_second_target(Layer::BG2),
-                pixels,
-            );
-        }
-    });
+pub fn render_mode3(registers: &LCDRegisters, vram: &VRAM, pixels: &mut LCDLineBuffer) {
+    if registers.dispcnt.display_layer(Layer::BG2)
+        && (!pixels.windows.enabled || pixels.windows.line_visible(Layer::BG2, registers.line))
+    {
+        render_mode3_bitmap(
+            registers.line as usize,
+            vram,
+            registers.effects.is_first_target(Layer::BG2),
+            registers.effects.is_second_target(Layer::BG2),
+            pixels,
+        );
+    }
 }
 
 fn render_mode3_bitmap(
@@ -112,34 +60,30 @@ fn render_mode3_bitmap(
     }
 }
 
-pub fn render_mode4(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &mut LCDLineBuffer) {
+pub fn render_mode4(registers: &LCDRegisters, vram: &VRAM, pixels: &mut LCDLineBuffer) {
     const FRAMEBUFFER0_OFFSET: usize = 0x0000;
     const FRAMEBUFFER1_OFFSET: usize = 0xA000;
     const FRAMEBUFFER_SIZE: usize = 0x9600;
 
-    run_between_bm_objs!(registers, vram, oam, pal, pixels, {
-        if registers.dispcnt.display_layer(Layer::BG2)
-            && (!pixels.windows.enabled || pixels.windows.line_visible(Layer::BG2, registers.line))
-        {
-            let framebuffer_start = if registers.dispcnt.frame_select() == 0 {
-                FRAMEBUFFER0_OFFSET
-            } else {
-                FRAMEBUFFER1_OFFSET
-            };
-            let framebuffer_end = framebuffer_start + FRAMEBUFFER_SIZE;
-            assert!(vram.len() >= framebuffer_start && framebuffer_end <= vram.len());
+    if registers.dispcnt.display_layer(Layer::BG2)
+        && (!pixels.windows.enabled || pixels.windows.line_visible(Layer::BG2, registers.line))
+    {
+        let framebuffer_start = if registers.dispcnt.frame_select() == 0 {
+            FRAMEBUFFER0_OFFSET
+        } else {
+            FRAMEBUFFER1_OFFSET
+        };
+        let framebuffer_end = framebuffer_start + FRAMEBUFFER_SIZE;
+        assert!(vram.len() >= framebuffer_start && framebuffer_end <= vram.len());
 
-            render_mode4_bitmap(
-                registers.line as usize,
-                unsafe {
-                    std::mem::transmute((&vram[framebuffer_start..framebuffer_end]).as_ptr())
-                },
-                registers.effects.is_first_target(Layer::BG2),
-                registers.effects.is_second_target(Layer::BG2),
-                pixels,
-            );
-        }
-    });
+        render_mode4_bitmap(
+            registers.line as usize,
+            unsafe { std::mem::transmute((&vram[framebuffer_start..framebuffer_end]).as_ptr()) },
+            registers.effects.is_first_target(Layer::BG2),
+            registers.effects.is_second_target(Layer::BG2),
+            pixels,
+        );
+    }
 }
 
 fn render_mode4_bitmap(
@@ -185,36 +129,34 @@ fn render_mode4_bitmap(
     }
 }
 
-pub fn render_mode5(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &mut LCDLineBuffer) {
+pub fn render_mode5(registers: &LCDRegisters, vram: &VRAM, pixels: &mut LCDLineBuffer) {
     const FRAMEBUFFER0_OFFSET: usize = 0x0000;
     const FRAMEBUFFER1_OFFSET: usize = 0xA000;
     const FRAMEBUFFER_SIZE: usize = 0xA000;
 
-    run_between_bm_objs!(registers, vram, oam, pal, pixels, {
-        if registers.dispcnt.display_layer(Layer::BG2)
-            && (!pixels.windows.enabled || pixels.windows.line_visible(Layer::BG2, registers.line))
-        {
-            let framebuffer_start = if registers.dispcnt.frame_select() == 0 {
-                FRAMEBUFFER0_OFFSET
-            } else {
-                FRAMEBUFFER1_OFFSET
-            };
-            let framebuffer_end = framebuffer_start + FRAMEBUFFER_SIZE;
-            assert!(vram.len() >= framebuffer_start && framebuffer_end <= vram.len());
+    if registers.dispcnt.display_layer(Layer::BG2)
+        && (!pixels.windows.enabled || pixels.windows.line_visible(Layer::BG2, registers.line))
+    {
+        let framebuffer_start = if registers.dispcnt.frame_select() == 0 {
+            FRAMEBUFFER0_OFFSET
+        } else {
+            FRAMEBUFFER1_OFFSET
+        };
+        let framebuffer_end = framebuffer_start + FRAMEBUFFER_SIZE;
+        assert!(vram.len() >= framebuffer_start && framebuffer_end <= vram.len());
 
-            if registers.line < 128 {
-                render_mode5_bitmap(
-                    registers.line as usize,
-                    unsafe {
-                        std::mem::transmute((&vram[framebuffer_start..framebuffer_end]).as_ptr())
-                    },
-                    registers.effects.is_first_target(Layer::BG2),
-                    registers.effects.is_second_target(Layer::BG2),
-                    pixels,
-                );
-            }
+        if registers.line < 128 {
+            render_mode5_bitmap(
+                registers.line as usize,
+                unsafe {
+                    std::mem::transmute((&vram[framebuffer_start..framebuffer_end]).as_ptr())
+                },
+                registers.effects.is_first_target(Layer::BG2),
+                registers.effects.is_second_target(Layer::BG2),
+                pixels,
+            );
         }
-    });
+    }
 }
 
 fn render_mode5_bitmap(

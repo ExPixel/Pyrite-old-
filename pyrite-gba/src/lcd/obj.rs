@@ -204,6 +204,7 @@ macro_rules! define_obj_renderer {
                 } else {
                     let semi_transparent = attrs.0.mode() == ObjMode::SemiTransparent;
                     Pixel::layer_mask(Layer::OBJ)
+                        | Pixel::priority_mask(attrs.2.priority())
                         | (if first_target { Pixel::FIRST_TARGET } else { 0 })
                         | (if second_target {
                             Pixel::SECOND_TARGET
@@ -223,20 +224,6 @@ macro_rules! define_obj_renderer {
 
                     for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize)
                     {
-                        if !$OBJWindowMode && pixels.windows.enabled {
-                            if let Some(window_effects_mask) = pixels.windows.check_visibility(
-                                Layer::OBJ,
-                                obj_screen_draw as u16,
-                                registers.line,
-                            ) {
-                                pflags &= window_effects_mask;
-                            } else {
-                                obj_x += obj_dx;
-                                obj_y += obj_dy;
-                                continue;
-                            }
-                        }
-
                         // converting them to u32s and comparing like this will also handle the 'less than 0' case
                         if (obj_x.integer() as u32) < obj_width as u32
                             && (obj_y.integer() as u32) < obj_height as u32
@@ -266,7 +253,7 @@ macro_rules! define_obj_renderer {
                                     if $OBJWindowMode {
                                         pixels.windows.obj_window.set(obj_screen_draw);
                                     } else {
-                                        pixels.push_pixel(
+                                        pixels.push_obj_pixel(
                                             obj_screen_draw,
                                             Pixel(pflags | (palette_entry as u16)),
                                         );
@@ -286,20 +273,6 @@ macro_rules! define_obj_renderer {
 
                     for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize)
                     {
-                        if !$OBJWindowMode && pixels.windows.enabled {
-                            if let Some(window_effects_mask) = pixels.windows.check_visibility(
-                                Layer::OBJ,
-                                obj_screen_draw as u16,
-                                registers.line,
-                            ) {
-                                pflags &= window_effects_mask
-                            } else {
-                                obj_x += obj_dx;
-                                obj_y += obj_dy;
-                                continue;
-                            }
-                        }
-
                         // converting them to u32s and comparing like this will also handle the 'less than 0' case
                         if (obj_x.integer() as u32) < obj_width as u32
                             && (obj_y.integer() as u32) < obj_height as u32
@@ -329,7 +302,7 @@ macro_rules! define_obj_renderer {
                                 if $OBJWindowMode {
                                     pixels.windows.obj_window.set(obj_screen_draw);
                                 } else {
-                                    pixels.push_pixel(
+                                    pixels.push_obj_pixel(
                                         obj_screen_draw,
                                         Pixel(pflags | (palette_entry as u16)),
                                     );
@@ -460,22 +433,12 @@ impl crate::util::bitfields::FieldConvert<ObjMode> for u16 {
 }
 
 pub struct ObjectPriority {
-    /// * indices 0-3 map to normal OBJ priorities
-    /// * index 4 is for OBJ Window objects.
-    /// * index 5 is for disabled objects.
-    pub priority_pos: [(/* offset */ usize, /* length */ usize); 6],
-
-    /// Object priority is stored at the upper 8 bits, and obj_index is stored in the lower 8 bits.
-    /// So we can compare objects by just comparing the two u16s. Disabled objects are given
-    /// priority 5 and placed at the end of the sorted_objects array **UNSORTED**. Objects that are
-    /// part of the OBJ Window are given priority 4.
+    pub enabled_objects: usize,
+    pub visible_objects: usize,
     pub sorted_objects: [u16; 128],
 }
 
 impl ObjectPriority {
-    pub const DISABLED: usize = 5;
-    pub const WINDOW: usize = 4;
-
     pub fn sorted(oam: &OAM) -> ObjectPriority {
         macro_rules! mkobj {
             ($Index:expr, $Priority:expr) => {
@@ -486,69 +449,72 @@ impl ObjectPriority {
         let mut priority_pos = [(0, 0); 6];
         let mut objects = [0u16; 128];
 
-        let mut enabled_index = 0; // start inserting enabled objects here
-        let mut disabled_index = 128; // start inserting disabled objects here
+        let mut enabled_objects = 0;
+        let mut visible_objects = 0;
 
-        for obj_index in 0..128 {
-            let attr_index = obj_index * 8;
-
+        for index in 0..128 {
+            let attr_index = index * 8;
             // NOTE compile doesn't seem to be able to remove the bounds check here :(
             let attr0_hi = unsafe { *oam.get_unchecked(attr_index + 1) };
 
             // Check if this object is disabled:
             if attr0_hi & 0x1 == 0 && (attr0_hi >> 1) & 0x1 != 0 {
-                priority_pos[5].1 += 1;
-                disabled_index -= 1;
-                objects[disabled_index] = mkobj!(obj_index, 5);
                 continue;
             }
+
+            enabled_objects += 1;
+
+            // NOTE compile doesn't seem to be able to remove the bounds check here :(
+            let attr0_hi = unsafe { *oam.get_unchecked(attr_index + 1) };
 
             // Check if ths mode of this object is window mode:
             if (attr0_hi >> 2) & 0x3 == 2 {
                 priority_pos[4].1 += 1;
-                objects[enabled_index] |= mkobj!(obj_index, 4);
-                enabled_index += 1;
+                objects[index] |= mkobj!(index, 4);
                 continue;
             }
+
+            visible_objects += 1;
 
             // NOTE compile doesn't seem to be able to remove the bounds check here :(
             let attr2_hi = unsafe { *oam.get_unchecked(attr_index + 5) };
 
             let priority = (attr2_hi >> 2) & 0x3;
             priority_pos[priority as usize].1 += 1;
-            objects[enabled_index] = mkobj!(obj_index, priority);
-            enabled_index += 1;
+            objects[index] = mkobj!(index, priority);
         }
 
-        if enabled_index > 0 {
-            // this we only bother sorting enabled objects:
-            (&mut objects[0..(enabled_index)]).sort_unstable();
-        }
+        // we only bother to sort if there are visible objects:
+        if visible_objects > 0 {
+            (&mut objects[0..enabled_objects]).sort_unstable_by(|lhs, rhs| {
+                let prio_lhs = lhs >> 4;
+                let prio_rhs = rhs >> 4;
 
-        priority_pos[1].0 = priority_pos[0].1;
-        priority_pos[2].0 = priority_pos[1].0 + priority_pos[1].1;
-        priority_pos[3].0 = priority_pos[2].0 + priority_pos[2].1;
-        priority_pos[4].0 = priority_pos[3].0 + priority_pos[3].1;
-        priority_pos[5].0 = disabled_index;
+                if prio_lhs == 4u16 || prio_rhs == 4u16 {
+                    // For window objects we can just sort naturally because they will always end
+                    // up at the end of the array:
+                    std::cmp::Ord::cmp(lhs, rhs)
+                } else {
+                    // For visible objects we just sort them backwards
+                    // because we want objects to be drawn from back to front:
+                    std::cmp::Ord::cmp(rhs, lhs)
+                }
+            });
+        }
 
         return ObjectPriority {
-            priority_pos: priority_pos,
+            enabled_objects: enabled_objects,
+            visible_objects: visible_objects,
             sorted_objects: objects,
         };
     }
 
-    /// Returns the number of objects with a given priority. Priority 4 is mapped to OBJ window
-    /// objects, and priority 5 is mapped to disabled objects.
-    pub fn objects_with_priority_count(&self, priority: usize) -> usize {
-        return self.priority_pos[priority].1;
+    pub fn window_objects(&self) -> &[u16] {
+        let end = self.visible_objects + (self.enabled_objects - self.visible_objects);
+        return &self.sorted_objects[self.visible_objects..end];
     }
 
-    /// Returns all objects with a given priority in the order that they are to be drawn.
-    /// Priority 4 is mapped to OBJ window objects, and priority 5 is mapped to disabled objects.
-    /// #NOTE object indices are stored in the higher 8 bits of each index in the slice.
-    pub fn objects_with_priority(&self, priority: usize) -> &[u16] {
-        let start = self.priority_pos[priority].0;
-        let end = start + self.priority_pos[priority].1;
-        return &self.sorted_objects[start..end];
+    pub fn visible_objects(&self) -> &[u16] {
+        return &self.sorted_objects[0..self.visible_objects];
     }
 }

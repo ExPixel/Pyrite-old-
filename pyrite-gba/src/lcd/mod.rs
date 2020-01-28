@@ -125,16 +125,11 @@ impl GbaLCD {
     }
 
     fn draw_line(&mut self, vram: &VRAM, oam: &OAM) {
-        // setup obj cycles:
-        self.pixels.obj_cycles = if self.registers.dispcnt.hblank_interval_free() {
-            954
-        } else {
-            1210
-        };
-
         // setting up the backdrop:
         let backdrop = Pixel(Pixel::layer_mask(Layer::Backdrop) | 0);
         self.pixels.clear(backdrop);
+
+        self.draw_objects(vram, oam);
 
         let mode = self.registers.dispcnt.mode();
         self.pixels.windows = WindowInfo {
@@ -159,13 +154,66 @@ impl GbaLCD {
         };
 
         match mode {
-            0 => tile::render_mode0(&self.registers, vram, oam, &mut self.pixels),
-            1 => tile::render_mode1(&mut self.registers, vram, oam, &mut self.pixels),
-            2 => tile::render_mode2(&mut self.registers, vram, oam, &mut self.pixels),
-            3 => bitmap::render_mode3(&self.registers, vram, oam, &mut self.pixels),
-            4 => bitmap::render_mode4(&self.registers, vram, oam, &mut self.pixels),
-            5 => bitmap::render_mode5(&self.registers, vram, oam, &mut self.pixels),
+            0 => tile::render_mode0(&self.registers, vram, &mut self.pixels),
+            1 => tile::render_mode1(&mut self.registers, vram, &mut self.pixels),
+            2 => tile::render_mode2(&mut self.registers, vram, &mut self.pixels),
+            3 => bitmap::render_mode3(&self.registers, vram, &mut self.pixels),
+            4 => bitmap::render_mode4(&self.registers, vram, &mut self.pixels),
+            5 => bitmap::render_mode5(&self.registers, vram, &mut self.pixels),
             _ => log::warn!("bad mode {}", mode),
+        }
+    }
+
+    fn draw_objects(&mut self, vram: &VRAM, oam: &OAM) {
+        if !self.registers.dispcnt.display_layer(Layer::OBJ) {
+            return;
+        }
+
+        // setup obj cycles:
+        self.pixels.obj_cycles = if self.registers.dispcnt.hblank_interval_free() {
+            954
+        } else {
+            1210
+        };
+
+        let object_priorities = obj::ObjectPriority::sorted(oam);
+
+        if is_bitmap_mode(self.registers.dispcnt.mode()) {
+            if self.registers.dispcnt.display_window_obj() {
+                obj::process_window_objects_bm(
+                    &self.registers,
+                    object_priorities.window_objects(),
+                    vram,
+                    oam,
+                    &mut self.pixels,
+                );
+            }
+
+            obj::render_objects_bm(
+                &self.registers,
+                object_priorities.visible_objects(),
+                vram,
+                oam,
+                &mut self.pixels,
+            );
+        } else {
+            if self.registers.dispcnt.display_window_obj() {
+                obj::process_window_objects_tm(
+                    &self.registers,
+                    object_priorities.window_objects(),
+                    vram,
+                    oam,
+                    &mut self.pixels,
+                );
+            }
+
+            obj::render_objects_tm(
+                &self.registers,
+                object_priorities.visible_objects(),
+                vram,
+                oam,
+                &mut self.pixels,
+            );
         }
     }
 }
@@ -173,6 +221,7 @@ impl GbaLCD {
 pub struct LCDLineBuffer {
     mixed: [u16; 240],
     unmixed: [Pixels2; 240],
+    obj: [Pixel; 240],
     bitmap_palette: [u16; 240],
     windows: WindowInfo,
     /// Cycles remaining for drawing objects.
@@ -184,6 +233,7 @@ impl LCDLineBuffer {
         LCDLineBuffer {
             mixed: [0xFFFF; 240],
             unmixed: [Pixels2::zero(); 240],
+            obj: [Pixel(0); 240],
             bitmap_palette: [0; 240],
             obj_cycles: 1210,
             windows: WindowInfo::new(),
@@ -191,17 +241,22 @@ impl LCDLineBuffer {
     }
 
     pub fn clear(&mut self, clear_pixel: Pixel) {
+        self.obj.iter_mut().for_each(|p| *p = Pixel(0));
         self.unmixed.iter_mut().for_each(|p| p.set(clear_pixel));
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn push_bitmap_pixel(&mut self, index: usize, pixel_metadata: Pixel, color: u16) {
         self.unmixed[index].push(Pixel(pixel_metadata.0 | (index as u8 as u16)));
         self.bitmap_palette[index] = color;
     }
 
-    // @TODO rename this to push_pixel when ready:
-    #[inline]
+    #[inline(always)]
+    pub fn push_obj_pixel(&mut self, index: usize, pix: Pixel) {
+        self.obj[index] = pix;
+    }
+
+    #[inline(always)]
     pub fn push_pixel(&mut self, index: usize, pix: Pixel) {
         self.unmixed[index].push(pix);
     }
@@ -217,10 +272,53 @@ impl LCDLineBuffer {
         }
     }
 
+    fn mix_obj_pixels(&mut self, line: u16) {
+        if self.windows.enabled {
+            for x in 0usize..240 {
+                let obj_pixel = self.obj[x];
+                if obj_pixel.0 == 0 {
+                    continue;
+                }
+
+                let effects_mask =
+                    if let Some(e) = self.windows.check_visibility(Layer::OBJ, x as u16, line) {
+                        e
+                    } else {
+                        continue;
+                    };
+
+                if obj_pixel.priority() <= self.unmixed[x].top.priority() {
+                    self.unmixed[x].push(Pixel(obj_pixel.0 & effects_mask));
+                    continue;
+                }
+
+                if obj_pixel.priority() <= self.unmixed[x].bot.priority() {
+                    self.unmixed[x].bot = Pixel(obj_pixel.0 & effects_mask);
+                }
+            }
+        } else {
+            for x in 0..240 {
+                let obj_pixel = self.obj[x];
+
+                if obj_pixel.0 == 0 {
+                    continue;
+                }
+
+                if obj_pixel.priority() <= self.unmixed[x].top.priority() {
+                    self.unmixed[x].push(obj_pixel);
+                    continue;
+                }
+                if obj_pixel.priority() <= self.unmixed[x].bot.priority() {
+                    self.unmixed[x].bot = obj_pixel;
+                }
+            }
+        }
+    }
+
     #[inline(always)]
     pub fn mix(&mut self, palette: &GbaPalette, effect: SpecialEffect, registers: &LCDRegisters) {
-        let bm_color = registers.dispcnt.mode() == 3 || registers.dispcnt.mode() == 5;
-        if bm_color {
+        self.mix_obj_pixels(registers.line);
+        if is_bitmap_mode(registers.dispcnt.mode()) {
             self.internal_mix_bitmap(palette, effect, registers);
         } else {
             self.internal_mix_tile(palette, effect, registers);
@@ -438,6 +536,7 @@ impl Default for Pixels2 {
 /// * 11: If this is 1, this is a semi-transparent OBJ pixel.
 /// * 12: If this is 1, this is a first target pixel.
 /// * 13: If this is 1, this is a second target pixel.
+/// * 14-15: The priority of this pixel.
 #[derive(Clone, Copy)]
 pub struct Pixel(pub u16);
 
@@ -462,8 +561,19 @@ impl Pixel {
         ((layer as u16) & 0b0111) << 8
     }
 
+    #[inline(always)]
+    pub const fn priority_mask(priority: u16) -> u16 {
+        priority << 14
+    }
+
+    #[inline(always)]
     pub const fn pal_index(self) -> usize {
         self.0 as u8 as usize
+    }
+
+    #[inline(always)]
+    pub const fn priority(self) -> u16 {
+        self.0 >> 14
     }
 
     #[inline(always)]
@@ -1142,4 +1252,9 @@ pub fn pixel_components(pixel: u16) -> (u16, u16, u16) {
 #[inline(always)]
 pub fn rgb16(r: u16, g: u16, b: u16) -> u16 {
     (r & 0x1F) | ((g & 0x1F) << 5) | ((b & 0x1F) << 10) | 0x8000
+}
+
+#[inline(always)]
+pub fn is_bitmap_mode(mode: u16) -> bool {
+    mode == 3 || mode == 5
 }

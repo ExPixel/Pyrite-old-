@@ -1,26 +1,12 @@
-use super::obj::{process_window_objects_tm, render_objects_tm, ObjectPriority};
 use super::{
     apply_mosaic, AffineBGParams, BGControl, BGOffset, LCDLineBuffer, LCDRegisters, Layer, Pixel,
 };
-use crate::hardware::{OAM, VRAM};
+use crate::hardware::VRAM;
 use crate::util::memory::{
     read_u16_unchecked, read_u32_unchecked, read_u64_unchecked, write_u64_unchecked,
 };
 
-pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &mut LCDLineBuffer) {
-    let object_priorities = ObjectPriority::sorted(oam);
-
-    // Setup the OBJ window.
-    if registers.dispcnt.display_layer(Layer::OBJ) && registers.dispcnt.display_window_obj() {
-        process_window_objects_tm(
-            registers,
-            object_priorities.objects_with_priority(ObjectPriority::WINDOW),
-            vram,
-            oam,
-            pixels,
-        );
-    }
-
+pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, pixels: &mut LCDLineBuffer) {
     for priority in (0usize..=3).rev() {
         for bg_index in (0usize..=3).rev() {
             let layer = Layer::from_bg(bg_index as u16);
@@ -31,6 +17,8 @@ pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &m
                 let first_target = registers.effects.is_first_target(layer);
                 let second_target = registers.effects.is_second_target(layer);
                 let textbg = TextBG::new(
+                    layer,
+                    priority as _,
                     registers.bg_cnt[bg_index],
                     registers.bg_ofs[bg_index],
                     registers.mosaic,
@@ -39,44 +27,16 @@ pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, oam: &OAM, pixels: &m
                 );
 
                 if registers.bg_cnt[bg_index].palette256() {
-                    draw_text_bg_8bpp(layer, registers.line as u32, &textbg, vram, pixels);
+                    draw_text_bg_8bpp(registers.line as u32, &textbg, vram, pixels);
                 } else {
-                    draw_text_bg_4bpp(layer, registers.line as u32, &textbg, vram, pixels);
+                    draw_text_bg_4bpp(registers.line as u32, &textbg, vram, pixels);
                 }
             }
-        }
-
-        if registers.dispcnt.display_layer(Layer::OBJ) {
-            render_objects_tm(
-                registers,
-                object_priorities.objects_with_priority(priority),
-                vram,
-                oam,
-                pixels,
-            );
         }
     }
 }
 
-pub fn render_mode1(
-    registers: &mut LCDRegisters,
-    vram: &VRAM,
-    oam: &OAM,
-    pixels: &mut LCDLineBuffer,
-) {
-    let object_priorities = ObjectPriority::sorted(oam);
-
-    // Setup the OBJ window.
-    if registers.dispcnt.display_layer(Layer::OBJ) && registers.dispcnt.display_window_obj() {
-        process_window_objects_tm(
-            registers,
-            object_priorities.objects_with_priority(ObjectPriority::WINDOW),
-            vram,
-            oam,
-            pixels,
-        );
-    }
-
+pub fn render_mode1(registers: &mut LCDRegisters, vram: &VRAM, pixels: &mut LCDLineBuffer) {
     for priority in (0usize..=3).rev() {
         for bg_index in (0usize..=2).rev() {
             let layer = Layer::from_bg(bg_index as u16);
@@ -89,6 +49,8 @@ pub fn render_mode1(
 
                 if bg_index == 2 {
                     let affinebg = AffineBG::new(
+                        layer,
+                        priority as _,
                         registers.bg_cnt[bg_index],
                         registers.bg2_affine_params.clone(),
                         registers.mosaic,
@@ -96,9 +58,11 @@ pub fn render_mode1(
                         second_target,
                     );
 
-                    draw_affine_bg(layer, registers.line as u32, &affinebg, vram, pixels);
+                    draw_affine_bg(registers.line as u32, &affinebg, vram, pixels);
                 } else {
                     let textbg = TextBG::new(
+                        layer,
+                        priority as _,
                         registers.bg_cnt[bg_index],
                         registers.bg_ofs[bg_index],
                         registers.mosaic,
@@ -107,22 +71,12 @@ pub fn render_mode1(
                     );
 
                     if registers.bg_cnt[bg_index].palette256() {
-                        draw_text_bg_8bpp(layer, registers.line as u32, &textbg, vram, pixels);
+                        draw_text_bg_8bpp(registers.line as u32, &textbg, vram, pixels);
                     } else {
-                        draw_text_bg_4bpp(layer, registers.line as u32, &textbg, vram, pixels);
+                        draw_text_bg_4bpp(registers.line as u32, &textbg, vram, pixels);
                     }
                 }
             }
-        }
-
-        if registers.dispcnt.display_layer(Layer::OBJ) {
-            render_objects_tm(
-                registers,
-                object_priorities.objects_with_priority(priority),
-                vram,
-                oam,
-                pixels,
-            );
         }
     }
 
@@ -130,25 +84,7 @@ pub fn render_mode1(
     registers.bg3_affine_params.increment_reference_points();
 }
 
-pub fn render_mode2(
-    registers: &mut LCDRegisters,
-    vram: &VRAM,
-    oam: &OAM,
-    pixels: &mut LCDLineBuffer,
-) {
-    let object_priorities = ObjectPriority::sorted(oam);
-
-    // Setup the OBJ window.
-    if registers.dispcnt.display_layer(Layer::OBJ) && registers.dispcnt.display_window_obj() {
-        process_window_objects_tm(
-            registers,
-            object_priorities.objects_with_priority(ObjectPriority::WINDOW),
-            vram,
-            oam,
-            pixels,
-        );
-    }
-
+pub fn render_mode2(registers: &mut LCDRegisters, vram: &VRAM, pixels: &mut LCDLineBuffer) {
     for priority in (0usize..=3).rev() {
         for bg_index in (2usize..=3).rev() {
             let layer = Layer::from_bg(bg_index as u16);
@@ -160,6 +96,8 @@ pub fn render_mode2(
                 let second_target = registers.effects.is_second_target(layer);
 
                 let affinebg = AffineBG::new(
+                    layer,
+                    priority as _,
                     registers.bg_cnt[bg_index],
                     if bg_index == 2 {
                         registers.bg2_affine_params.clone()
@@ -171,18 +109,8 @@ pub fn render_mode2(
                     second_target,
                 );
 
-                draw_affine_bg(layer, registers.line as u32, &affinebg, vram, pixels);
+                draw_affine_bg(registers.line as u32, &affinebg, vram, pixels);
             }
-        }
-
-        if registers.dispcnt.display_layer(Layer::OBJ) {
-            render_objects_tm(
-                registers,
-                object_priorities.objects_with_priority(priority),
-                vram,
-                oam,
-                pixels,
-            );
         }
     }
 
@@ -190,13 +118,7 @@ pub fn render_mode2(
     registers.bg3_affine_params.increment_reference_points();
 }
 
-pub fn draw_affine_bg(
-    layer: Layer,
-    line: u32,
-    bg: &AffineBG,
-    vram: &VRAM,
-    pixels: &mut LCDLineBuffer,
-) {
+pub fn draw_affine_bg(line: u32, bg: &AffineBG, vram: &VRAM, pixels: &mut LCDLineBuffer) {
     let (x_mask, y_mask) = if bg.wraparound {
         ((bg.width - 1) as i32, (bg.height - 1) as i32)
     } else {
@@ -215,7 +137,10 @@ pub fn draw_affine_bg(
         0
     };
 
-    let pixel_mask = Pixel::layer_mask(layer) | first_target_mask | second_target_mask;
+    let pixel_mask = Pixel::layer_mask(bg.layer)
+        | Pixel::priority_mask(bg.priority)
+        | first_target_mask
+        | second_target_mask;
 
     let mut x = bg.params.internal_x;
     let mut y = bg.params.internal_y;
@@ -242,7 +167,7 @@ pub fn draw_affine_bg(
                     if let Some(window_effects_mask) =
                         pixels
                             .windows
-                            .check_visibility(layer, idx as u16, line as u16)
+                            .check_visibility(bg.layer, idx as u16, line as u16)
                     {
                         pixels.push_pixel(
                             idx,
@@ -269,13 +194,7 @@ macro_rules! write_4bpp_rev {
     };
 }
 
-pub fn draw_text_bg_4bpp(
-    layer: Layer,
-    line: u32,
-    bg: &TextBG,
-    vram: &VRAM,
-    pixels: &mut LCDLineBuffer,
-) {
+pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLineBuffer) {
     pub const BYTES_PER_TILE: u32 = 32;
     pub const BYTES_PER_LINE: u32 = 4;
 
@@ -361,7 +280,10 @@ pub fn draw_text_bg_4bpp(
         0
     };
 
-    let pixel_mask = Pixel::layer_mask(layer) | first_target_mask | second_target_mask;
+    let pixel_mask = Pixel::layer_mask(bg.layer)
+        | Pixel::priority_mask(bg.priority)
+        | first_target_mask
+        | second_target_mask;
 
     if !pixels.windows.enabled {
         for x in 0..240 {
@@ -380,7 +302,7 @@ pub fn draw_text_bg_4bpp(
             if let Some(window_effects_mask) =
                 pixels
                     .windows
-                    .check_visibility(layer, x as u16, line as u16)
+                    .check_visibility(bg.layer, x as u16, line as u16)
             {
                 pixels.push_pixel(
                     x,
@@ -391,13 +313,7 @@ pub fn draw_text_bg_4bpp(
     }
 }
 
-pub fn draw_text_bg_8bpp(
-    layer: Layer,
-    line: u32,
-    bg: &TextBG,
-    vram: &VRAM,
-    pixels: &mut LCDLineBuffer,
-) {
+pub fn draw_text_bg_8bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLineBuffer) {
     pub const BYTES_PER_TILE: u32 = 64;
     pub const BYTES_PER_LINE: u32 = 8;
 
@@ -478,7 +394,10 @@ pub fn draw_text_bg_8bpp(
         0
     };
 
-    let pixel_mask = Pixel::layer_mask(layer) | first_target_mask | second_target_mask;
+    let pixel_mask = Pixel::layer_mask(bg.layer)
+        | Pixel::priority_mask(bg.priority)
+        | first_target_mask
+        | second_target_mask;
 
     if !pixels.windows.enabled {
         for x in 0..240 {
@@ -497,7 +416,7 @@ pub fn draw_text_bg_8bpp(
             if let Some(window_effects_mask) =
                 pixels
                     .windows
-                    .check_visibility(layer, x as u16, line as u16)
+                    .check_visibility(bg.layer, x as u16, line as u16)
             {
                 pixels.push_pixel(
                     x,
@@ -509,6 +428,9 @@ pub fn draw_text_bg_8bpp(
 }
 
 pub struct AffineBG {
+    layer: Layer,
+    priority: u16,
+
     /// Base address of characters.
     char_base: u32,
 
@@ -539,6 +461,8 @@ impl AffineBG {
     const SIZES: [(u32, u32); 4] = [(128, 128), (256, 256), (512, 512), (1024, 1024)];
 
     pub fn new(
+        layer: Layer,
+        priority: u16,
         control: BGControl,
         params: AffineBGParams,
         reg_mosaic: super::Mosaic,
@@ -553,6 +477,8 @@ impl AffineBG {
         };
 
         AffineBG {
+            layer: layer,
+            priority: priority,
             char_base: control.char_base_block() as u32 * 16 * 1024,
             screen_base: control.screen_base_block() as u32 * 2 * 1024,
             width: width,
@@ -568,6 +494,9 @@ impl AffineBG {
 }
 
 pub struct TextBG {
+    layer: Layer,
+    priority: u16,
+
     /// Base address of characters.
     char_base: u32,
     /// Base address for screens.
@@ -596,6 +525,8 @@ impl TextBG {
     const SIZES: [(u32, u32); 4] = [(256, 256), (512, 256), (256, 512), (512, 512)];
 
     pub fn new(
+        layer: Layer,
+        priority: u16,
         control: BGControl,
         offset: BGOffset,
         reg_mosaic: super::Mosaic,
@@ -610,6 +541,8 @@ impl TextBG {
         };
 
         TextBG {
+            layer: layer,
+            priority: priority,
             char_base: control.char_base_block() as u32 * 16 * 1024,
             screen_base: control.screen_base_block() as u32 * 2 * 1024,
             xoffset: offset.x as u32,
