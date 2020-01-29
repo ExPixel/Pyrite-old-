@@ -25,6 +25,7 @@ pub struct GbaLCD {
     pub(crate) pixels: LCDLineBuffer,
     hblank: bool,
     next_state_cycles: u32,
+    next_state_cycles_acc: u32,
 }
 
 impl GbaLCD {
@@ -33,6 +34,7 @@ impl GbaLCD {
             registers: LCDRegisters::default(),
             hblank: false,
             next_state_cycles: HDRAW_CYCLES,
+            next_state_cycles_acc: 0,
             pixels: LCDLineBuffer::new(),
         }
     }
@@ -49,17 +51,33 @@ impl GbaLCD {
         dma: &mut GbaDMA,
         hw_events: &mut HardwareEventQueue,
     ) -> bool {
-        let original_cycles = self.next_state_cycles;
-        self.next_state_cycles = self.next_state_cycles.saturating_sub(cycles);
-        if self.next_state_cycles == 0 {
-            self.hblank = !self.hblank;
-            if self.hblank {
-                self.next_state_cycles = HDRAW_CYCLES - (cycles - original_cycles);
-                return self.hblank(vram, oam, palette, video, dma, hw_events);
-            } else {
-                self.next_state_cycles = HBLANK_CYCLES - (cycles - original_cycles);
-                self.hdraw(dma, hw_events);
-            }
+        self.next_state_cycles_acc += cycles;
+        if self.next_state_cycles_acc >= self.next_state_cycles {
+            return self.step_fire(vram, oam, palette, video, dma, hw_events);
+        } else {
+            return false;
+        }
+    }
+
+    #[cold]
+    fn step_fire(
+        &mut self,
+        vram: &VRAM,
+        oam: &OAM,
+        palette: &GbaPalette,
+        video: &mut dyn GbaVideoOutput,
+        dma: &mut GbaDMA,
+        hw_events: &mut HardwareEventQueue,
+    ) -> bool {
+        self.hblank = !self.hblank;
+        if self.hblank {
+            self.next_state_cycles_acc -= self.next_state_cycles;
+            self.next_state_cycles = HDRAW_CYCLES;
+            return self.hblank(vram, oam, palette, video, dma, hw_events);
+        } else {
+            self.next_state_cycles_acc -= self.next_state_cycles;
+            self.next_state_cycles = HBLANK_CYCLES;
+            self.hdraw(dma, hw_events);
         }
         return false;
     }

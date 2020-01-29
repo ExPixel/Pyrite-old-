@@ -77,10 +77,15 @@ impl GbaTimers {
     pub fn step(&mut self, cycles: u32, hw_events: &mut HardwareEventQueue) {
         self.cycles_acc += cycles;
         if self.cycles_acc >= self.next_overflow_at {
-            self.internal_step(self.cycles_acc, hw_events);
-            self.calc_next_overflow();
-            self.cycles_acc = 0;
+            self.step_fire(hw_events);
         }
+    }
+
+    #[cold]
+    fn step_fire(&mut self, hw_events: &mut HardwareEventQueue) {
+        self.internal_step(self.cycles_acc, hw_events);
+        self.calc_next_overflow();
+        self.cycles_acc = 0;
     }
 
     fn flush_acc_cycles(&mut self) {
