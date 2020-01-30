@@ -1163,15 +1163,21 @@ impl WindowBounds {
     }
 
     pub fn contains(&self, x: u16, y: u16) -> bool {
-        let h1 = (self.left <= self.right) & ((x >= self.left) & (x < self.right));
-        let h2 = (self.left > self.right) & ((x >= self.left) | (x < self.right));
-        if !(h1 | h2) {
-            return false;
+        if self.left <= self.right {
+            if !((x >= self.left) & (x < self.right)) {
+                return false;
+            }
+        } else {
+            if !((x >= self.left) | (x < self.right)) {
+                return false;
+            }
         }
 
-        let v1 = (self.top <= self.bottom) & ((y >= self.top) & (y < self.bottom));
-        let v2 = (self.top > self.bottom) & ((y >= self.top) | (y < self.bottom));
-        return v1 | v2;
+        if self.top <= self.bottom {
+            (y >= self.top) & (y < self.bottom)
+        } else {
+            (y >= self.top) | (y < self.bottom)
+        }
     }
 
     #[inline(always)]
