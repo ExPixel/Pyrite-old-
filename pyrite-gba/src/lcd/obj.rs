@@ -224,7 +224,8 @@ macro_rules! define_obj_renderer {
                     for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize)
                     {
                         // converting them to u32s and comparing like this will also handle the 'less than 0' case
-                        if (obj_x.integer() as u32) < obj_width as u32
+                        if !pixels.contains_obj_pixel(obj_screen_draw)
+                            && (obj_x.integer() as u32) < obj_width as u32
                             && (obj_y.integer() as u32) < obj_height as u32
                         {
                             let obj_x_i = apply_mosaic_cond(
@@ -273,7 +274,8 @@ macro_rules! define_obj_renderer {
                     for obj_screen_draw in (obj_screen_left as usize)..=(obj_screen_right as usize)
                     {
                         // converting them to u32s and comparing like this will also handle the 'less than 0' case
-                        if (obj_x.integer() as u32) < obj_width as u32
+                        if !pixels.contains_obj_pixel(obj_screen_draw)
+                            && (obj_x.integer() as u32) < obj_width as u32
                             && (obj_y.integer() as u32) < obj_height as u32
                         {
                             let obj_x_i = apply_mosaic_cond(
@@ -485,20 +487,8 @@ impl ObjectPriority {
 
         // we only bother to sort if there are visible objects:
         if visible_objects > 0 {
-            (&mut objects[0..enabled_objects]).sort_unstable_by(|lhs, rhs| {
-                let prio_lhs = lhs >> 4;
-                let prio_rhs = rhs >> 4;
-
-                if prio_lhs == 4u16 || prio_rhs == 4u16 {
-                    // For window objects we can just sort naturally because they will always end
-                    // up at the end of the array:
-                    std::cmp::Ord::cmp(lhs, rhs)
-                } else {
-                    // For visible objects we just sort them backwards
-                    // because we want objects to be drawn from back to front:
-                    std::cmp::Ord::cmp(rhs, lhs)
-                }
-            });
+            // Sort the objects front to back:
+            (&mut objects[0..enabled_objects]).sort_unstable();
         }
 
         return ObjectPriority {

@@ -278,6 +278,11 @@ impl LCDLineBuffer {
     }
 
     #[inline(always)]
+    pub fn contains_obj_pixel(&self, index: usize) -> bool {
+        self.obj[index].0 != 0
+    }
+
+    #[inline(always)]
     pub fn push_pixel(&mut self, index: usize, pix: Pixel) {
         self.unmixed[index].push(pix);
     }
