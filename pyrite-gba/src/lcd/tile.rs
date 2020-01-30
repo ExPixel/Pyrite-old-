@@ -12,7 +12,7 @@ pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, pixels: &mut LCDLineB
             let layer = Layer::from_bg(bg_index as u16);
             if registers.dispcnt.display_layer(layer)
                 && registers.bg_cnt[bg_index].priority() == priority as u16
-                && (!pixels.windows.enabled || pixels.windows.line_visible(layer, registers.line))
+                && (!pixels.windows.enabled || pixels.windows.line_visible(layer))
             {
                 let first_target = registers.effects.is_first_target(layer);
                 let second_target = registers.effects.is_second_target(layer);
@@ -42,7 +42,7 @@ pub fn render_mode1(registers: &mut LCDRegisters, vram: &VRAM, pixels: &mut LCDL
             let layer = Layer::from_bg(bg_index as u16);
             if registers.dispcnt.display_layer(layer)
                 && registers.bg_cnt[bg_index].priority() == priority as u16
-                && (!pixels.windows.enabled || pixels.windows.line_visible(layer, registers.line))
+                && (!pixels.windows.enabled || pixels.windows.line_visible(layer))
             {
                 let first_target = registers.effects.is_first_target(layer);
                 let second_target = registers.effects.is_second_target(layer);
@@ -90,7 +90,7 @@ pub fn render_mode2(registers: &mut LCDRegisters, vram: &VRAM, pixels: &mut LCDL
             let layer = Layer::from_bg(bg_index as u16);
             if registers.dispcnt.display_layer(layer)
                 && registers.bg_cnt[bg_index].priority() == priority as u16
-                && (!pixels.windows.enabled || pixels.windows.line_visible(layer, registers.line))
+                && (!pixels.windows.enabled || pixels.windows.line_visible(layer))
             {
                 let first_target = registers.effects.is_first_target(layer);
                 let second_target = registers.effects.is_second_target(layer);
@@ -164,11 +164,7 @@ pub fn draw_affine_bg(line: u32, bg: &AffineBG, vram: &VRAM, pixels: &mut LCDLin
                 if !pixels.windows.enabled {
                     pixels.push_pixel(idx, Pixel(pixel_mask | (entry as u16)));
                 } else {
-                    if let Some(window_effects_mask) =
-                        pixels
-                            .windows
-                            .check_visibility(bg.layer, idx as u16, line as u16)
-                    {
+                    if let Some(window_effects_mask) = pixels.windows.check_pixel(bg.layer, idx) {
                         pixels.push_pixel(
                             idx,
                             Pixel((pixel_mask & window_effects_mask) | (entry as u16)),
@@ -299,11 +295,7 @@ pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
             if (entry & 0xF) == 0 {
                 continue;
             }
-            if let Some(window_effects_mask) =
-                pixels
-                    .windows
-                    .check_visibility(bg.layer, x as u16, line as u16)
-            {
+            if let Some(window_effects_mask) = pixels.windows.check_pixel(bg.layer, x) {
                 pixels.push_pixel(
                     x,
                     Pixel((pixel_mask & window_effects_mask) | (entry as u16)),
@@ -413,11 +405,7 @@ pub fn draw_text_bg_8bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
             if entry == 0 {
                 continue;
             }
-            if let Some(window_effects_mask) =
-                pixels
-                    .windows
-                    .check_visibility(bg.layer, x as u16, line as u16)
-            {
+            if let Some(window_effects_mask) = pixels.windows.check_pixel(bg.layer, x) {
                 pixels.push_pixel(
                     x,
                     Pixel((pixel_mask & window_effects_mask) | (entry as u16)),

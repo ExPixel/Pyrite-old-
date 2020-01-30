@@ -22,8 +22,7 @@ macro_rules! define_obj_renderer {
                 return;
             }
 
-            if (pixels.windows.enabled && !pixels.windows.line_visible(Layer::OBJ, registers.line))
-            {
+            if (pixels.windows.enabled && !pixels.windows.line_visible(Layer::OBJ)) {
                 return;
             }
 
@@ -251,7 +250,7 @@ macro_rules! define_obj_renderer {
 
                                 if palette_entry != 0 {
                                     if $OBJWindowMode {
-                                        pixels.windows.obj_window.set(obj_screen_draw);
+                                        pixels.windows.winobj.set(obj_screen_draw);
                                     } else {
                                         pixels.push_obj_pixel(
                                             obj_screen_draw,
@@ -300,7 +299,7 @@ macro_rules! define_obj_renderer {
 
                             if palette_entry != 0 {
                                 if $OBJWindowMode {
-                                    pixels.windows.obj_window.set(obj_screen_draw);
+                                    pixels.windows.winobj.set(obj_screen_draw);
                                 } else {
                                     pixels.push_obj_pixel(
                                         obj_screen_draw,

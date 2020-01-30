@@ -7,7 +7,7 @@ pub type Mode5FrameBuffer = [u8; 0xA000];
 
 pub fn render_mode3(registers: &LCDRegisters, vram: &VRAM, pixels: &mut LCDLineBuffer) {
     if registers.dispcnt.display_layer(Layer::BG2)
-        && (!pixels.windows.enabled || pixels.windows.line_visible(Layer::BG2, registers.line))
+        && (!pixels.windows.enabled || pixels.windows.line_visible(Layer::BG2))
     {
         render_mode3_bitmap(
             registers.line as usize,
@@ -39,11 +39,7 @@ fn render_mode3_bitmap(
     let line_offset = 480 * line;
     for x in 0..240 {
         let pixel_metadata = if pixels.windows.enabled {
-            if let Some(window_effects_mask) =
-                pixels
-                    .windows
-                    .check_visibility(Layer::BG2, x as u16, line as u16)
-            {
+            if let Some(window_effects_mask) = pixels.windows.check_pixel(Layer::BG2, x) {
                 Pixel(pflags & window_effects_mask)
             } else {
                 continue;
@@ -66,7 +62,7 @@ pub fn render_mode4(registers: &LCDRegisters, vram: &VRAM, pixels: &mut LCDLineB
     const FRAMEBUFFER_SIZE: usize = 0x9600;
 
     if registers.dispcnt.display_layer(Layer::BG2)
-        && (!pixels.windows.enabled || pixels.windows.line_visible(Layer::BG2, registers.line))
+        && (!pixels.windows.enabled || pixels.windows.line_visible(Layer::BG2))
     {
         let framebuffer_start = if registers.dispcnt.frame_select() == 0 {
             FRAMEBUFFER0_OFFSET
@@ -106,11 +102,7 @@ fn render_mode4_bitmap(
     let line_offset = 240 * line;
     for x in 0..240 {
         let pixel_metadata = if pixels.windows.enabled {
-            if let Some(window_effects_mask) =
-                pixels
-                    .windows
-                    .check_visibility(Layer::BG2, x as u16, line as u16)
-            {
+            if let Some(window_effects_mask) = pixels.windows.check_pixel(Layer::BG2, x) {
                 pflags & window_effects_mask
             } else {
                 continue;
@@ -135,7 +127,7 @@ pub fn render_mode5(registers: &LCDRegisters, vram: &VRAM, pixels: &mut LCDLineB
     const FRAMEBUFFER_SIZE: usize = 0xA000;
 
     if registers.dispcnt.display_layer(Layer::BG2)
-        && (!pixels.windows.enabled || pixels.windows.line_visible(Layer::BG2, registers.line))
+        && (!pixels.windows.enabled || pixels.windows.line_visible(Layer::BG2))
     {
         let framebuffer_start = if registers.dispcnt.frame_select() == 0 {
             FRAMEBUFFER0_OFFSET
@@ -179,11 +171,7 @@ fn render_mode5_bitmap(
     let line_offset = 480 * line;
     for x in 0..160 {
         let pixel_metadata = if pixels.windows.enabled {
-            if let Some(window_effects_mask) =
-                pixels
-                    .windows
-                    .check_visibility(Layer::BG2, x as u16, line as u16)
-            {
+            if let Some(window_effects_mask) = pixels.windows.check_pixel(Layer::BG2, x) {
                 Pixel(pflags & window_effects_mask)
             } else {
                 continue;

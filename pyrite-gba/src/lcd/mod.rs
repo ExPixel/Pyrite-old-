@@ -147,29 +147,14 @@ impl GbaLCD {
         let backdrop = Pixel(Pixel::layer_mask(Layer::Backdrop) | 0);
         self.pixels.clear(backdrop);
 
-        self.draw_objects(vram, oam);
-
         let mode = self.registers.dispcnt.mode();
-        self.pixels.windows = WindowInfo {
-            enabled: self.registers.dispcnt.windows_enabled(),
-            win0_enabled: self.registers.dispcnt.display_window0(),
-            win1_enabled: self.registers.dispcnt.display_window1(),
-            win_obj_enabled: self.registers.dispcnt.display_window_obj(),
-            win0_bounds: self.registers.win0_bounds,
-            win1_bounds: self.registers.win1_bounds,
-            winin: self.registers.winin,
-            winout: self.registers.winout,
+        self.pixels.windows.enabled = self.registers.dispcnt.windows_enabled();
+        self.pixels.windows.win0_enabled = self.registers.dispcnt.display_window0();
+        self.pixels.windows.win1_enabled = self.registers.dispcnt.display_window1();
+        self.pixels.windows.win_obj_enabled = self.registers.dispcnt.display_window_obj();
+        self.pixels.windows.clear_pixel_bits();
 
-            // @TODO
-            obj_window: LCDPixelBits::new(),
-
-            window_effects_masks: [
-                Pixel::window_effects_mask(self.registers.winin.effects_enabled(Window::Win0)),
-                Pixel::window_effects_mask(self.registers.winin.effects_enabled(Window::Win1)),
-                Pixel::window_effects_mask(self.registers.winout.effects_enabled(Window::Outside)),
-                Pixel::window_effects_mask(self.registers.winout.effects_enabled(Window::OBJ)),
-            ],
-        };
+        self.draw_objects_and_windows(vram, oam);
 
         match mode {
             0 => tile::render_mode0(&self.registers, vram, &mut self.pixels),
@@ -182,7 +167,7 @@ impl GbaLCD {
         }
     }
 
-    fn draw_objects(&mut self, vram: &VRAM, oam: &OAM) {
+    fn draw_objects_and_windows(&mut self, vram: &VRAM, oam: &OAM) {
         if !self.registers.dispcnt.display_layer(Layer::OBJ) {
             return;
         }
@@ -207,6 +192,15 @@ impl GbaLCD {
                 );
             }
 
+            self.pixels.windows.calculate_masks(
+                self.registers.line,
+                self.registers.win0_bounds,
+                self.registers.win1_bounds,
+                self.registers.winin,
+                self.registers.winout,
+                self.registers.dispcnt,
+            );
+
             obj::render_objects_bm(
                 &self.registers,
                 object_priorities.visible_objects(),
@@ -224,6 +218,15 @@ impl GbaLCD {
                     &mut self.pixels,
                 );
             }
+
+            self.pixels.windows.calculate_masks(
+                self.registers.line,
+                self.registers.win0_bounds,
+                self.registers.win1_bounds,
+                self.registers.winin,
+                self.registers.winout,
+                self.registers.dispcnt,
+            );
 
             obj::render_objects_tm(
                 &self.registers,
@@ -298,12 +301,11 @@ impl LCDLineBuffer {
                     continue;
                 }
 
-                let effects_mask =
-                    if let Some(e) = self.windows.check_visibility(Layer::OBJ, x as u16, line) {
-                        e
-                    } else {
-                        continue;
-                    };
+                let effects_mask = if let Some(e) = self.windows.check_pixel(Layer::OBJ, x) {
+                    e
+                } else {
+                    continue;
+                };
 
                 if obj_pixel.priority() <= self.unmixed[x].top.priority() {
                     self.unmixed[x].push(Pixel(obj_pixel.0 & effects_mask));
@@ -622,6 +624,7 @@ impl Pixel {
 }
 
 /// A bit vector with a bit associated with each pixel of the LCD.
+#[derive(Clone)]
 pub struct LCDPixelBits {
     bits: [u64; 4],
 }
@@ -664,16 +667,50 @@ impl LCDPixelBits {
 
     #[inline]
     pub fn clear_all(&mut self) {
-        for b in self.bits.iter_mut() {
-            *b = 0
-        }
+        self.bits[0] = 0;
+        self.bits[1] = 0;
+        self.bits[2] = 0;
+        self.bits[3] = 0;
     }
 
     #[inline]
     pub fn set_all(&mut self) {
-        for b in self.bits.iter_mut() {
-            *b = !0;
-        }
+        self.bits[0] = !0;
+        self.bits[1] = !0;
+        self.bits[2] = !0;
+        self.bits[3] = !0;
+    }
+
+    #[inline]
+    pub fn or(&mut self, other: &LCDPixelBits) {
+        self.bits[0] |= other.bits[0];
+        self.bits[1] |= other.bits[1];
+        self.bits[2] |= other.bits[2];
+        self.bits[3] |= other.bits[3];
+    }
+
+    #[inline]
+    pub fn and(&mut self, other: &LCDPixelBits) {
+        self.bits[0] &= other.bits[0];
+        self.bits[1] &= other.bits[1];
+        self.bits[2] &= other.bits[2];
+        self.bits[3] &= other.bits[3];
+    }
+
+    #[inline]
+    pub fn bic(&mut self, other: &LCDPixelBits) {
+        self.bits[0] &= !other.bits[0];
+        self.bits[1] &= !other.bits[1];
+        self.bits[2] &= !other.bits[2];
+        self.bits[3] &= !other.bits[3];
+    }
+
+    #[inline]
+    pub fn not(&mut self) {
+        self.bits[0] = !self.bits[0];
+        self.bits[1] = !self.bits[1];
+        self.bits[2] = !self.bits[2];
+        self.bits[3] = !self.bits[3];
     }
 
     #[inline]
@@ -833,19 +870,27 @@ impl Window {
     }
 }
 
-pub struct WindowInfo {
-    /// This flag is set to true of any of the three windows are enabled.
-    pub enabled: bool,
-    pub win0_enabled: bool,
-    pub win1_enabled: bool,
-    pub win_obj_enabled: bool,
-    pub win0_bounds: WindowBounds,
-    pub win1_bounds: WindowBounds,
-    pub winin: WindowControl,
-    pub winout: WindowControl,
-    pub obj_window: LCDPixelBits,
+struct LayerWindow {
+    display: LCDPixelBits,
+    effects: LCDPixelBits,
+}
 
-    pub window_effects_masks: [u16; 4],
+impl LayerWindow {
+    pub const fn new() -> LayerWindow {
+        LayerWindow {
+            display: LCDPixelBits::new(),
+            effects: LCDPixelBits::new(),
+        }
+    }
+}
+
+pub struct WindowInfo {
+    enabled: bool,
+    win0_enabled: bool,
+    win1_enabled: bool,
+    win_obj_enabled: bool,
+    winobj: LCDPixelBits,
+    layers: [LayerWindow; 5],
 }
 
 impl WindowInfo {
@@ -855,76 +900,157 @@ impl WindowInfo {
             win0_enabled: false,
             win1_enabled: false,
             win_obj_enabled: false,
-            win0_bounds: WindowBounds::zero(),
-            win1_bounds: WindowBounds::zero(),
-            winin: WindowControl { inner: 0 },
-            winout: WindowControl { inner: 0 },
-            obj_window: LCDPixelBits::new(),
-            window_effects_masks: [0; 4],
+            winobj: LCDPixelBits::new(),
+            layers: [
+                LayerWindow::new(),
+                LayerWindow::new(),
+                LayerWindow::new(),
+                LayerWindow::new(),
+                LayerWindow::new(),
+            ],
+        }
+    }
+
+    pub fn clear_pixel_bits(&mut self) {
+        self.layers[0] = LayerWindow::new();
+        self.layers[1] = LayerWindow::new();
+        self.layers[2] = LayerWindow::new();
+        self.layers[3] = LayerWindow::new();
+        self.winobj.clear_all();
+    }
+
+    /// This calculates the bits for all of the windows.
+    fn calculate_masks(
+        &mut self,
+        line: u16,
+        win0_bounds: WindowBounds,
+        win1_bounds: WindowBounds,
+        winin_cnt: WindowControl,
+        winout_cnt: WindowControl,
+        _dispcnt: DisplayControl,
+    ) {
+        let mut win0 = LCDPixelBits::new();
+        if self.win0_enabled && win0_bounds.contains_vertical(line) {
+            if win0_bounds.left < win0_bounds.right {
+                for x in win0_bounds.left..win0_bounds.right {
+                    win0.set(x as usize);
+                }
+            } else {
+                for x in 0..win0_bounds.right {
+                    win0.set(x as usize);
+                }
+
+                for x in win0_bounds.left..240 {
+                    win0.set(x as usize);
+                }
+            }
+
+            if win0_bounds.left < win0_bounds.right {
+                for x in win0_bounds.left..win0_bounds.right {
+                    win0.set(x as usize);
+                }
+            } else {
+                for x in 0..win0_bounds.right {
+                    win0.set(x as usize);
+                }
+
+                for x in win0_bounds.left..240 {
+                    win0.set(x as usize);
+                }
+            }
+        }
+
+        let mut win1 = LCDPixelBits::new();
+        if self.win1_enabled && win1_bounds.contains_vertical(line) {
+            if win1_bounds.left < win1_bounds.right {
+                for x in win1_bounds.left..win1_bounds.right {
+                    win1.set(x as usize);
+                }
+            } else {
+                for x in 0..win1_bounds.right {
+                    win1.set(x as usize);
+                }
+
+                for x in win1_bounds.left..240 {
+                    win1.set(x as usize);
+                }
+            }
+
+            if win1_bounds.left < win1_bounds.right {
+                for x in win1_bounds.left..win1_bounds.right {
+                    win1.set(x as usize);
+                }
+            } else {
+                for x in 0..win1_bounds.right {
+                    win1.set(x as usize);
+                }
+
+                for x in win1_bounds.left..240 {
+                    win1.set(x as usize);
+                }
+            }
+
+            win1.bic(&win0);
+        }
+
+        self.winobj.bic(&win0);
+        self.winobj.bic(&win1);
+
+        let mut winout = self.winobj.clone();
+        winout.or(&win0);
+        winout.or(&win1);
+        winout.not();
+
+        for layer_index in 0..=4 {
+            let layer = Layer::from_index(layer_index);
+            let layer_bits = &mut self.layers[layer.index() as usize];
+
+            if winin_cnt.layer_enabled(Window::Win0, layer) {
+                layer_bits.display.or(&win0);
+                if winin_cnt.effects_enabled(Window::Win0) {
+                    layer_bits.effects.or(&win0);
+                }
+            }
+
+            if winin_cnt.layer_enabled(Window::Win1, layer) {
+                layer_bits.display.or(&win1);
+                if winin_cnt.effects_enabled(Window::Win1) {
+                    layer_bits.effects.or(&win1);
+                }
+            }
+
+            if winout_cnt.layer_enabled(Window::OBJ, layer) {
+                layer_bits.display.or(&self.winobj);
+                if winout_cnt.effects_enabled(Window::OBJ) {
+                    layer_bits.effects.or(&self.winobj);
+                }
+            }
+
+            if winout_cnt.layer_enabled(Window::Outside, layer) {
+                layer_bits.display.or(&winout);
+                if winout_cnt.effects_enabled(Window::Outside) {
+                    layer_bits.effects.or(&winout);
+                }
+            }
         }
     }
 
     /// Returns false if no windows contain any part of this line.
-    pub(crate) fn line_visible(&self, layer: Layer, y: u16) -> bool {
-        let mut visible = false;
-
-        if self.win0_enabled && self.winin.layer_enabled(Window::Win0, layer) {
-            visible |= self.win0_bounds.contains_vertical(y);
-            if self.win0_bounds.left == 0 && self.win0_bounds.right >= 240 {
-                return visible;
-            }
-        }
-
-        if self.win1_enabled && self.winin.layer_enabled(Window::Win1, layer) {
-            visible |= self.win1_bounds.contains_vertical(y);
-            if self.win1_bounds.left == 0 && self.win1_bounds.right >= 240 {
-                return visible;
-            }
-        }
-
-        if self.win_obj_enabled && self.winout.layer_enabled(Window::OBJ, layer) {
-            visible |= !self.obj_window.is_all_zeroes();
-            if self.obj_window.is_all_ones() {
-                return visible;
-            }
-        }
-
-        visible |= self.winout.layer_enabled(Window::Outside, layer);
-
-        return visible;
+    pub(crate) fn line_visible(&self, layer: Layer) -> bool {
+        !self.layers[layer.index() as usize].display.is_all_zeroes()
     }
 
     /// Returns Some(window) if a pixel is contained inside of a given window.
-    pub(crate) fn check_visibility(&self, layer: Layer, x: u16, y: u16) -> Option<u16> {
-        if self.win0_enabled && self.win0_bounds.contains(x, y) {
-            if self.winin.layer_enabled(Window::Win0, layer) {
-                return Some(self.window_effects_masks[Window::Win0.index()]);
-            } else {
-                return None;
-            }
+    pub(crate) fn check_pixel(&self, layer: Layer, x: usize) -> Option<u16> {
+        if !self.layers[layer.index() as usize].display.get(x) {
+            return None;
         }
 
-        if self.win1_enabled && self.win1_bounds.contains(x, y) {
-            if self.winin.layer_enabled(Window::Win1, layer) {
-                return Some(self.window_effects_masks[Window::Win1.index()]);
-            } else {
-                return None;
-            }
+        if !self.layers[layer.index() as usize].effects.get(x) {
+            return Some(!(Pixel::FIRST_TARGET | Pixel::SECOND_TARGET));
+        } else {
+            return Some(0xFFFF);
         }
-
-        if self.win_obj_enabled && self.obj_window.get(x as usize) {
-            if self.winout.layer_enabled(Window::OBJ, layer) {
-                return Some(self.window_effects_masks[Window::OBJ.index()]);
-            } else {
-                return None;
-            }
-        }
-
-        if self.winout.layer_enabled(Window::Outside, layer) {
-            return Some(self.window_effects_masks[Window::Outside.index()]);
-        }
-
-        return None;
     }
 }
 
