@@ -282,25 +282,57 @@ pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
         | second_target_mask;
 
     if !pixels.windows.enabled {
-        for x in 0..240 {
-            let entry = pixel_buffer[x];
-            if (entry & 0xF) == 0 {
-                continue;
-            }
-            pixels.push_pixel(x, Pixel(pixel_mask | (entry as u16)));
+        macro_rules! draw_entry_simple {
+            ($Entry:expr, $DestOffset:expr) => {{
+                let entry = $Entry as u8;
+                if (entry & 0xF) != 0 {
+                    pixels.push_pixel($DestOffset, Pixel(pixel_mask | (entry as u16)));
+                }
+            }};
+        }
+
+        let mut x = 0;
+        while x < 240 {
+            let entries8 = unsafe { read_u64_unchecked(&pixel_buffer[0..], x) };
+            draw_entry_simple!(entries8, x);
+            draw_entry_simple!(entries8 >> 8, x + 1);
+            draw_entry_simple!(entries8 >> 16, x + 2);
+            draw_entry_simple!(entries8 >> 24, x + 3);
+            draw_entry_simple!(entries8 >> 32, x + 4);
+            draw_entry_simple!(entries8 >> 40, x + 5);
+            draw_entry_simple!(entries8 >> 48, x + 6);
+            draw_entry_simple!(entries8 >> 56, x + 7);
+            x += 8;
         }
     } else {
-        for x in 0..240 {
-            let entry = pixel_buffer[x];
-            if (entry & 0xF) == 0 {
-                continue;
-            }
-            if let Some(window_effects_mask) = pixels.windows.check_pixel(bg.layer, x) {
-                pixels.push_pixel(
-                    x,
-                    Pixel((pixel_mask & window_effects_mask) | (entry as u16)),
-                );
-            }
+        macro_rules! draw_entry_windowed {
+            ($Entry:expr, $DestOffset:expr) => {{
+                let entry = $Entry as u8;
+                if (entry & 0xF) != 0 {
+                    if let Some(window_effects_mask) =
+                        pixels.windows.check_pixel(bg.layer, $DestOffset)
+                    {
+                        pixels.push_pixel(
+                            $DestOffset,
+                            Pixel((pixel_mask & window_effects_mask) | (entry as u16)),
+                        );
+                    }
+                }
+            }};
+        }
+
+        let mut x = 0;
+        while x < 240 {
+            let entries8 = unsafe { read_u64_unchecked(&pixel_buffer[0..], x) };
+            draw_entry_windowed!(entries8, x);
+            draw_entry_windowed!(entries8 >> 8, x + 1);
+            draw_entry_windowed!(entries8 >> 16, x + 2);
+            draw_entry_windowed!(entries8 >> 24, x + 3);
+            draw_entry_windowed!(entries8 >> 32, x + 4);
+            draw_entry_windowed!(entries8 >> 40, x + 5);
+            draw_entry_windowed!(entries8 >> 48, x + 6);
+            draw_entry_windowed!(entries8 >> 56, x + 7);
+            x += 8;
         }
     }
 }
