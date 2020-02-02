@@ -298,7 +298,7 @@ impl LCDLineBuffer {
         }
     }
 
-    fn mix_obj_pixels(&mut self, line: u16) {
+    fn mix_obj_pixels(&mut self) {
         if self.windows.enabled {
             for x in 0usize..240 {
                 let obj_pixel = self.obj[x];
@@ -342,7 +342,7 @@ impl LCDLineBuffer {
 
     #[inline(always)]
     pub fn mix(&mut self, palette: &GbaPalette, effect: SpecialEffect, registers: &LCDRegisters) {
-        self.mix_obj_pixels(registers.line);
+        self.mix_obj_pixels();
         if is_bitmap_mode(registers.dispcnt.mode()) {
             self.internal_mix_bitmap(palette, effect, registers);
         } else {

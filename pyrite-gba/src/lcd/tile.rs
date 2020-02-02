@@ -58,7 +58,7 @@ pub fn render_mode1(registers: &mut LCDRegisters, vram: &VRAM, pixels: &mut LCDL
                         second_target,
                     );
 
-                    draw_affine_bg(registers.line as u32, &affinebg, vram, pixels);
+                    draw_affine_bg(&affinebg, vram, pixels);
                 } else {
                     let textbg = TextBG::new(
                         layer,
@@ -109,7 +109,7 @@ pub fn render_mode2(registers: &mut LCDRegisters, vram: &VRAM, pixels: &mut LCDL
                     second_target,
                 );
 
-                draw_affine_bg(registers.line as u32, &affinebg, vram, pixels);
+                draw_affine_bg(&affinebg, vram, pixels);
             }
         }
     }
@@ -118,7 +118,7 @@ pub fn render_mode2(registers: &mut LCDRegisters, vram: &VRAM, pixels: &mut LCDL
     registers.bg3_affine_params.increment_reference_points();
 }
 
-pub fn draw_affine_bg(line: u32, bg: &AffineBG, vram: &VRAM, pixels: &mut LCDLineBuffer) {
+pub fn draw_affine_bg(bg: &AffineBG, vram: &VRAM, pixels: &mut LCDLineBuffer) {
     let (x_mask, y_mask) = if bg.wraparound {
         ((bg.width - 1) as i32, (bg.height - 1) as i32)
     } else {
