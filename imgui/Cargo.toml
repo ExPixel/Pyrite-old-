@@ -15,4 +15,4 @@ glutin = { version = "0.22", optional = true }
 
 [build-dependencies]
 cc = "1.0"
-bindgen = "0.52"
+bindgen = "0.53"
