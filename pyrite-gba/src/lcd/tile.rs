@@ -125,22 +125,7 @@ pub fn draw_affine_bg(bg: &AffineBG, vram: &VRAM, pixels: &mut LCDLineBuffer) {
         (0xFFFFFFFFu32 as i32, 0xFFFFFFFFu32 as i32)
     };
 
-    let first_target_mask = if bg.first_target {
-        Pixel::FIRST_TARGET
-    } else {
-        0
-    };
-
-    let second_target_mask = if bg.second_target {
-        Pixel::SECOND_TARGET
-    } else {
-        0
-    };
-
-    let pixel_mask = Pixel::layer_mask(bg.layer)
-        | Pixel::priority_mask(bg.priority)
-        | first_target_mask
-        | second_target_mask;
+    let pixel_mask = bg.pixel_mask();
 
     let mut x = bg.params.internal_x;
     let mut y = bg.params.internal_y;
@@ -469,6 +454,25 @@ impl AffineBG {
             first_target: first_target,
             second_target: second_target,
         }
+    }
+
+    fn pixel_mask(&self) -> u16 {
+        let first_target_mask = if self.first_target {
+            Pixel::FIRST_TARGET
+        } else {
+            0
+        };
+
+        let second_target_mask = if self.second_target {
+            Pixel::SECOND_TARGET
+        } else {
+            0
+        };
+
+        Pixel::layer_mask(self.layer)
+            | Pixel::priority_mask(self.priority)
+            | first_target_mask
+            | second_target_mask
     }
 }
 
