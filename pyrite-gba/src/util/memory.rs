@@ -79,6 +79,12 @@ macro_rules! write_bytes_le_no_bounds_check {
     }};
 }
 
+pub fn memset<T: Copy>(dest: &mut [T], value: T) {
+    for i in dest.iter_mut() {
+        *i = value;
+    }
+}
+
 #[inline]
 pub unsafe fn read_u64_unchecked(mem: &[u8], offset: usize) -> u64 {
     read_bytes_le_no_bounds_check!(mem.get_unchecked(offset), u64, 8)
