@@ -921,6 +921,7 @@ impl WindowInfo {
         self.layers[1] = LayerWindow::new();
         self.layers[2] = LayerWindow::new();
         self.layers[3] = LayerWindow::new();
+        self.layers[4] = LayerWindow::new();
         self.winobj.clear_all();
     }
 
