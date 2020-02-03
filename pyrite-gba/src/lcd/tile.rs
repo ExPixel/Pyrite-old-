@@ -194,19 +194,8 @@ pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
     pub const BYTES_PER_TILE: u32 = 32;
     pub const BYTES_PER_LINE: u32 = 4;
 
-    let start_scx = if bg.mosaic_x > 0 {
-        let original_scx = bg.xoffset & (bg.width - 1);
-        original_scx - (original_scx % bg.mosaic_x)
-    } else {
-        bg.xoffset & (bg.width - 1)
-    };
-
-    let scy = if bg.mosaic_y > 0 {
-        let original_scy = (bg.yoffset + line) & (bg.height - 1);
-        original_scy - (original_scy % bg.mosaic_y)
-    } else {
-        (bg.yoffset + line) & (bg.height - 1)
-    };
+    let start_scx = bg.wrapped_xoffset();
+    let scy = bg.wrapped_yoffset_at_line(line);
     let ty = scy % 8;
 
     let mut dx = 0;
@@ -216,12 +205,6 @@ pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
         let scx = start_scx + dx;
 
         let tile_info_offset = bg.get_tile_info_offset(scx, scy);
-        // @TODO I'm not sure if this condition is even possible given how screen areas are
-        // addressed. I should check that later.
-        if tile_info_offset >= 0x10000 {
-            dx += 1;
-            continue;
-        }
         let tile_info = unsafe { read_u16_unchecked(vram, tile_info_offset as usize) };
         let tile_number = (tile_info & 0x3FF) as u32;
         let tile_palette = ((tile_info >> 12) & 0xF) as u8;
@@ -232,6 +215,8 @@ pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
 
         let tile_data_start = bg.char_base + (BYTES_PER_TILE * tile_number);
         let mut pixel_offset = (tile_data_start + (ty * BYTES_PER_LINE)) as usize;
+
+        // Tile addresses above 0xFFFF are for OBJ tiles.
         if pixel_offset >= 0x10000 {
             dx += 1;
             continue;
@@ -273,22 +258,7 @@ pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
             });
     }
 
-    let first_target_mask = if bg.first_target {
-        Pixel::FIRST_TARGET
-    } else {
-        0
-    };
-
-    let second_target_mask = if bg.second_target {
-        Pixel::SECOND_TARGET
-    } else {
-        0
-    };
-
-    let pixel_mask = Pixel::layer_mask(bg.layer)
-        | Pixel::priority_mask(bg.priority)
-        | first_target_mask
-        | second_target_mask;
+    let pixel_mask = bg.pixel_mask();
 
     if !pixels.windows.enabled {
         macro_rules! draw_entry_simple {
@@ -350,33 +320,17 @@ pub fn draw_text_bg_8bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
     pub const BYTES_PER_TILE: u32 = 64;
     pub const BYTES_PER_LINE: u32 = 8;
 
-    let start_scx = bg.xoffset & (bg.width - 1);
-    let scy = if bg.mosaic_y > 0 {
-        let original_scy = (bg.yoffset + line) & (bg.height - 1);
-        original_scy - (original_scy % bg.mosaic_y)
-    } else {
-        (bg.yoffset + line) & (bg.height - 1)
-    };
+    let start_scx = bg.wrapped_xoffset();
+    let scy = bg.wrapped_yoffset_at_line(line);
     let ty = scy % 8;
 
-    let mut mdx = 0;
     let mut dx = 0;
-
     let mut pixel_buffer = [0u8; 240];
 
     while dx < 240 {
-        let scx = start_scx + dx - mdx;
-
-        mdx += 1;
-        if mdx >= bg.mosaic_x {
-            mdx = 0;
-        }
+        let scx = start_scx + dx;
 
         let tile_info_offset = bg.get_tile_info_offset(scx, scy);
-        if tile_info_offset >= 0x10000 {
-            dx += 1;
-            continue;
-        }
         let tile_info = unsafe { read_u16_unchecked(vram, tile_info_offset as usize) };
         let tile_number = (tile_info & 0x3FF) as u32;
         let hflip = (tile_info & 0x400) != 0;
@@ -386,13 +340,15 @@ pub fn draw_text_bg_8bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
 
         let tile_data_start = bg.char_base + (BYTES_PER_TILE * tile_number);
         let mut pixel_offset = tile_data_start + (ty * BYTES_PER_LINE); // without X offset
+
+        // Tile addresses above 0xFFFF are for OBJ tiles.
         if pixel_offset >= 0x10000 {
             dx += 1;
             continue;
         }
 
         // try to do 8 pixels at a time if possible:
-        if bg.mosaic_x <= 1 && (scx % 8) == 0 && dx <= 232 {
+        if (scx % 8) == 0 && dx <= 232 {
             let mut pixels8 = unsafe { read_u64_unchecked(vram, pixel_offset as usize) };
             if hflip {
                 pixels8 = pixels8.swap_bytes();
@@ -415,22 +371,16 @@ pub fn draw_text_bg_8bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
         }
     }
 
-    let first_target_mask = if bg.first_target {
-        Pixel::FIRST_TARGET
-    } else {
-        0
-    };
+    if bg.mosaic_x > 1 {
+        // Fill each mosaic chunk with the first pixel in the chunk.
+        pixel_buffer
+            .chunks_mut(bg.mosaic_x as usize)
+            .for_each(|chunk| {
+                memset(chunk, chunk.first().copied().unwrap_or(0));
+            });
+    }
 
-    let second_target_mask = if bg.second_target {
-        Pixel::SECOND_TARGET
-    } else {
-        0
-    };
-
-    let pixel_mask = Pixel::layer_mask(bg.layer)
-        | Pixel::priority_mask(bg.priority)
-        | first_target_mask
-        | second_target_mask;
+    let pixel_mask = bg.pixel_mask();
 
     if !pixels.windows.enabled {
         for x in 0..240 {
@@ -594,5 +544,46 @@ impl TextBG {
         let area_x = scx % 256;
         let area_tx = area_x / 8;
         return self.screen_base + (area_idx * 2048) + ((area_ty * 32) + area_tx) * 2;
+    }
+
+    /// Returns the real X offset of this text mode background taking into account wrapping and
+    /// the mosaic registers.
+    fn wrapped_xoffset(&self) -> u32 {
+        if self.mosaic_x > 0 {
+            let original_scx = self.xoffset & (self.width - 1);
+            original_scx - (original_scx % self.mosaic_x)
+        } else {
+            self.xoffset & (self.width - 1)
+        }
+    }
+
+    /// Returns the real Y offset of this text mode background at a given line taking into
+    /// account wrapping and the mosaic registers.
+    fn wrapped_yoffset_at_line(&self, line: u32) -> u32 {
+        if self.mosaic_y > 0 {
+            let original_scy = (self.yoffset + line) & (self.height - 1);
+            original_scy - (original_scy % self.mosaic_y)
+        } else {
+            (self.yoffset + line) & (self.height - 1)
+        }
+    }
+
+    fn pixel_mask(&self) -> u16 {
+        let first_target_mask = if self.first_target {
+            Pixel::FIRST_TARGET
+        } else {
+            0
+        };
+
+        let second_target_mask = if self.second_target {
+            Pixel::SECOND_TARGET
+        } else {
+            0
+        };
+
+        Pixel::layer_mask(self.layer)
+            | Pixel::priority_mask(self.priority)
+            | first_target_mask
+            | second_target_mask
     }
 }
