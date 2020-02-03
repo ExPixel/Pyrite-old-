@@ -3,7 +3,7 @@ use super::{
 };
 use crate::hardware::VRAM;
 use crate::util::memory::{
-    read_u16_unchecked, read_u32_unchecked, read_u64_unchecked, write_u64_unchecked,
+    memset, read_u16_unchecked, read_u32_unchecked, read_u64_unchecked, write_u64_unchecked,
 };
 
 pub fn render_mode0(registers: &LCDRegisters, vram: &VRAM, pixels: &mut LCDLineBuffer) {
@@ -194,7 +194,13 @@ pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
     pub const BYTES_PER_TILE: u32 = 32;
     pub const BYTES_PER_LINE: u32 = 4;
 
-    let start_scx = bg.xoffset & (bg.width - 1);
+    let start_scx = if bg.mosaic_x > 0 {
+        let original_scx = bg.xoffset & (bg.width - 1);
+        original_scx - (original_scx % bg.mosaic_x)
+    } else {
+        bg.xoffset & (bg.width - 1)
+    };
+
     let scy = if bg.mosaic_y > 0 {
         let original_scy = (bg.yoffset + line) & (bg.height - 1);
         original_scy - (original_scy % bg.mosaic_y)
@@ -203,17 +209,11 @@ pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
     };
     let ty = scy % 8;
 
-    let mut mdx = 0;
     let mut dx = 0;
     let mut pixel_buffer = [0u8; 240];
 
     while dx < 240 {
-        let scx = start_scx + dx - mdx;
-
-        mdx += 1;
-        if mdx >= bg.mosaic_x {
-            mdx = 0;
-        }
+        let scx = start_scx + dx;
 
         let tile_info_offset = bg.get_tile_info_offset(scx, scy);
         // @TODO I'm not sure if this condition is even possible given how screen areas are
@@ -238,7 +238,7 @@ pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
         }
 
         // try to do 8 pixels at a time if possible:
-        if bg.mosaic_x <= 1 && (scx % 8) == 0 && dx <= 232 {
+        if (scx % 8) == 0 && dx <= 232 {
             // we read all 8 nibbles (4 bytes) in one go:
             let pixels8 = unsafe { read_u32_unchecked(vram, pixel_offset) };
             if hflip {
@@ -262,6 +262,15 @@ pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
             pixel_buffer[dx as usize] = (tile_palette * 16) + palette_entry;
             dx += 1;
         }
+    }
+
+    if bg.mosaic_x > 1 {
+        // Fill each mosaic chunk with the first pixel in the chunk.
+        pixel_buffer
+            .chunks_mut(bg.mosaic_x as usize)
+            .for_each(|chunk| {
+                memset(chunk, chunk.first().copied().unwrap_or(0));
+            });
     }
 
     let first_target_mask = if bg.first_target {
