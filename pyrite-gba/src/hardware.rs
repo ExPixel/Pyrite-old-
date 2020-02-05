@@ -78,7 +78,7 @@ impl GbaHardware {
             ewram: [0u8; 256 * 1024],
             iwram: [0u8; 32 * 1024],
             vram: [0u8; 96 * 1024],
-            oam: [0u8; 1 * 1024],
+            oam: [2u8; 1 * 1024],
             pal: GbaPalette::new(),
             gamepak: Vec::new(),
 
