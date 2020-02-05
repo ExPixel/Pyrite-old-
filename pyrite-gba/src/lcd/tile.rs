@@ -184,15 +184,25 @@ impl<'v> TileLoader<'v> {
 
         let misalignment = offset % 8;
         let block = if misalignment != 0 {
-            offset &= !0x7; // Do an aligned load.
-            let v = unsafe { read_u64_unchecked(vram, offset) };
-            offset += misalignment + 2;
-            v >> (misalignment * 8)
+            let v = unsafe { read_u64_unchecked(vram, offset & !0x7) }; // do an aligned load
+            if x % 8 != 0 {
+                offset += 2;
+                v >> (misalignment * 8)
+            } else {
+                // Because this is aligned, the extra offset increment and shift that is done above
+                // will be done by the immediate call to advance.
+                v >> ((misalignment - 2) * 8)
+            }
         } else {
             // We're block aligned, but since we're not tile aligned, we have to preload the block
-            // because a call to next won't be done before the next pixel offset is read.
+            // because a call to advance won't be done before the next pixel offset is read.
             if x % 8 != 0 {
-                unsafe { read_u64_unchecked(vram, offset) }
+                let v = unsafe { read_u64_unchecked(vram, offset) };
+                // We add this offset here so that when we do eventually get to an aligned tile,
+                // the call to advance doesn't do another load but will instead advance to the next
+                // tile as it should.
+                offset += 2;
+                v
             } else {
                 0
             }
@@ -207,29 +217,33 @@ impl<'v> TileLoader<'v> {
         }
     }
 
-    fn next(&mut self, width: u32) -> u16 {
+    fn advance(&mut self, width: u32) {
         // We load a new block because the offset is 8 byte aligned.
         // This all works because the TileLoader does not bother loading any data to start with if
         // the first pixel being drawn is aligned to the left edge of a tile. So offset % 8 will be
         // 0 and the first call to next will load a block.
+
         if self.offset % 8 == 0 {
             if self.offset >= self.line_end {
-                self.offset = self.offset.wrapping_sub(2) & !0x3F;
-                if width > 256 {
-                    if self.left {
-                        self.offset += 0x800;
-                    } else {
-                        self.offset -= 0x800;
+                if self.offset >= self.line_end {
+                    self.offset = self.offset.wrapping_sub(2) & !0x3F;
+                    if width > 256 {
+                        if self.left {
+                            self.offset += 0x800;
+                        } else {
+                            self.offset -= 0x800;
+                        }
                     }
+                    self.line_end = self.offset + 64;
                 }
-                self.line_end = self.offset + 64;
+                self.block = unsafe { read_u64_unchecked(self.vram, self.offset) };
+            } else {
+                self.block = unsafe { read_u64_unchecked(self.vram, self.offset) };
             }
-            self.block = unsafe { read_u64_unchecked(self.vram, self.offset) };
         } else {
             self.block >>= 16
         }
         self.offset += 2;
-        self.block as u16
     }
 
     fn tile_palette(&self) -> u8 {
@@ -293,7 +307,7 @@ pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
 
         // try to do 8 pixels at a time if possible:
         if (scx % 8) == 0 && dx <= 232 {
-            tile_loader.next(bg.width);
+            tile_loader.advance(bg.width);
             let pixel_offset = tile_loader.tile_pixel_offset(
                 BYTES_PER_TILE,
                 BYTES_PER_LINE,
@@ -424,7 +438,7 @@ pub fn draw_text_bg_8bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
 
         // try to do 8 pixels at a time if possible:
         if (scx % 8) == 0 && dx <= 232 {
-            tile_loader.next(bg.width);
+            tile_loader.advance(bg.width);
             let pixel_offset = tile_loader.tile_pixel_offset(
                 BYTES_PER_TILE,
                 BYTES_PER_LINE,
