@@ -161,6 +161,105 @@ pub fn draw_affine_bg(bg: &AffineBG, vram: &VRAM, pixels: &mut LCDLineBuffer) {
     }
 }
 
+struct TileLoader<'v> {
+    vram: &'v VRAM,
+    /// The current block of tiles.
+    block: u64,
+    /// The current offset being read from.
+    offset: usize,
+    line_end: usize,
+    left: bool,
+}
+
+impl<'v> TileLoader<'v> {
+    /// This function expects that X and Y do not exceed the width and height of the screen map.
+    fn new(vram: &'v VRAM, base: u32, mut x: u32, mut y: u32, width: u32) -> TileLoader<'v> {
+        let area = Self::get_area(x, y, width) as usize;
+        // Get the x and y coordinates within the current area:
+        let (area_x, area_y) = (x % 256, y % 256);
+        // Get the x and y TILE coordinates within the current area:
+        let (area_tx, area_ty) = (area_x / 8, area_y / 8);
+
+        let offset =
+            base as usize + (area * 0x800) + (area_ty as usize * 64) + (area_tx as usize * 2);
+        let misalignment = offset % 8;
+        let block = if misalignment != 0 {
+            let v = unsafe { read_u64_unchecked(vram, offset & !0x3) };
+            v >> (misalignment * 8)
+        } else {
+            0
+        };
+
+        TileLoader {
+            vram: vram,
+            block: block,
+            offset: offset,
+            line_end: (offset & !0x3F) + 64,
+            left: (area % 2) == 0,
+        }
+    }
+
+    fn peek(&mut self) -> u16 {
+        self.block as u16
+    }
+
+    fn next(&mut self, debug_x: u32, line: u32, width: u32) -> u16 {
+        // We load a new block because the offset is 8 byte aligned:
+        if self.offset % 8 == 0 {
+            if self.offset == self.line_end {
+                self.offset = self.offset.wrapping_sub(2) & !0x3F;
+                if width > 256 {
+                    if self.left {
+                        self.offset += 0x800;
+                    } else {
+                        self.offset -= 0x800;
+                    }
+                }
+                self.line_end = (self.offset & !0x3F) + 64;
+            }
+            self.block = unsafe { read_u64_unchecked(self.vram, self.offset) };
+        } else {
+            self.block >>= 16
+        }
+        self.offset += 2;
+        self.block as u16
+    }
+
+    fn tile_palette(&self) -> u8 {
+        ((self.block >> 12) & 0xF) as u8
+    }
+
+    fn hflip(&self) -> bool {
+        (self.block & 0x400) != 0
+    }
+
+    #[inline(always)]
+    fn tile_pixel_offset(
+        &mut self,
+        bytes_per_tile: usize,
+        bytes_per_line: usize,
+        char_base: usize,
+        scx: u32,
+        ty: usize,
+    ) -> usize {
+        let tile_number = (self.block & 0x3FF) as usize;
+        let hflip = (self.block & 0x400) != 0;
+        let vflip = (self.block & 0x800) != 0;
+
+        let ty = if vflip { 7 - ty } else { ty };
+
+        let tile_data_start = char_base + (bytes_per_tile * tile_number);
+        let mut pixel_offset = (tile_data_start + (ty * bytes_per_line)) as usize;
+
+        return pixel_offset;
+    }
+
+    fn get_area(x: u32, y: u32, width: u32) -> u32 {
+        let area_y_inc = if width > 256 { 2 } else { 1 };
+        (if x < 256 { 0 } else { 1 }) + (if y < 256 { 0 } else { area_y_inc })
+    }
+}
+
 macro_rules! write_4bpp {
     ($Dest:expr, $DestOffset:expr, $Palette:expr, $Nibbles:expr) => {
         $Dest[$DestOffset as usize] = ($Palette * 16) + ($Nibbles as u8 & 0xF);
@@ -176,42 +275,35 @@ macro_rules! write_4bpp_rev {
 }
 
 pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLineBuffer) {
-    pub const BYTES_PER_TILE: u32 = 32;
-    pub const BYTES_PER_LINE: u32 = 4;
+    pub const BYTES_PER_TILE: usize = 32;
+    pub const BYTES_PER_LINE: usize = 4;
 
     let start_scx = bg.wrapped_xoffset();
     let scy = bg.wrapped_yoffset_at_line(line);
-    let ty = scy % 8;
+    let ty = (scy % 8) as usize;
 
     let mut dx = 0;
     let mut pixel_buffer = [0u8; 240];
+    let mut tile_loader = TileLoader::new(vram, bg.screen_base, start_scx, scy, bg.width);
 
     while dx < 240 {
         let scx = start_scx + dx;
 
-        let tile_info_offset = bg.get_tile_info_offset(scx, scy);
-        let tile_info = unsafe { read_u16_unchecked(vram, tile_info_offset as usize) };
-        let tile_number = (tile_info & 0x3FF) as u32;
-        let tile_palette = ((tile_info >> 12) & 0xF) as u8;
-        let hflip = (tile_info & 0x400) != 0;
-        let vflip = (tile_info & 0x800) != 0;
-
-        let ty = if vflip { 7 - ty } else { ty };
-
-        let tile_data_start = bg.char_base + (BYTES_PER_TILE * tile_number);
-        let mut pixel_offset = (tile_data_start + (ty * BYTES_PER_LINE)) as usize;
-
-        // Tile addresses above 0xFFFF are for OBJ tiles.
-        if pixel_offset >= 0x10000 {
-            dx += 1;
-            continue;
-        }
-
         // try to do 8 pixels at a time if possible:
         if (scx % 8) == 0 && dx <= 232 {
+            tile_loader.next(scx, line, bg.width);
+            let pixel_offset = tile_loader.tile_pixel_offset(
+                BYTES_PER_TILE,
+                BYTES_PER_LINE,
+                bg.char_base as usize,
+                scx,
+                ty,
+            );
+            let tile_palette = tile_loader.tile_palette();
+
             // we read all 8 nibbles (4 bytes) in one go:
             let pixels8 = unsafe { read_u32_unchecked(vram, pixel_offset) };
-            if hflip {
+            if tile_loader.hflip() {
                 write_4bpp_rev!(pixel_buffer, dx + 0, tile_palette, pixels8 >> 24);
                 write_4bpp_rev!(pixel_buffer, dx + 2, tile_palette, pixels8 >> 16);
                 write_4bpp_rev!(pixel_buffer, dx + 4, tile_palette, pixels8 >> 8);
@@ -224,9 +316,23 @@ pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
             }
             dx += 8;
         } else {
+            let mut pixel_offset = tile_loader.tile_pixel_offset(
+                BYTES_PER_TILE,
+                BYTES_PER_LINE,
+                bg.char_base as usize,
+                scx,
+                ty,
+            );
+
             // get the x offset of the pixel:
-            let tx = if hflip { 7 - (scx % 8) } else { scx % 8 };
+            let tx = if tile_loader.hflip() {
+                7 - (scx % 8)
+            } else {
+                scx % 8
+            };
             pixel_offset += tx as usize / 2;
+
+            let tile_palette = tile_loader.tile_palette();
 
             let palette_entry = (vram[pixel_offset as usize] >> ((tx % 2) << 2)) & 0xF;
             pixel_buffer[dx as usize] = (tile_palette * 16) + palette_entry;
