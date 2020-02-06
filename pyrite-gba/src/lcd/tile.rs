@@ -198,9 +198,6 @@ impl<'v> TileLoader<'v> {
             // because a call to advance won't be done before the next pixel offset is read.
             if x % 8 != 0 {
                 let v = unsafe { read_u64_unchecked(vram, offset) };
-                // We add this offset here so that when we do eventually get to an aligned tile,
-                // the call to advance doesn't do another load but will instead advance to the next
-                // tile as it should.
                 offset += 2;
                 v
             } else {
@@ -224,24 +221,22 @@ impl<'v> TileLoader<'v> {
         // 0 and the first call to next will load a block.
 
         if self.offset % 8 == 0 {
-            if self.offset >= self.line_end {
-                if self.offset >= self.line_end {
-                    self.offset = self.offset.wrapping_sub(2) & !0x3F;
-                    if width > 256 {
-                        if self.left {
-                            self.offset += 0x800;
-                        } else {
-                            self.offset -= 0x800;
-                        }
+            if self.offset == self.line_end {
+                self.offset = self.offset.wrapping_sub(2) & !0x3F;
+                if width > 256 {
+                    if self.left {
+                        self.offset += 0x800;
+                    } else {
+                        self.offset -= 0x800;
                     }
-                    self.line_end = self.offset + 64;
                 }
+                self.line_end = self.offset + 64;
                 self.block = unsafe { read_u64_unchecked(self.vram, self.offset) };
             } else {
                 self.block = unsafe { read_u64_unchecked(self.vram, self.offset) };
             }
         } else {
-            self.block >>= 16
+            self.block >>= 16;
         }
         self.offset += 2;
     }
@@ -305,9 +300,12 @@ pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
     while dx < 240 {
         let scx = start_scx + dx;
 
+        if scx % 8 == 0 {
+            tile_loader.advance(bg.width);
+        }
+
         // try to do 8 pixels at a time if possible:
         if (scx % 8) == 0 && dx <= 232 {
-            tile_loader.advance(bg.width);
             let pixel_offset = tile_loader.tile_pixel_offset(
                 BYTES_PER_TILE,
                 BYTES_PER_LINE,
@@ -436,9 +434,12 @@ pub fn draw_text_bg_8bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
     while dx < 240 {
         let scx = start_scx + dx;
 
+        if scx % 8 == 0 {
+            tile_loader.advance(bg.width);
+        }
+
         // try to do 8 pixels at a time if possible:
         if (scx % 8) == 0 && dx <= 232 {
-            tile_loader.advance(bg.width);
             let pixel_offset = tile_loader.tile_pixel_offset(
                 BYTES_PER_TILE,
                 BYTES_PER_LINE,
