@@ -166,7 +166,7 @@ struct TileLoader<'v> {
     /// The current offset being read from.
     offset: usize,
     line_end: usize,
-    left: bool,
+    next_area: usize,
 }
 
 impl<'v> TileLoader<'v> {
@@ -210,7 +210,17 @@ impl<'v> TileLoader<'v> {
             block: block,
             offset: offset,
             line_end: line_end,
-            left: (area % 2) == 0,
+            next_area: if width > 256 {
+                if area % 2 == 0 {
+                    // this is on the left and we want to increment the area
+                    0x800
+                } else {
+                    // this is on the right and we want to decrement the area
+                    (-0x800isize) as usize
+                }
+            } else {
+                0
+            },
         }
     }
 
@@ -222,14 +232,7 @@ impl<'v> TileLoader<'v> {
 
         if self.offset % 8 == 0 {
             if self.offset == self.line_end {
-                self.offset = self.offset.wrapping_sub(2) & !0x3F;
-                if width > 256 {
-                    if self.left {
-                        self.offset += 0x800;
-                    } else {
-                        self.offset -= 0x800;
-                    }
-                }
+                self.offset = (self.offset.wrapping_sub(2) & !0x3F).wrapping_add(self.next_area);
                 self.line_end = self.offset + 64;
                 self.block = unsafe { read_u64_unchecked(self.vram, self.offset) };
             } else {
