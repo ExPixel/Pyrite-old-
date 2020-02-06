@@ -224,7 +224,9 @@ impl<'v> TileLoader<'v> {
         }
     }
 
-    fn advance(&mut self, width: u32) {
+    /// This should be called any time we're going to draw a pixel at a tile aligned boundary.
+    /// It will correctly load in the next tile (or the next block/area if necessary).
+    fn advance(&mut self) {
         // We load a new block because the offset is 8 byte aligned.
         // This all works because the TileLoader does not bother loading any data to start with if
         // the first pixel being drawn is aligned to the left edge of a tile. So offset % 8 will be
@@ -304,7 +306,7 @@ pub fn draw_text_bg_4bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
         let scx = start_scx + dx;
 
         if scx % 8 == 0 {
-            tile_loader.advance(bg.width);
+            tile_loader.advance();
         }
 
         // try to do 8 pixels at a time if possible:
@@ -438,7 +440,7 @@ pub fn draw_text_bg_8bpp(line: u32, bg: &TextBG, vram: &VRAM, pixels: &mut LCDLi
         let scx = start_scx + dx;
 
         if scx % 8 == 0 {
-            tile_loader.advance(bg.width);
+            tile_loader.advance();
         }
 
         // try to do 8 pixels at a time if possible:
