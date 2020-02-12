@@ -168,9 +168,7 @@ impl GbaLCD {
     }
 
     fn draw_objects_and_windows(&mut self, vram: &VRAM, oam: &OAM) {
-        if !self.registers.dispcnt.display_layer(Layer::OBJ) {
-            return;
-        }
+        let render_objects = self.registers.dispcnt.display_layer(Layer::OBJ);
 
         // setup obj cycles:
         self.pixels.obj_cycles = if self.registers.dispcnt.hblank_interval_free() {
@@ -182,7 +180,7 @@ impl GbaLCD {
         let object_priorities = obj::ObjectPriority::sorted(oam);
 
         if is_bitmap_mode(self.registers.dispcnt.mode()) {
-            if self.registers.dispcnt.display_window_obj() {
+            if render_objects && self.registers.dispcnt.display_window_obj() {
                 obj::process_window_objects_bm(
                     &self.registers,
                     object_priorities.window_objects(),
@@ -201,15 +199,17 @@ impl GbaLCD {
                 self.registers.dispcnt,
             );
 
-            obj::render_objects_bm(
-                &self.registers,
-                object_priorities.visible_objects(),
-                vram,
-                oam,
-                &mut self.pixels,
-            );
+            if render_objects {
+                obj::render_objects_bm(
+                    &self.registers,
+                    object_priorities.visible_objects(),
+                    vram,
+                    oam,
+                    &mut self.pixels,
+                );
+            }
         } else {
-            if self.registers.dispcnt.display_window_obj() {
+            if render_objects && self.registers.dispcnt.display_window_obj() {
                 obj::process_window_objects_tm(
                     &self.registers,
                     object_priorities.window_objects(),
@@ -228,13 +228,15 @@ impl GbaLCD {
                 self.registers.dispcnt,
             );
 
-            obj::render_objects_tm(
-                &self.registers,
-                object_priorities.visible_objects(),
-                vram,
-                oam,
-                &mut self.pixels,
-            );
+            if render_objects {
+                obj::render_objects_tm(
+                    &self.registers,
+                    object_priorities.visible_objects(),
+                    vram,
+                    oam,
+                    &mut self.pixels,
+                );
+            }
         }
     }
 }
@@ -937,21 +939,7 @@ impl WindowInfo {
     ) {
         let mut win0 = LCDPixelBits::new();
         if self.win0_enabled && win0_bounds.contains_vertical(line) {
-            if win0_bounds.left < win0_bounds.right {
-                for x in win0_bounds.left..win0_bounds.right {
-                    win0.set(x as usize);
-                }
-            } else {
-                for x in 0..win0_bounds.right {
-                    win0.set(x as usize);
-                }
-
-                for x in win0_bounds.left..240 {
-                    win0.set(x as usize);
-                }
-            }
-
-            if win0_bounds.left < win0_bounds.right {
+            if win0_bounds.left <= win0_bounds.right {
                 for x in win0_bounds.left..win0_bounds.right {
                     win0.set(x as usize);
                 }
@@ -968,21 +956,7 @@ impl WindowInfo {
 
         let mut win1 = LCDPixelBits::new();
         if self.win1_enabled && win1_bounds.contains_vertical(line) {
-            if win1_bounds.left < win1_bounds.right {
-                for x in win1_bounds.left..win1_bounds.right {
-                    win1.set(x as usize);
-                }
-            } else {
-                for x in 0..win1_bounds.right {
-                    win1.set(x as usize);
-                }
-
-                for x in win1_bounds.left..240 {
-                    win1.set(x as usize);
-                }
-            }
-
-            if win1_bounds.left < win1_bounds.right {
+            if win1_bounds.left <= win1_bounds.right {
                 for x in win1_bounds.left..win1_bounds.right {
                     win1.set(x as usize);
                 }
