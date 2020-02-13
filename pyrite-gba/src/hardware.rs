@@ -64,11 +64,6 @@ pub struct GbaHardware {
     /// If this is set to true, reading from the BIOS will be allowed.
     /// If this is false, all reads from the BIOS will return the last read opcode.
     allow_bios_access: bool,
-
-    /// Using a cell here just allows me to mutate this bool without redoing the entire memory API.
-    /// This flag is set after any bad access. Reading this flag via `pop_bad_access` will clear
-    /// it.
-    bad_access: std::cell::Cell<bool>,
 }
 
 impl GbaHardware {
@@ -99,8 +94,6 @@ impl GbaHardware {
 
             // @TODO implement
             allow_bios_access: true,
-
-            bad_access: std::cell::Cell::new(false),
         }
     }
 
@@ -1012,14 +1005,12 @@ impl GbaHardware {
     #[inline(never)]
     #[cold]
     fn bad_read(&self, bits: u8, addr: u32, message: &'static str) {
-        self.bad_access.set(true);
         log::error!("bad {}-bit read from 0x{:08X}: {}", bits, addr, message);
     }
 
     #[inline(never)]
     #[cold]
     fn bad_write(&self, bits: u8, addr: u32, value: u32, message: &'static str) {
-        self.bad_access.set(true);
         log::error!(
             "bad {}-bit write of value 0x{:X} to 0x{:08X}: {}",
             bits,
@@ -1027,10 +1018,6 @@ impl GbaHardware {
             addr,
             message
         );
-    }
-
-    pub fn pop_bad_access(&mut self) -> bool {
-        self.bad_access.replace(false)
     }
 }
 
