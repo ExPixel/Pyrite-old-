@@ -85,6 +85,10 @@ pub fn memset<T: Copy>(dest: &mut [T], value: T) {
     }
 }
 
+pub unsafe fn read_u8_unchecked(mem: &[u8], offset: usize) -> u8 {
+    *mem.get_unchecked(offset)
+}
+
 #[inline]
 pub unsafe fn read_u64_unchecked(mem: &[u8], offset: usize) -> u64 {
     read_bytes_le_no_bounds_check!(mem.get_unchecked(offset), u64, 8)

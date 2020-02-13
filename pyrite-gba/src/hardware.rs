@@ -41,7 +41,8 @@ pub struct GbaHardware {
     pub(crate) vram: Box<VRAM>,
     pub(crate) oam: Box<OAM>,
     pub(crate) pal: Box<GbaPalette>,
-    pub(crate) gamepak: Vec<u8>,
+    pub(crate) gamepak: Box<[u8]>,
+    pub(crate) gamepak_mask: usize,
 
     pub(crate) sysctl: GbaSystemControl,
     pub lcd: GbaLCD,
@@ -80,7 +81,8 @@ impl GbaHardware {
             vram: Box::new([0u8; 96 * 1024]),
             oam: Box::new([2u8; 1 * 1024]),
             pal: Box::new(GbaPalette::new()),
-            gamepak: Vec::new(),
+            gamepak: Box::new([0u8; 0]),
+            gamepak_mask: 0,
 
             sysctl: GbaSystemControl::new(),
             lcd: GbaLCD::new(),
@@ -110,8 +112,14 @@ impl GbaHardware {
         (&mut self.bios[0..data.len()]).copy_from_slice(data);
     }
 
-    pub fn set_gamepak_rom(&mut self, data: Vec<u8>) {
-        self.gamepak = data;
+    pub fn set_gamepak_rom(&mut self, mut data: Vec<u8>) {
+        let next_power_of_two = data
+            .len()
+            .checked_next_power_of_two()
+            .expect("GamePak ROM 'next power of 2' extension overflowed");
+        data.resize(next_power_of_two, 0);
+        self.gamepak = data.into_boxed_slice();
+        self.gamepak_mask = next_power_of_two - 1;
     }
 
     pub fn view32(&self, addr: u32) -> u32 {
@@ -250,7 +258,7 @@ impl GbaHardware {
     }
 
     fn bios_read32(&self, addr: u32) -> u32 {
-        if self.allow_bios_access && addr <= (16 * 1024 - 4) {
+        if self.allow_bios_access && addr <= 0x3FFC {
             read_u32(&*self.bios, addr as usize)
         } else {
             self.bad_read(32, addr, "out of BIOS range or no permission");
@@ -259,7 +267,7 @@ impl GbaHardware {
     }
 
     fn bios_read16(&self, addr: u32) -> u16 {
-        if self.allow_bios_access && addr <= (16 * 1024 - 4) {
+        if self.allow_bios_access && addr <= 0x3FFE {
             read_u16(&*self.bios, addr as usize)
         } else {
             self.bad_read(16, addr, "out of BIOS range or no permission");
@@ -268,7 +276,7 @@ impl GbaHardware {
     }
 
     fn bios_read8(&self, addr: u32) -> u8 {
-        if self.allow_bios_access && addr <= (16 * 1024 - 4) {
+        if self.allow_bios_access && addr < 0x4000 {
             self.bios[addr as usize]
         } else {
             self.bad_read(8, addr, "out of BIOS range or no permission");
@@ -278,51 +286,21 @@ impl GbaHardware {
 
     // #NOTE this function assumes that the address being passed to it is aligned to multiple of 4
     // bytes.
-    fn gamepak_read32(&self, addr: u32, display_error: bool) -> u32 {
-        let offset = (addr & 0x01FFFFFF) as usize;
-        if offset > self.gamepak.len() {
-            if display_error {
-                self.bad_read(32, addr, "out of cartridge range");
-            }
-            return 0;
-
-            // NOTE this is for when there is no cartridge, not sure what to do above.
-            // let lo = (addr >> 1) & 0xFFFF;
-            // let hi = (lo + 1) & 0xFFFF;
-            // return lo | (hi << 16);
-        }
-        return unsafe { read_u32_unchecked(&self.gamepak, offset) };
+    fn gamepak_read32(&self, addr: u32, _display_error: bool) -> u32 {
+        let offset = addr as usize & self.gamepak_mask;
+        return unsafe { read_u32_unchecked(&*self.gamepak, offset) };
     }
 
     // #NOTE this function assumes that the address being passed to it is aligned to a multiple of
     // 2 bytes.
-    fn gamepak_read16(&self, addr: u32, display_error: bool) -> u16 {
-        let offset = (addr & 0x01FFFFFF) as usize;
-        if offset > self.gamepak.len() {
-            if display_error {
-                self.bad_read(16, addr, "out of cartridge range");
-            }
-            return 0;
-
-            // NOTE this is for when there is no cartridge, not sure what to do above.
-            // return (addr >> 1) as u16;
-        }
-        return unsafe { read_u16_unchecked(&self.gamepak, offset) };
+    fn gamepak_read16(&self, addr: u32, _display_error: bool) -> u16 {
+        let offset = addr as usize & self.gamepak_mask;
+        return unsafe { read_u16_unchecked(&*self.gamepak, offset) };
     }
 
-    fn gamepak_read8(&self, addr: u32, display_error: bool) -> u8 {
-        let offset = (addr & 0x01FFFFFF) as usize;
-        if offset <= (self.gamepak.len() - 2) {
-            self.gamepak[offset]
-        } else {
-            if display_error {
-                self.bad_read(8, addr, "out of cartridge range");
-            }
-            return 0;
-
-            // NOTE this is for when there is no cartridge, not sure what to do above.
-            // byte_of_halfword((addr >> 1) as u16, addr)
-        }
+    fn gamepak_read8(&self, addr: u32, _display_error: bool) -> u8 {
+        let offset = addr as usize & self.gamepak_mask;
+        return unsafe { read_u8_unchecked(&*self.gamepak, offset) };
     }
 
     #[cold]
