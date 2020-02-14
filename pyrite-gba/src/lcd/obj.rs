@@ -10,7 +10,8 @@ const BITMAP: bool = true;
 const TILEMAP: bool = false;
 
 macro_rules! define_obj_renderer {
-    ($FunctionName:ident, $OBJWindowMode:expr, $BitmapMode:expr) => {
+    ($Doc:expr, $FunctionName:ident, $OBJWindowMode:expr, $BitmapMode:expr) => {
+       #[doc=$Doc]
         pub fn $FunctionName(
             registers: &LCDRegisters,
             objects: &[u16],
@@ -320,10 +321,32 @@ macro_rules! define_obj_renderer {
     };
 }
 
-define_obj_renderer!(render_objects_tm, OBJ_RENDER, TILEMAP);
-define_obj_renderer!(render_objects_bm, OBJ_RENDER, BITMAP);
-define_obj_renderer!(process_window_objects_tm, OBJ_WINDOW, TILEMAP);
-define_obj_renderer!(process_window_objects_bm, OBJ_WINDOW, BITMAP);
+define_obj_renderer!(
+    "Push the pixels of the given objects on a line.",
+    render_objects_tm,
+    OBJ_RENDER,
+    TILEMAP
+);
+define_obj_renderer!(
+    "Push the pixels of the given objects on a line. \
+    This will skip pixels of tiles that are not addressable in bitmap mode.",
+    render_objects_bm,
+    OBJ_RENDER,
+    BITMAP
+);
+define_obj_renderer!(
+    "Set the OBJ window mask for a line using the visible pixels of the given objects.",
+    process_window_objects_tm,
+    OBJ_WINDOW,
+    TILEMAP
+);
+define_obj_renderer!(
+    "Set the OBJ window mask for a line using the visible pixels of the given objects.\
+    This will skip pixels of tiles that are not addressable in bitmap mode.",
+    process_window_objects_bm,
+    OBJ_WINDOW,
+    BITMAP
+);
 
 bitfields!(ObjAttr0: u16 {
     y, set_y: u16 = [0, 7],
