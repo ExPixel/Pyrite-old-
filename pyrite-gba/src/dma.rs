@@ -413,7 +413,7 @@ impl From<DMAChannelIndex> for usize {
     }
 }
 
-bitfields! (DMAControl: u16 { 
+bitfields! (DMAControl: u16 {
     dst_control, set_dst_control: DMAAddressControl = [5, 6],
     src_control, set_src_control: DMAAddressControl = [7, 8],
     repeat, set_repeat: bool = [9, 9],

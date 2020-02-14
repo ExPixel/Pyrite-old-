@@ -289,7 +289,7 @@ pub enum TimerStateChange {
     Inactive,
 }
 
-bitfields! (TimerControl: u16 { 
+bitfields! (TimerControl: u16 {
     prescaler_selection, set_prescaler_selection: u16 = [0, 1],
     count_up_timing, set_count_up_timing: bool = [2, 2],
     irq, set_irq: bool = [6, 6],
