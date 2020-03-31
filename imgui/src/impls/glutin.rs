@@ -23,23 +23,30 @@ pub fn frame_start_time() -> Option<std::time::Instant> {
 }
 
 #[inline]
-pub fn process_device_event(_gl_window: &Window, event: &DeviceEvent) {
-    let mut io = imgui::get_io().unwrap();
-    match event {
-        DeviceEvent::ModifiersChanged(modifiers) => {
-            io.KeyShift = modifiers.shift();
-            io.KeyCtrl = modifiers.ctrl();
-            io.KeyAlt = modifiers.alt();
-            io.KeyShift = modifiers.logo();
-        }
-        _ => {}
-    }
+pub fn process_device_event(_gl_window: &Window, _event: &DeviceEvent) {
+    /* NOP */
 }
+// let mut io = imgui::get_io().unwrap();
+// match event {
+//     DeviceEvent::ModifiersChanged(modifiers) => {
+//         io.KeyShift = modifiers.shift();
+//         io.KeyCtrl = modifiers.ctrl();
+//         io.KeyAlt = modifiers.alt();
+//         io.KeyShift = modifiers.logo();
+//     }
+//     _ => {}
+// }
 
 #[inline]
 pub fn process_window_event(_gl_window: &Window, event: &WindowEvent) {
     let mut io = imgui::get_io().unwrap();
     match event {
+        WindowEvent::ModifiersChanged(modifiers) => {
+            io.KeyShift = modifiers.shift();
+            io.KeyCtrl = modifiers.ctrl();
+            io.KeyAlt = modifiers.alt();
+            io.KeySuper = modifiers.logo();
+        }
         WindowEvent::MouseWheel { delta, .. } => {
             let (x, y) = match delta {
                 MouseScrollDelta::LineDelta(x, y) => (*x, *y),
