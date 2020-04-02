@@ -3,3 +3,4 @@ roms/legal/
 untracked/
 imgui.ini
 gba-dump
+.cargo
