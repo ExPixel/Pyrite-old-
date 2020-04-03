@@ -129,8 +129,8 @@ impl Gba {
         //
         // It handles running instructions, DMAs, exceptions, and CPU idling when the CPU is in the
         // halted or stopped state. `decoded_fn` does not always actually refer to code meant for
-        // running a CPU instruction but can also just be some other arbitrary function set by
-        // somewhere else in teh emulator. The destination of `decoded_fn` is changed via the
+        // running a CPU instruction but can also just be some other arbitrary function set
+        // somewhere else in the emulator. The destination of `decoded_fn` is changed via the
         // `set_idle` and `override_execution` functions.
         let cycles = self.cpu.step(&mut self.hardware);
 
@@ -168,11 +168,15 @@ impl Gba {
                 if self.cpu.exception_enabled(CpuException::IRQ) && self.hardware.irq.request(irq) {
                     self.state = GbaSystemState::Running;
 
-                    // This will automatically put the CPU in an active state if it's idling.
+                    // This will automatically put the CPU in an active state if it's idling,
+                    // and then change the next execution target to the exception handler.
                     self.cpu.set_pending_exception_active(CpuException::IRQ);
 
                     // Calling `set_pending_exception_active` will change the CPU's next execution
-                    // so we call this to resume a DMA transfer if one was in progress:
+                    // so we call `resume_transfer` to resume a DMA transfer if one was in
+                    // progress. It doesn't matter that this will override the exception because
+                    // the CPU will "remember" that there is an exception waiting to be
+                    // processed the next time we try to resume regular execution.
                     self.hardware.dma.resume_transfer(&mut self.cpu);
                 }
             }
