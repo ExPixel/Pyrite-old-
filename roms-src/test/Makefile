@@ -1,0 +1,16 @@
+DEST := ../../roms/test
+TARGETS := mode3
+TARGETS_CLEAN := $(addsuffix .clean,$(TARGETS))
+
+.PHONY: all clean $(TARGETS) $(TARGETS_CLEAN)
+
+all: $(TARGETS)
+
+clean: $(TARGETS_CLEAN)
+
+$(TARGETS):
+	cd $@; make
+	cp $@/$@.gba $(DEST)
+
+$(TARGETS_CLEAN):
+	cd $(basename $@); make clean
