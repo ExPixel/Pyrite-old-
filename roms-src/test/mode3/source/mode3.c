@@ -1,6 +1,7 @@
 #include <gba_types.h>
 #include <gba_video.h>
 #include <../../include/test.h>
+#include <../../include/video_ext.h>
 
 u16 color_for_coord(u32 x, u32 y);
 

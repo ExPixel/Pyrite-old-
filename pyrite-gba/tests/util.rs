@@ -11,6 +11,11 @@ macro_rules! rgb5 {
 
 const BIOS_PATH: &str = "../roms/legal/gba-bios.bin";
 const TEST_STATUS_ADDRESS: u32 = 0x02000004;
+const CYCLES_PER_SECOND: u32 = 16 * 1024 * 1024;
+const STEP_TIMEOUT: u32 = 5 * CYCLES_PER_SECOND;
+
+pub const SCREEN_WIDTH: u32 = 240;
+pub const SCREEN_HEIGHT: u32 = 160;
 
 pub fn load_bios(gba: &mut Gba) {
     println!("loading BIOS from {}", BIOS_PATH);

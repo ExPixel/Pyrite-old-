@@ -1,5 +1,5 @@
 DEST := ../../roms/test
-TARGETS := mode3
+TARGETS := mode3 mode4
 TARGETS_CLEAN := $(addsuffix .clean,$(TARGETS))
 
 .PHONY: all clean $(TARGETS) $(TARGETS_CLEAN)
