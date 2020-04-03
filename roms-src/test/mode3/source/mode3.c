@@ -8,12 +8,11 @@ int main(void) {
     TEST_STATUS = test_status_setup;
     REG_DISPCNT = MODE_3 | BG2_ENABLE;
     for (u32 y = 0; y < SCREEN_HEIGHT; y++) {
-        for (u32 x = 0; x < SCREEN_WIDTH; x++) { MODE3_FB[y][x] = RGB5(31, 0, 0); }
         for (u32 x = 0; x < SCREEN_WIDTH; x++) {
             MODE3_FB[y][x] = color_for_coord(x, y);
         }
     }
-    busy_vblank_wait();
+    busy_render_wait();
     TEST_STATUS = test_status_ready;
     while(1);
 }
