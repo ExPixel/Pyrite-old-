@@ -45,9 +45,9 @@ impl GbaTexture {
 }
 
 impl GbaVideoOutput for GbaTexture {
-    fn display_line(&mut self, line: u32, pixels: &[u16]) {
+    fn display_line(&mut self, line: u32, pixels: &[u16; 240]) {
         let offset = (line as usize) * 240;
-        (&mut self.data[offset..(offset + 240)]).copy_from_slice(&pixels);
+        (&mut self.data[offset..(offset + 240)]).copy_from_slice(pixels);
     }
 
     fn pre_frame(&mut self) {

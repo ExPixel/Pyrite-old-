@@ -121,9 +121,9 @@ impl PyriteGL {
 }
 
 impl GbaVideoOutput for PyriteGL {
-    fn display_line(&mut self, line: u32, pixels: &[u16]) {
+    fn display_line(&mut self, line: u32, pixels: &[u16; 240]) {
         let offset = (line as usize) * 240;
-        (&mut self.texture_data[offset..(offset + 240)]).copy_from_slice(&pixels);
+        (&mut self.texture_data[offset..(offset + 240)]).copy_from_slice(pixels);
     }
 
     fn pre_frame(&mut self) {
