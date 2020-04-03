@@ -33,7 +33,7 @@ pub fn test_division() {
 
     {
         let mut divide = |dividend: u32, divisor: u32| -> (u32, u32) {
-            cpu.set_pc(0, &mut mem); // reset the program counter
+            let _ = cpu.set_pc(0, &mut mem); // reset the program counter
             cpu.registers.write(0, dividend);
             cpu.registers.write(1, divisor);
             while let Some(_signal) = run_cpu(&mut cpu, &mut mem) { /* IGNORE SIGNAL */ }
@@ -83,7 +83,7 @@ pub fn test_chacha20() {
         let mut cpu = ArmCpu::new();
         let mut mem = CHACHA20_BIN.to_vec();
         mem.resize(0x1000, 0xCE);
-        cpu.set_pc(0, &mut mem); // reset the program counter
+        let _ = cpu.set_pc(0, &mut mem); // reset the program counter
 
         while let Some((signal_type, signal_value)) = run_cpu(&mut cpu, &mut mem) {
             match signal_type {
@@ -142,7 +142,7 @@ pub fn test_chacha20_thumb() {
         let mut cpu = ArmCpu::new();
         let mut mem = CHACHA20_BIN_THUMB.to_vec();
         mem.resize(0x1000, 0xCE);
-        cpu.set_pc(0, &mut mem); // reset the program counter
+        let _ = cpu.set_pc(0, &mut mem); // reset the program counter
 
         while let Some((signal_type, signal_value)) = run_cpu(&mut cpu, &mut mem) {
             match signal_type {
