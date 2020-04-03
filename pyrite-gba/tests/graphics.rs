@@ -35,12 +35,12 @@ pub fn test_mode3() {
 #[test]
 pub fn test_mode4() {
     let mut gba = Gba::alloc();
-    util::load_rom(&mut gba, "../roms/test/mode3.gba");
+    util::load_rom(&mut gba, "../roms/test/mode4.gba");
     gba.reset(true);
 
     let palette = {
         let mut p = [0u16; 256];
-        let (mut r, mut g, mut b) = (0, 0, 0);
+        let (mut r, mut g, mut b) = (0u16, 0u16, 0u16);
 
         for idx in 0..128 {
             r = (r + 1) & 0x1F;

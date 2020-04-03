@@ -1,10 +1,22 @@
 #ifndef _video_ext_
 #define _video_ext_
 
-typedef u8 MODE4_LINE[240];
+typedef u16 MODE4_LINE[120];
 
 #define MODE4_FB ((MODE4_LINE *)0x06000000)
 #define MODE4_BB ((MODE4_LINE *)0x0600A000)
+
+/*
+ * compressed version of this:
+ *   u16 current = buffer[y][x >> 1];
+ *   current &= 0xFF00 >> ((x & 1) << 3);
+ *   current |= ((u16)entry) << ((x & 1) << 3);
+ *   buffer[y][x >> 1] = current;
+ */
+#define MODE4_POKE(buffer, x, y, entry) \
+    (buffer[y][x >> 1] = \
+    (buffer[y][x >> 1] & 0xFF00 >> ((x & 1) << 3)) | \
+    ((u16)entry) << ((x & 1) << 3)) \
 
 /*
  * Wait for VBlank in a busy loop.

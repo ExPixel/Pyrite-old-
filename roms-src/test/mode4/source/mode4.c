@@ -13,8 +13,8 @@ int main(void) {
     for (u32 y = 0; y < SCREEN_HEIGHT; y++) {
         for (u32 x = 0; x < SCREEN_WIDTH; x++) {
             u8 entry = (u8)(x + y*SCREEN_WIDTH);
-            MODE4_FB[y][x] = entry;
-            MODE4_BB[y][x] = 255 - entry;
+            MODE4_POKE(MODE4_FB, x, y, entry);
+            MODE4_POKE(MODE4_BB, x, y, 255 - entry);
         }
     }
     busy_render_wait();
