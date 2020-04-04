@@ -10,8 +10,9 @@ edition = "2018"
 pyrite-arm = { path = "../pyrite-arm" }
 pyrite-gba = { path = "../pyrite-gba" }
 pyrite-common = { path = "../pyrite-common" }
-gl = "0.14.0"
-glutin = "0.24"
+gl = { version = "0.14.0" }
+glutin = { version = "0.24" }
 log = { version = "0.4", features = ["std"] }
-termcolor = "1.1"
+termcolor = { version = "1.1" }
 imgui = { path = "../imgui", features = ["gl", "opengl3", "glutin"] }
+cpal = { version = "0.11.0" }
