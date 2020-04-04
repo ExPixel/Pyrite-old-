@@ -57,6 +57,9 @@ jobs:
         - name: Install LLVM (Windows)
           run: choco install llvm
           if: matrix.os == 'windows-latest'
+        - name: Install ALSA (Linux)
+          run: sudo apt-get install libasound2-dev
+          if: matrix.os == 'ubuntu-latest'
 
         # Display Tool Versions:
         - name: Check Tools
