@@ -12,6 +12,12 @@ To use the emulator:
 cargo run -- <ROM>
 ```
 
+Building
+---
+On **Windows** [LLVM]() is required in in order to generate the bindings to ImGui (this will be removed soon).
+On **Linux** the ALSA development files are required. These are provided as part of the `libasound2-dev`
+package on Debian and Ubuntu distributions and `alsa-lib-devel` on Fedora.
+
 Screenshots
 ---
 
