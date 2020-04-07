@@ -1,4 +1,5 @@
 use crate::audio::GbaAudio;
+use crate::audio::PSGChannel;
 use crate::dma::{DMAChannelIndex, GbaDMA};
 use crate::ioregs;
 use crate::irq::GbaInterruptControl;
@@ -446,6 +447,8 @@ impl GbaHardware {
                 }
             }
 
+            0x090..=0x09E => self.audio.read_wave_ram_byte(offset - 0x090),
+
             offset => {
                 let halfword_offset = offset & 0xFFFE;
                 if let Some(halfword) = self.io_read_reg(halfword_offset) {
@@ -571,6 +574,11 @@ impl GbaHardware {
                 return true;
             }
 
+            0x090..=0x09E => {
+                self.audio.set_wave_ram_byte(offset - 0x090, data as u8);
+                true
+            }
+
             // @TODO make 8bit writes to internal memory control (0x800) possible as well
             0x000..=0x208 => {
                 let halfword_offset = offset & 0xFFFE;
@@ -684,10 +692,6 @@ impl GbaHardware {
             ioregs::BLDALPHA => self.lcd.registers.alpha = data,
             ioregs::BLDY => self.lcd.registers.brightness = data,
 
-            // Sound
-            ioregs::SOUNDBIAS | ioregs::SOUNDBIAS_H => {
-                self.audio.registers.bias.value = setw!(self.audio.registers.bias.value);
-            }
             // Keypad Input
             ioregs::KEYCNT => self.keypad.control = data,
 
@@ -806,6 +810,29 @@ impl GbaHardware {
             ioregs::TM3CNT_L => self.timers.write_timer_counter(TimerIndex::TM3, data),
             ioregs::TM3CNT_H => self.timers.write_timer_control(TimerIndex::TM3, data),
 
+            // SOUND
+            ioregs::SOUNDCNT_L => self.audio.set_soundcnt_l(data),
+            ioregs::SOUNDCNT_H => self.audio.set_soundcnt_h(data),
+            ioregs::SOUNDCNT_X => self.audio.set_soundcnt_x(data),
+            ioregs::SOUNDCNT_X_H => { /* NOT USED */ }
+            ioregs::SOUND1CNT_L => self.audio.set_sound1cnt_l(data),
+            ioregs::SOUND1CNT_H => self.audio.set_sound1cnt_h(data),
+            ioregs::SOUND1CNT_X => self.audio.set_sound1cnt_x(data),
+            ioregs::SOUND2CNT_L => self.audio.set_sound2cnt_l(data),
+            ioregs::SOUND2CNT_H => self.audio.set_sound2cnt_h(data),
+            ioregs::SOUND3CNT_L => self.audio.set_sound3cnt_l(data),
+            ioregs::SOUND3CNT_H => self.audio.set_sound3cnt_h(data),
+            ioregs::SOUND3CNT_X => self.audio.set_sound3cnt_x(data),
+            ioregs::SOUND4CNT_L => self.audio.set_sound4cnt_l(data),
+            ioregs::SOUND4CNT_H => self.audio.set_sound4cnt_h(data),
+            0x090..=0x09E => {
+                self.audio.set_wave_ram_byte(offset - 0x090, data as u8);
+                self.audio
+                    .set_wave_ram_byte(offset - 0x090, (data >> 8) as u8);
+            }
+            ioregs::SOUNDBIAS => self.audio.set_sound_bias(data),
+            ioregs::SOUNDBIAS_H => { /* NOT USED */ }
+
             // TODO figure this out some time:
             // Unused areas that are still written to I think (???):
             0x04E => (),
@@ -829,14 +856,6 @@ impl GbaHardware {
             0x206 => (),
             0x20A => (),
             0x302 => (),
-
-            // TODO implement the other sound registers
-            0x060..=0x0A8 => {
-                warn_unimplemented!(
-                    DEBUG_SOUND_REG_ACCESS,
-                    "attempted to access unimplemented sound I/O registers"
-                );
-            }
 
             // TODO implement the serial comm (1) registers
             0x120..=0x12C => {
@@ -886,9 +905,6 @@ impl GbaHardware {
             ioregs::BLDCNT => Some(self.lcd.registers.effects.value()),
             ioregs::BLDALPHA => Some(self.lcd.registers.alpha),
 
-            // Sound
-            ioregs::SOUNDBIAS | ioregs::SOUNDBIAS_H => getw!(self.audio.registers.bias.value),
-
             // Keypad Input
             ioregs::KEYINPUT => Some(self.keypad.input),
             ioregs::KEYCNT => Some(self.keypad.control),
@@ -913,6 +929,35 @@ impl GbaHardware {
             ioregs::TM2CNT_H => Some(self.timers.read_timer_control(TimerIndex::TM2)),
             ioregs::TM3CNT_L => Some(self.timers.read_timer_counter(TimerIndex::TM3)),
             ioregs::TM3CNT_H => Some(self.timers.read_timer_control(TimerIndex::TM3)),
+
+            // SOUND
+            ioregs::SOUNDCNT_L => Some(self.audio.registers.soundcnt_l.value),
+            ioregs::SOUNDCNT_H => Some(self.audio.registers.soundcnt_h.value),
+            ioregs::SOUNDCNT_X => Some(self.audio.registers.soundcnt_x.value),
+            ioregs::SOUND1CNT_L => Some(self.audio.registers.sound1cnt_l.value),
+            ioregs::SOUND1CNT_H => Some(self.audio.registers.sound1cnt_h.value),
+            ioregs::SOUND1CNT_X => Some(self.audio.registers.sound1cnt_x.value),
+            ioregs::SOUND2CNT_L => Some(self.audio.registers.sound2cnt_l.value),
+            ioregs::SOUND2CNT_H => Some(self.audio.registers.sound2cnt_h.value),
+            ioregs::SOUND3CNT_L => Some(self.audio.registers.sound3cnt_l.value),
+            ioregs::SOUND3CNT_H => Some(self.audio.registers.sound3cnt_h.value),
+            ioregs::SOUND3CNT_X => Some(self.audio.registers.sound3cnt_x.value),
+            ioregs::SOUND4CNT_L => Some(self.audio.registers.sound4cnt_l.value),
+            ioregs::SOUND4CNT_H => Some(self.audio.registers.sound4cnt_h.value),
+
+            0x090..=0x09E => {
+                let lo = self.audio.read_wave_ram_byte(offset - 0x090) as u16;
+                let hi = if offset < 0x09E {
+                    self.audio.read_wave_ram_byte(offset - 0x090 + 1)
+                } else {
+                    log::warn!("need the first byte of FIFA_A for wave ram read");
+                    0
+                } as u16;
+
+                Some(lo | (hi << 8))
+            }
+            ioregs::SOUNDBIAS => Some(self.audio.registers.bias.value),
+            ioregs::SOUNDBIAS_H => None,
 
             // Interrupt Control
             ioregs::IME => Some(self.irq.master_enable as u16),
@@ -942,15 +987,6 @@ impl GbaHardware {
             0x206 => Some(0),
             0x20A => Some(0),
             0x302 => Some(0),
-
-            // TODO implement the other sound registers
-            0x060..=0x0A8 => {
-                warn_unimplemented!(
-                    DEBUG_SOUND_REG_ACCESS,
-                    "attempted to access unimplemented sound I/O registers"
-                );
-                Some(0)
-            }
 
             // TODO implement the serial comm (1) registers
             0x120..=0x12C => {

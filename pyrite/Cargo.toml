@@ -15,4 +15,4 @@ glutin = { version = "0.24" }
 log = { version = "0.4", features = ["std"] }
 termcolor = { version = "1.1" }
 imgui = { path = "../imgui", features = ["gl", "opengl3", "glutin"] }
-cpal = { version = "0.11.0" }
+miniaudio = { version = "0.4.0" }

@@ -1,5 +1,6 @@
 mod widgets;
 use crate::debugger::{GbaDebugger, GbaStepSize};
+use crate::platform::audio::PlatformAudio;
 use crate::platform::opengl::GbaTexture;
 use pyrite_gba::Gba;
 
@@ -9,6 +10,7 @@ pub const GBA_FRAMERATE_LIMIT: std::time::Duration = std::time::Duration::from_m
 
 pub struct GbaImGui {
     gba: Box<Gba>,
+    audio: PlatformAudio,
     main_emulator_gui: widgets::EmulatorGUI,
     gba_debugger: GbaDebugger,
     time_of_last_gba_frame: std::time::Instant,
@@ -19,6 +21,7 @@ impl GbaImGui {
     pub fn new(gba: Box<Gba>) -> GbaImGui {
         GbaImGui {
             gba: gba,
+            audio: PlatformAudio::new(),
             main_emulator_gui: widgets::EmulatorGUI::new(),
             gba_debugger: GbaDebugger::new(),
             time_of_last_gba_frame: std::time::Instant::now() - GBA_FRAMERATE_LIMIT,
@@ -48,6 +51,7 @@ impl GbaImGui {
         self.init(windowed_context.window());
         let mut pyrite_wait_for_swap = false;
 
+        self.audio.init();
         event_loop.run(move |event, _, control_flow| {
             *control_flow = glutin::event_loop::ControlFlow::Poll;
 

@@ -8,6 +8,7 @@ documented_packages_list=(\
     pyrite-arm \
     pyrite-common \
     pyrite-gba \
+    miniaudio \
     pyrite)
 
 documented_packages=""
