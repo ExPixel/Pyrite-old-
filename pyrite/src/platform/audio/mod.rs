@@ -1,6 +1,5 @@
 use miniaudio::{
-    Context, Device, DeviceConfig, DeviceType, Format, FramesMut, Waveform, WaveformConfig,
-    WaveformType,
+    Device, DeviceConfig, DeviceType, Format, FramesMut, Waveform, WaveformConfig, WaveformType,
 };
 use std::sync::atomic::AtomicU16;
 use std::sync::Arc;
@@ -49,13 +48,13 @@ impl PlatformAudio {
         /* NOP */
     }
 
-    pub fn set_paused(&mut self, paused: bool) {
-        todo!();
+    pub fn set_paused(&mut self, _paused: bool) {
+        // TODO
     }
 
     /// Push some samples to be played.
-    pub fn push_samples(&mut self, samples: &[u16]) {
-        todo!();
+    pub fn push_samples(&mut self, _samples: &[u16]) {
+        // TODO
     }
 }
 

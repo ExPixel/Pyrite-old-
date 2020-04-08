@@ -1,5 +1,4 @@
 use crate::audio::GbaAudio;
-use crate::audio::PSGChannel;
 use crate::dma::{DMAChannelIndex, GbaDMA};
 use crate::ioregs;
 use crate::irq::GbaInterruptControl;
@@ -13,7 +12,6 @@ use pyrite_arm::memory::ArmMemory;
 
 // @TODO remove these when they are implemented. These values are just here to make the emulator
 // less noisy.
-static mut DEBUG_SOUND_REG_ACCESS: bool = false;
 static mut DEBUG_SERIAL1_REG_ACCESS: bool = false;
 static mut DEBUG_SERIAL2_REG_ACCESS: bool = false;
 static mut DEBUG_SRAM_MEM_ACCESS: bool = false;
@@ -602,18 +600,18 @@ impl GbaHardware {
     // TODO: remove this allow attribute
     #[allow(overlapping_patterns, unreachable_patterns)]
     fn io_write_reg(&mut self, offset: u16, data: u16) -> bool {
-        /// Sets the 16bit value in a word.
-        macro_rules! setw {
-            ($Word:expr, $Value:expr) => {{
-                let shift = (offset as u32 & 0x2) << 3;
-                ($Word & !(0xFFFF << shift)) | (($Value as u32) << shift)
-            }};
+        // /// Sets the 16bit value in a word.
+        // macro_rules! setw {
+        //     ($Word:expr, $Value:expr) => {{
+        //         let shift = (offset as u32 & 0x2) << 3;
+        //         ($Word & !(0xFFFF << shift)) | (($Value as u32) << shift)
+        //     }};
 
-            ($Word:expr) => {{
-                let shift = (offset as u32 & 0x2) << 3;
-                ($Word & !(0xFFFF << shift)) | ((data as u32) << shift)
-            }};
-        }
+        //     ($Word:expr) => {{
+        //         let shift = (offset as u32 & 0x2) << 3;
+        //         ($Word & !(0xFFFF << shift)) | ((data as u32) << shift)
+        //     }};
+        // }
 
         match offset {
             // LCD
@@ -884,12 +882,12 @@ impl GbaHardware {
     // TODO: remove this allow attribute
     #[allow(overlapping_patterns, unreachable_patterns)]
     fn io_read_reg(&self, offset: u16) -> Option<u16> {
-        macro_rules! getw {
-            ($Word:expr) => {{
-                let shift = (offset & 0x2) << 3;
-                Some(($Word >> shift) as u16)
-            }};
-        }
+        // macro_rules! getw {
+        //     ($Word:expr) => {{
+        //         let shift = (offset & 0x2) << 3;
+        //         Some(($Word >> shift) as u16)
+        //     }};
+        // }
 
         match offset {
             // LCD

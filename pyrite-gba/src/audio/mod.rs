@@ -20,7 +20,7 @@ impl GbaAudio {
         GbaAudio {
             registers: GbaAudioRegisters::default(),
             cycles_acc: 0,
-            cycles_to_next_event: (std::u32::MAX >> 1),
+            cycles_to_next_event: std::u32::MAX >> 1,
         }
     }
 
@@ -39,7 +39,7 @@ impl GbaAudio {
             self.cycles_acc -= self.cycles_to_next_event;
 
             // FIXME It might be better to just pass cycles_acc here.
-            let c = std::mem::replace(&mut self.cycles_to_next_event, (std::u32::MAX >> 1));
+            let c = std::mem::replace(&mut self.cycles_to_next_event, std::u32::MAX >> 1);
             self.step_fire(c, audio, dma, hw_events);
         }
         false
@@ -154,7 +154,7 @@ struct GbaSquareWave {
     frequency: u16,
 
     /// Volume setting: 1-15 (0 = no sound)
-    volumne: u16,
+    volume: u16,
 }
 
 bitfields! (SquareWaveState: u32 {

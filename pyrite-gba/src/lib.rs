@@ -287,16 +287,16 @@ impl GbaVideoOutput for NoVideoOutput {
 }
 
 impl GbaAudioOutput for NoAudioOutput {
-    fn set_tone_sweep_state(&mut self, state: audio::SquareWaveState) {
+    fn set_tone_sweep_state(&mut self, _state: audio::SquareWaveState) {
         /* NOP */
     }
-    fn set_tone_state(&mut self, state: audio::SquareWaveState) {
+    fn set_tone_state(&mut self, _state: audio::SquareWaveState) {
         /* NOP */
     }
-    fn set_wave_output_state(&mut self, state: audio::WaveOutputState) {
+    fn set_wave_output_state(&mut self, _state: audio::WaveOutputState) {
         /* NOP */
     }
-    fn set_noise_state(&mut self, state: audio::NoiseState) {
+    fn set_noise_state(&mut self, _state: audio::NoiseState) {
         /* NOP */
     }
 
