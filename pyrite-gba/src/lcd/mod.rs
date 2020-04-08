@@ -291,8 +291,8 @@ impl LCDLineBuffer {
     }
 
     #[inline(always)]
-    pub fn lookup_color(&self, palette: &GbaPalette, bitmap16: bool, pixel: Pixel) -> u16 {
-        if bitmap16 && pixel.layer() == Layer::BG2 {
+    pub fn lookup_color<IsBitmapColor: CBool>(&self, palette: &GbaPalette, pixel: Pixel) -> u16 {
+        if IsBitmapColor::BOOL && pixel.layer() == Layer::BG2 {
             self.bitmap_palette[pixel.pal_index()]
         } else if pixel.layer() != Layer::OBJ {
             palette.bg256(pixel.pal_index())
@@ -355,7 +355,6 @@ impl LCDLineBuffer {
 
     // This is inlined into `internal_mix_bitmap` and `internal_mix_tile` in order to simplify the
     // lookup color calls where possible.
-    #[inline(always)]
     fn internal_mix<IsBitmapColor: CBool>(
         &mut self,
         palette: &GbaPalette,
@@ -370,11 +369,11 @@ impl LCDLineBuffer {
                 for x in 0..240 {
                     let Pixels2 { top, bot } = self.unmixed[x];
                     if !top.semi_transparent_or_first_target() || !bot.second_target() {
-                        self.mixed[x] = self.lookup_color(palette, IsBitmapColor::BOOL, top);
+                        self.mixed[x] = self.lookup_color::<IsBitmapColor>(palette, top);
                     } else {
                         self.mixed[x] = Self::alpha_blend(
-                            self.lookup_color(palette, IsBitmapColor::BOOL, top),
-                            self.lookup_color(palette, IsBitmapColor::BOOL, bot),
+                            self.lookup_color::<IsBitmapColor>(palette, top),
+                            self.lookup_color::<IsBitmapColor>(palette, bot),
                             eva,
                             evb,
                         );
@@ -391,7 +390,7 @@ impl LCDLineBuffer {
                     // If the top pixel is not a first target pixel, we don't bother trying to do
                     // any blending.
                     if !top.first_target() {
-                        self.mixed[x] = self.lookup_color(palette, IsBitmapColor::BOOL, top);
+                        self.mixed[x] = self.lookup_color::<IsBitmapColor>(palette, top);
                         continue;
                     }
 
@@ -399,19 +398,19 @@ impl LCDLineBuffer {
                     if top.semi_transparent() {
                         if bot.second_target() {
                             self.mixed[x] = Self::alpha_blend(
-                                self.lookup_color(palette, IsBitmapColor::BOOL, top),
-                                self.lookup_color(palette, IsBitmapColor::BOOL, bot),
+                                self.lookup_color::<IsBitmapColor>(palette, top),
+                                self.lookup_color::<IsBitmapColor>(palette, bot),
                                 eva,
                                 evb,
                             );
                         } else {
-                            self.mixed[x] = self.lookup_color(palette, IsBitmapColor::BOOL, top);
+                            self.mixed[x] = self.lookup_color::<IsBitmapColor>(palette, top);
                         }
                         continue;
                     }
 
                     self.mixed[x] = Self::brightness_increase(
-                        self.lookup_color(palette, IsBitmapColor::BOOL, top),
+                        self.lookup_color::<IsBitmapColor>(palette, top),
                         evy,
                     );
                 }
@@ -426,7 +425,7 @@ impl LCDLineBuffer {
                     // If the top pixel is not a first target pixel, we don't bother trying to do
                     // any blending.
                     if !top.first_target() {
-                        self.mixed[x] = self.lookup_color(palette, IsBitmapColor::BOOL, top);
+                        self.mixed[x] = self.lookup_color::<IsBitmapColor>(palette, top);
                         continue;
                     }
 
@@ -434,19 +433,19 @@ impl LCDLineBuffer {
                     if top.semi_transparent() {
                         if bot.second_target() {
                             self.mixed[x] = Self::alpha_blend(
-                                self.lookup_color(palette, IsBitmapColor::BOOL, top),
-                                self.lookup_color(palette, IsBitmapColor::BOOL, bot),
+                                self.lookup_color::<IsBitmapColor>(palette, top),
+                                self.lookup_color::<IsBitmapColor>(palette, bot),
                                 eva,
                                 evb,
                             );
                         } else {
-                            self.mixed[x] = self.lookup_color(palette, IsBitmapColor::BOOL, top);
+                            self.mixed[x] = self.lookup_color::<IsBitmapColor>(palette, top);
                         }
                         continue;
                     }
 
                     self.mixed[x] = Self::brightness_decrease(
-                        self.lookup_color(palette, IsBitmapColor::BOOL, top),
+                        self.lookup_color::<IsBitmapColor>(palette, top),
                         evy,
                     );
                 }
@@ -462,13 +461,13 @@ impl LCDLineBuffer {
                     // Semi-Transparent OBJ pixels force alpha blending as first target:
                     if top.semi_transparent() && bot.second_target() {
                         self.mixed[x] = Self::alpha_blend(
-                            self.lookup_color(palette, IsBitmapColor::BOOL, top),
-                            self.lookup_color(palette, IsBitmapColor::BOOL, bot),
+                            self.lookup_color::<IsBitmapColor>(palette, top),
+                            self.lookup_color::<IsBitmapColor>(palette, bot),
                             eva,
                             evb,
                         );
                     } else {
-                        self.mixed[x] = self.lookup_color(palette, IsBitmapColor::BOOL, top);
+                        self.mixed[x] = self.lookup_color::<IsBitmapColor>(palette, top);
                     }
                 }
             }
