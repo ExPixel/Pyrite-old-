@@ -11,6 +11,7 @@ use crate::dma::GbaDMA;
 use crate::hardware::{HardwareEventQueue, OAM, VRAM};
 use crate::irq::Interrupt;
 use crate::util::fixedpoint::{FixedPoint16, FixedPoint32};
+use crate::util::CBool;
 use crate::GbaVideoOutput;
 use pyrite_common::bits;
 
@@ -181,7 +182,7 @@ impl GbaLCD {
 
         if is_bitmap_mode(self.registers.dispcnt.mode()) {
             if render_objects && self.registers.dispcnt.display_window_obj() {
-                obj::process_window_objects_bm(
+                obj::process_objs::<obj::OBJWindow, obj::BitmapMode>(
                     &self.registers,
                     object_priorities.window_objects(),
                     vram,
@@ -200,7 +201,7 @@ impl GbaLCD {
             );
 
             if render_objects {
-                obj::render_objects_bm(
+                obj::process_objs::<obj::OBJRender, obj::BitmapMode>(
                     &self.registers,
                     object_priorities.visible_objects(),
                     vram,
@@ -210,7 +211,7 @@ impl GbaLCD {
             }
         } else {
             if render_objects && self.registers.dispcnt.display_window_obj() {
-                obj::process_window_objects_tm(
+                obj::process_objs::<obj::OBJWindow, obj::TileMode>(
                     &self.registers,
                     object_priorities.window_objects(),
                     vram,
@@ -229,7 +230,7 @@ impl GbaLCD {
             );
 
             if render_objects {
-                obj::render_objects_tm(
+                obj::process_objs::<obj::OBJRender, obj::TileMode>(
                     &self.registers,
                     object_priorities.visible_objects(),
                     vram,
@@ -346,39 +347,20 @@ impl LCDLineBuffer {
     pub fn mix(&mut self, palette: &GbaPalette, effect: SpecialEffect, registers: &LCDRegisters) {
         self.mix_obj_pixels();
         if is_bitmap_mode(registers.dispcnt.mode()) {
-            self.internal_mix_bitmap(palette, effect, registers);
+            self.internal_mix::<BitmapColor>(palette, effect, registers);
         } else {
-            self.internal_mix_tile(palette, effect, registers);
+            self.internal_mix::<PaletteColor>(palette, effect, registers);
         }
-    }
-
-    fn internal_mix_bitmap(
-        &mut self,
-        palette: &GbaPalette,
-        effect: SpecialEffect,
-        registers: &LCDRegisters,
-    ) {
-        self.internal_mix(palette, effect, registers, true)
-    }
-
-    fn internal_mix_tile(
-        &mut self,
-        palette: &GbaPalette,
-        effect: SpecialEffect,
-        registers: &LCDRegisters,
-    ) {
-        self.internal_mix(palette, effect, registers, false)
     }
 
     // This is inlined into `internal_mix_bitmap` and `internal_mix_tile` in order to simplify the
     // lookup color calls where possible.
     #[inline(always)]
-    fn internal_mix(
+    fn internal_mix<IsBitmapColor: CBool>(
         &mut self,
         palette: &GbaPalette,
         effect: SpecialEffect,
         registers: &LCDRegisters,
-        bm_color: bool,
     ) {
         let eva = bits!(registers.alpha, 0, 4); // EVA * 16
         let evb = bits!(registers.alpha, 8, 12); // EVB * 16
@@ -388,11 +370,11 @@ impl LCDLineBuffer {
                 for x in 0..240 {
                     let Pixels2 { top, bot } = self.unmixed[x];
                     if !top.semi_transparent_or_first_target() || !bot.second_target() {
-                        self.mixed[x] = self.lookup_color(palette, bm_color, top);
+                        self.mixed[x] = self.lookup_color(palette, IsBitmapColor::BOOL, top);
                     } else {
                         self.mixed[x] = Self::alpha_blend(
-                            self.lookup_color(palette, bm_color, top),
-                            self.lookup_color(palette, bm_color, bot),
+                            self.lookup_color(palette, IsBitmapColor::BOOL, top),
+                            self.lookup_color(palette, IsBitmapColor::BOOL, bot),
                             eva,
                             evb,
                         );
@@ -409,7 +391,7 @@ impl LCDLineBuffer {
                     // If the top pixel is not a first target pixel, we don't bother trying to do
                     // any blending.
                     if !top.first_target() {
-                        self.mixed[x] = self.lookup_color(palette, bm_color, top);
+                        self.mixed[x] = self.lookup_color(palette, IsBitmapColor::BOOL, top);
                         continue;
                     }
 
@@ -417,19 +399,21 @@ impl LCDLineBuffer {
                     if top.semi_transparent() {
                         if bot.second_target() {
                             self.mixed[x] = Self::alpha_blend(
-                                self.lookup_color(palette, bm_color, top),
-                                self.lookup_color(palette, bm_color, bot),
+                                self.lookup_color(palette, IsBitmapColor::BOOL, top),
+                                self.lookup_color(palette, IsBitmapColor::BOOL, bot),
                                 eva,
                                 evb,
                             );
                         } else {
-                            self.mixed[x] = self.lookup_color(palette, bm_color, top);
+                            self.mixed[x] = self.lookup_color(palette, IsBitmapColor::BOOL, top);
                         }
                         continue;
                     }
 
-                    self.mixed[x] =
-                        Self::brightness_increase(self.lookup_color(palette, bm_color, top), evy);
+                    self.mixed[x] = Self::brightness_increase(
+                        self.lookup_color(palette, IsBitmapColor::BOOL, top),
+                        evy,
+                    );
                 }
             }
 
@@ -442,7 +426,7 @@ impl LCDLineBuffer {
                     // If the top pixel is not a first target pixel, we don't bother trying to do
                     // any blending.
                     if !top.first_target() {
-                        self.mixed[x] = self.lookup_color(palette, bm_color, top);
+                        self.mixed[x] = self.lookup_color(palette, IsBitmapColor::BOOL, top);
                         continue;
                     }
 
@@ -450,19 +434,21 @@ impl LCDLineBuffer {
                     if top.semi_transparent() {
                         if bot.second_target() {
                             self.mixed[x] = Self::alpha_blend(
-                                self.lookup_color(palette, bm_color, top),
-                                self.lookup_color(palette, bm_color, bot),
+                                self.lookup_color(palette, IsBitmapColor::BOOL, top),
+                                self.lookup_color(palette, IsBitmapColor::BOOL, bot),
                                 eva,
                                 evb,
                             );
                         } else {
-                            self.mixed[x] = self.lookup_color(palette, bm_color, top);
+                            self.mixed[x] = self.lookup_color(palette, IsBitmapColor::BOOL, top);
                         }
                         continue;
                     }
 
-                    self.mixed[x] =
-                        Self::brightness_decrease(self.lookup_color(palette, bm_color, top), evy);
+                    self.mixed[x] = Self::brightness_decrease(
+                        self.lookup_color(palette, IsBitmapColor::BOOL, top),
+                        evy,
+                    );
                 }
             }
 
@@ -476,13 +462,13 @@ impl LCDLineBuffer {
                     // Semi-Transparent OBJ pixels force alpha blending as first target:
                     if top.semi_transparent() && bot.second_target() {
                         self.mixed[x] = Self::alpha_blend(
-                            self.lookup_color(palette, bm_color, top),
-                            self.lookup_color(palette, bm_color, bot),
+                            self.lookup_color(palette, IsBitmapColor::BOOL, top),
+                            self.lookup_color(palette, IsBitmapColor::BOOL, bot),
                             eva,
                             evb,
                         );
                     } else {
-                        self.mixed[x] = self.lookup_color(palette, bm_color, top);
+                        self.mixed[x] = self.lookup_color(palette, IsBitmapColor::BOOL, top);
                     }
                 }
             }
@@ -1387,4 +1373,14 @@ pub fn rgb16(r: u16, g: u16, b: u16) -> u16 {
 #[inline(always)]
 pub fn is_bitmap_mode(mode: u16) -> bool {
     mode == 3 || mode == 5
+}
+
+pub struct BitmapColor;
+pub struct PaletteColor;
+
+impl CBool for BitmapColor {
+    const BOOL: bool = true;
+}
+impl CBool for PaletteColor {
+    const BOOL: bool = false;
 }
