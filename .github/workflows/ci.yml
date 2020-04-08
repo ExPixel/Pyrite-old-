@@ -31,17 +31,17 @@ jobs:
           uses: actions/cache@v1
           with:
               path: ~/.cargo/registry
-              key: ${{ matrix.os }}-${{ matrix.rust_channel }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+              key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
         - name: Cache Cargo Index
           uses: actions/cache@v1
           with:
               path: ~/.cargo/git
-              key: ${{ matrix.os }}-${{ matrix.rust_channel }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+              key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
         - name: Cache Cargo Target Dir
           uses: actions/cache@v1
           with:
               path: target
-              key: ${{ matrix.os }}-${{ matrix.rust_channel }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+              key: ${{ runner.os }}-cargo-target-${{ hashFiles('**/Cargo.lock') }}
         - name: Install LLVM and Clang
           run: sudo apt install llvm-dev libclang-dev clang
         - name: Check Tools
@@ -80,17 +80,17 @@ jobs:
           uses: actions/cache@v1
           with:
               path: ~/.cargo/registry
-              key: ${{ matrix.os }}-${{ matrix.rust_channel }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+              key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
         - name: Cache Cargo Index
           uses: actions/cache@v1
           with:
               path: ~/.cargo/git
-              key: ${{ matrix.os }}-${{ matrix.rust_channel }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+              key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
         - name: Cache Cargo Target Dir
           uses: actions/cache@v1
           with:
               path: target
-              key: ${{ matrix.os }}-${{ matrix.rust_channel }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+              key: ${{ runner.os }}-cargo-target-${{ hashFiles('**/Cargo.lock') }}
         - name: Install LLVM and Clang
           run: choco install llvm
         - name: Check Tools
@@ -129,17 +129,17 @@ jobs:
           uses: actions/cache@v1
           with:
               path: ~/.cargo/registry
-              key: ${{ matrix.os }}-${{ matrix.rust_channel }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+              key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
         - name: Cache Cargo Index
           uses: actions/cache@v1
           with:
               path: ~/.cargo/git
-              key: ${{ matrix.os }}-${{ matrix.rust_channel }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+              key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
         - name: Cache Cargo Target Dir
           uses: actions/cache@v1
           with:
               path: target
-              key: ${{ matrix.os }}-${{ matrix.rust_channel }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+              key: ${{ runner.os }}-cargo-target-${{ hashFiles('**/Cargo.lock') }}
         - name: Install LLVM and Clang
           run: brew install llvm
         - name: Check Tools
