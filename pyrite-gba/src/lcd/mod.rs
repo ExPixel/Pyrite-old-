@@ -353,8 +353,6 @@ impl LCDLineBuffer {
         }
     }
 
-    // This is inlined into `internal_mix_bitmap` and `internal_mix_tile` in order to simplify the
-    // lookup color calls where possible.
     fn internal_mix<IsBitmapColor: CBool>(
         &mut self,
         palette: &GbaPalette,
@@ -451,10 +449,9 @@ impl LCDLineBuffer {
                 }
             }
 
-            // handled at the top
             SpecialEffect::None => {
                 // if we're not blending be can just copy the top most pixel into the mixed line
-                // buffer.
+                // buffer unless it is a semi-transparent object pixel.
                 for x in 0..240 {
                     let Pixels2 { top, bot } = self.unmixed[x];
 
