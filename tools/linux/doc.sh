@@ -3,7 +3,6 @@
 # set -x
 
 documented_packages_list=(\
-    imgui \
     glutin \
     pyrite-arm \
     pyrite-common \

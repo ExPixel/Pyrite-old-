@@ -93,6 +93,22 @@ impl PyriteGL {
         }
     }
 
+    pub fn build_frame(&mut self) {
+        self.texture.bind();
+        unsafe {
+            gl::PixelStorei(gl::UNPACK_ALIGNMENT, 2);
+            self.texture.set_pixels::<&[u8]>(
+                0,
+                0,
+                240,
+                160,
+                globj::PixelDataFormat::RGBA,
+                globj::PixelDataType::UnsignedShort_1_5_5_5_Rev,
+                std::mem::transmute(&self.texture_data[0..]),
+            );
+        }
+    }
+
     pub fn render(&mut self) {
         unsafe {
             gl::ClearColor(0.5, 0.5, 0.5, 1.0);
@@ -105,7 +121,6 @@ impl PyriteGL {
         self.elems_buffer.bind();
 
         unsafe { gl::ActiveTexture(gl::TEXTURE0) };
-        self.texture.bind();
 
         globj::check_gl_errors(|e| log::error!("GL Error: {}", e));
 
@@ -131,19 +146,7 @@ impl GbaVideoOutput for PyriteGL {
     }
 
     fn post_frame(&mut self) {
-        self.texture.bind();
-        unsafe {
-            gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
-            self.texture.set_pixels::<&[u8]>(
-                0,
-                0,
-                240,
-                160,
-                globj::PixelDataFormat::RGBA,
-                globj::PixelDataType::UnsignedShort_1_5_5_5_Rev,
-                std::mem::transmute(&self.texture_data[0..]),
-            );
-        }
+        /* NOP */
     }
 }
 

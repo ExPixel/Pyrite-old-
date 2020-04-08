@@ -1,5 +1,4 @@
-mod debugger;
-mod gba_imgui;
+mod gui;
 mod logger;
 #[allow(dead_code)]
 mod platform;
@@ -48,9 +47,8 @@ fn run_emulator() -> i32 {
         return 1;
     }
 
-    let imgui_ui = gba_imgui::GbaImGui::new(gba);
-    imgui_ui.run();
-
+    let gui = gui::PyriteGUI::new(gba);
+    gui.run();
     return 0;
 }
 

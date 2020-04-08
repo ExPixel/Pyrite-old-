@@ -484,17 +484,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "imgui"
-version = "0.1.0"
-dependencies = [
- "bindgen 0.53.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "cc 1.0.50 (registry+https://github.com/rust-lang/crates.io-index)",
- "gl 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "glutin 0.24.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "instant"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -820,7 +809,6 @@ version = "0.1.0"
 dependencies = [
  "gl 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "glutin 0.24.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "imgui 0.1.0",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "miniaudio 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pyrite-arm 0.1.0",
