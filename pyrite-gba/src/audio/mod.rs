@@ -13,6 +13,10 @@ pub struct GbaAudio {
 
     /// Cycles until GbaAudio needs to do something (sweeps, envelope, sound length ect.)
     cycles_to_next_event: u32,
+
+    dirty: bool,
+
+    channel1: SquareWave,
 }
 
 impl GbaAudio {
@@ -21,6 +25,8 @@ impl GbaAudio {
             registers: GbaAudioRegisters::default(),
             cycles_acc: 0,
             cycles_to_next_event: std::u32::MAX >> 1,
+            dirty: false,
+            channel1: SquareWave::new(),
         }
     }
 
@@ -29,19 +35,24 @@ impl GbaAudio {
     #[inline]
     pub fn step(
         &mut self,
-        cycles: u32,
+        partial_cycles: u32,
         audio: &mut dyn GbaAudioOutput,
         dma: &mut GbaDMA,
         hw_events: &mut HardwareEventQueue,
     ) -> bool {
-        self.cycles_acc += cycles;
-        if self.cycles_acc >= self.cycles_to_next_event {
-            self.cycles_acc -= self.cycles_to_next_event;
+        self.cycles_acc += partial_cycles;
 
-            // FIXME It might be better to just pass cycles_acc here.
-            let c = std::mem::replace(&mut self.cycles_to_next_event, std::u32::MAX >> 1);
-            self.step_fire(c, audio, dma, hw_events);
+        if self.cycles_acc >= self.cycles_to_next_event {
+            self.dirty = true;
+            self.cycles_to_next_event = std::u32::MAX;
         }
+
+        if self.dirty {
+            self.dirty = false;
+            self.step_fire(self.cycles_acc, audio, dma, hw_events);
+            self.cycles_acc = 0;
+        }
+
         false
     }
 
@@ -53,6 +64,7 @@ impl GbaAudio {
         dma: &mut GbaDMA,
         hw_events: &mut HardwareEventQueue,
     ) -> bool {
+        audio.set_tone_sweep_state(self.channel1.state());
         false
     }
 
@@ -65,7 +77,18 @@ impl GbaAudio {
     }
 
     pub(crate) fn set_soundcnt_x(&mut self, value: u16) {
-        self.registers.soundcnt_x.value = value;
+        let last_enable = self.registers.soundcnt_x.master_enable();
+        self.registers.soundcnt_x.value &= 0x7F;
+        self.registers.soundcnt_x.value |= value & 0x80;
+
+        if last_enable == self.registers.soundcnt_x.master_enable() {
+            return;
+        }
+
+        if !self.registers.soundcnt_x.master_enable() {
+            self.registers.zero_sound_registers();
+            self.dirty = true;
+        }
     }
 
     pub(crate) fn set_sound1cnt_l(&mut self, value: u16) {
@@ -78,6 +101,16 @@ impl GbaAudio {
 
     pub(crate) fn set_sound1cnt_x(&mut self, value: u16) {
         self.registers.sound1cnt_x.value = value;
+        self.channel1.freq_setting = self.registers.sound1cnt_x.freq_setting();
+        println!(
+            "FREQ SETTING: 0x{:04X}",
+            self.registers.sound1cnt_x.value & 0x3FF
+        );
+        if self.registers.sound1cnt_x.init() {
+            self.channel1.enabled = true;
+            self.registers.sound1cnt_x.set_init(false);
+        }
+        self.dirty = true;
     }
 
     pub(crate) fn set_sound2cnt_l(&mut self, value: u16) {
@@ -122,6 +155,31 @@ impl GbaAudio {
     }
 }
 
+pub struct SquareWave {
+    freq_setting: SquareFreqSetting,
+    enabled: bool,
+}
+
+impl SquareWave {
+    pub fn new() -> SquareWave {
+        SquareWave {
+            freq_setting: SquareFreqSetting(0),
+            enabled: false,
+        }
+    }
+
+    pub fn state(&self) -> SquareWaveState {
+        let mut state = SquareWaveState::default();
+        if self.enabled {
+            state.set_enabled(true);
+            state.set_freq_setting(self.freq_setting);
+        } else {
+            state.set_enabled(false);
+        }
+        state
+    }
+}
+
 #[derive(Default)]
 pub struct GbaAudioRegisters {
     pub bias: SoundBias,
@@ -144,6 +202,28 @@ pub struct GbaAudioRegisters {
     pub sound4cnt_h: UnimplementedSound,
 }
 
+impl GbaAudioRegisters {
+    /// Called when master enable is set to zero.
+    /// All sound registers are zeroed and must be reinitialized.
+    pub fn zero_sound_registers(&mut self) {
+        self.soundcnt_l.value = 0;
+
+        self.sound1cnt_l.value = 0;
+        self.sound1cnt_h.value = 0;
+        self.sound1cnt_x.value = 0;
+
+        self.sound2cnt_l.value = 0;
+        self.sound2cnt_h.value = 0;
+
+        self.sound3cnt_l.value = 0;
+        self.sound3cnt_h.value = 0;
+        self.sound3cnt_x.value = 0;
+
+        self.sound4cnt_l.value = 0;
+        self.sound4cnt_l.value = 0;
+    }
+}
+
 bitfields! (UnimplementedSound: u16 {
     // TODO find these and implement them.
 });
@@ -159,17 +239,13 @@ struct GbaSquareWave {
 
 bitfields! (SquareWaveState: u32 {
     enabled, set_enabled: bool = [0, 0],
-    freq_setting, set_freq_setting: u16 = [1, 11],
+    freq_setting, set_freq_setting: SquareFreqSetting = [1, 11],
     volume_setting, set_volume_setting: u16 = [12, 15],
     duty_cycle, set_duty_cycle: u16 = [16, 17],
 });
 
 impl SquareWaveState {
     const VOLUME_STEP: f64 = 1.0f64 / 15.0f64;
-
-    pub fn frequency(&self) -> f64 {
-        131072.0f64 / (2048.0f64 - self.freq_setting() as f64)
-    }
 
     pub fn amplitude(&self) -> f64 {
         Self::VOLUME_STEP * self.volume_setting() as f64
@@ -251,7 +327,7 @@ bitfields! (SquarePSGSweep: u16 {
 // SOUND1CNT_H (NR11, NR12)
 // SOUND2CNT_L (NR21, NR22)
 bitfields! (SquarePSGControlLo: u16 {
-    length, set_length: SoundLength = [0, 5],
+    length, set_length: PSGSoundLength = [0, 5],
     wave_pattern_duty, set_wave_pattern_duty: u32 = [0, 3],
     envelope_step_time, set_envelope_step_time: EnvelopeStepTime = [8, 10],
     envelope_direction, set_sweep_direction: EnvelopeDirection = [11, 11],
@@ -261,6 +337,9 @@ bitfields! (SquarePSGControlLo: u16 {
 // SOUND1CNT_X (NR13, NR14)
 // SOUND2CNT_H (NR23, NR24)
 bitfields! (SquarePSGControlHi: u16 {
+    freq_setting, set_freq_setting: SquareFreqSetting = [0, 10],
+    length_flag, set_length_flag: bool = [14, 14],
+    init, set_init: bool = [15, 15],
 });
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -295,24 +374,24 @@ impl crate::util::bitfields::FieldConvert<SweepTime> for u16 {
 
 /// Sound length (units of (64-n)/256s)
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct SoundLength(u8);
+pub struct PSGSoundLength(u8);
 
-impl SoundLength {
+impl PSGSoundLength {
     /// The number of cycles that this this length represents.
     pub fn cycles(self) -> u32 {
         (64 - self.0 as u32) * (CYCLES_PER_SECOND / 256)
     }
 }
 
-impl crate::util::bitfields::FieldConvert<u16> for SoundLength {
+impl crate::util::bitfields::FieldConvert<u16> for PSGSoundLength {
     fn convert(self) -> u16 {
         self.0 as u16
     }
 }
 
-impl crate::util::bitfields::FieldConvert<SoundLength> for u16 {
-    fn convert(self) -> SoundLength {
-        SoundLength(self as u8)
+impl crate::util::bitfields::FieldConvert<PSGSoundLength> for u16 {
+    fn convert(self) -> PSGSoundLength {
+        PSGSoundLength(self as u8)
     }
 }
 
@@ -373,7 +452,46 @@ impl PSGChannel {
     }
 
     #[inline(always)]
+    pub const fn index8(self) -> u8 {
+        self as u8
+    }
+
+    #[inline(always)]
     pub const fn index16(self) -> u16 {
         self as u8 as u16
+    }
+}
+
+/// Sound length (units of n/64s)
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct SquareFreqSetting(u8);
+
+impl SquareFreqSetting {
+    pub fn frequency(&self) -> f64 {
+        131072.0f64 / (2048.0f64 - self.0 as f64)
+    }
+}
+
+impl crate::util::bitfields::FieldConvert<u16> for SquareFreqSetting {
+    fn convert(self) -> u16 {
+        self.0 as u16
+    }
+}
+
+impl crate::util::bitfields::FieldConvert<SquareFreqSetting> for u16 {
+    fn convert(self) -> SquareFreqSetting {
+        SquareFreqSetting(self as u8)
+    }
+}
+
+impl crate::util::bitfields::FieldConvert<u32> for SquareFreqSetting {
+    fn convert(self) -> u32 {
+        self.0 as u32
+    }
+}
+
+impl crate::util::bitfields::FieldConvert<SquareFreqSetting> for u32 {
+    fn convert(self) -> SquareFreqSetting {
+        SquareFreqSetting(self as u8)
     }
 }

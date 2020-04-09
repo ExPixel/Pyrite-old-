@@ -204,9 +204,8 @@ impl PyriteGUI {
         if !self.gba_frame_timer.pop_fire() {
             return;
         }
-        let mut no_audio = pyrite_gba::NoAudioOutput;
         let frame_start = std::time::Instant::now();
-        self.gba.video_frame(pyrite_gl, &mut no_audio);
+        self.gba.video_frame(pyrite_gl, &mut self.audio);
         self.gba_frame_counter.add_frame(frame_start.elapsed());
         pyrite_gl.build_frame();
     }

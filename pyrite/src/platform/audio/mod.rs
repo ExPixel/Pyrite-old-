@@ -1,7 +1,9 @@
 use miniaudio::{
     Device, DeviceConfig, DeviceType, Format, FramesMut, Waveform, WaveformConfig, WaveformType,
 };
-use std::sync::atomic::AtomicU16;
+use pyrite_gba::audio::{NoiseState, SquareWaveState, WaveOutputState};
+use pyrite_gba::GbaAudioOutput;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
 /// Abstraction used to output sound.
@@ -58,10 +60,31 @@ impl PlatformAudio {
     }
 }
 
+impl GbaAudioOutput for PlatformAudio {
+    fn set_tone_sweep_state(&mut self, state: SquareWaveState) {
+        self.control
+            .channel0_state
+            .store(state.value, Ordering::Release);
+    }
+    fn set_tone_state(&mut self, _state: SquareWaveState) {
+        /* NOP */
+    }
+    fn set_wave_output_state(&mut self, _state: WaveOutputState) {
+        /* NOP */
+    }
+    fn set_noise_state(&mut self, _state: NoiseState) {
+        /* NOP */
+    }
+
+    fn play_samples(&mut self) {
+        /* NOP */
+    }
+}
+
 #[derive(Default)]
 pub struct GbaAudioPlaybackControl {
-    square_wave_0_freq_setting: AtomicU16,
-    square_wave_1_freq_setting: AtomicU16,
+    channel0_state: AtomicU32,
+    channel1_state: AtomicU32,
 }
 
 #[derive(Clone)]
@@ -90,6 +113,9 @@ impl GbaAudioPlayback {
     }
 
     pub fn output_frames(&mut self, output: &mut FramesMut) {
+        let channel0_state =
+            SquareWaveState::wrap(self.control.channel0_state.load(Ordering::Acquire));
+        self.square_wave_0.set_frequency(channel0_state.frequency());
         self.square_wave_0.read_pcm_frames(output);
     }
 }
