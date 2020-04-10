@@ -1,16 +1,18 @@
-use crate::hardware::{GbaHardware, HardwareEventQueue};
+use crate::hardware::GbaHardware;
+use crate::scheduler::{GbaEvent, SharedGbaScheduler};
 use pyrite_arm::{ArmCpu, ArmMemory};
 
 pub struct GbaDMA {
     channels: [DMAChannel; 4],
     active_channels: u8,
+    scheduler: SharedGbaScheduler,
 
     /// The last data that was transferred. This is used when the source address is invalid.
     dma_bus: u32,
 }
 
 impl GbaDMA {
-    pub fn new() -> GbaDMA {
+    pub fn new(scheduler: SharedGbaScheduler) -> GbaDMA {
         GbaDMA {
             channels: [
                 DMAChannel::new(DMAChannelIndex::DMA0),
@@ -20,58 +22,67 @@ impl GbaDMA {
             ],
             active_channels: 0,
             dma_bus: 0,
+            scheduler: scheduler,
         }
     }
 
-    pub fn start_hblank(&mut self, hw_events: &mut HardwareEventQueue) {
+    pub fn start_hblank(&mut self) {
         if !self.channel_active(DMAChannelIndex::DMA0)
             && self.channel(DMAChannelIndex::DMA0).control.start_timing() == DMAStartTiming::HBlank
         {
-            hw_events.push_dma_event(DMAChannelIndex::DMA0);
+            self.scheduler
+                .schedule(GbaEvent::DMA(DMAChannelIndex::DMA0), 0);
         }
 
         if !self.channel_active(DMAChannelIndex::DMA1)
             && self.channel(DMAChannelIndex::DMA1).control.start_timing() == DMAStartTiming::HBlank
         {
-            hw_events.push_dma_event(DMAChannelIndex::DMA1);
+            self.scheduler
+                .schedule(GbaEvent::DMA(DMAChannelIndex::DMA1), 0);
         }
 
         if !self.channel_active(DMAChannelIndex::DMA2)
             && self.channel(DMAChannelIndex::DMA2).control.start_timing() == DMAStartTiming::HBlank
         {
-            hw_events.push_dma_event(DMAChannelIndex::DMA2);
+            self.scheduler
+                .schedule(GbaEvent::DMA(DMAChannelIndex::DMA2), 0);
         }
 
         if !self.channel_active(DMAChannelIndex::DMA3)
             && self.channel(DMAChannelIndex::DMA3).control.start_timing() == DMAStartTiming::HBlank
         {
-            hw_events.push_dma_event(DMAChannelIndex::DMA3);
+            self.scheduler
+                .schedule(GbaEvent::DMA(DMAChannelIndex::DMA3), 0);
         }
     }
 
-    pub fn start_vblank(&mut self, hw_events: &mut HardwareEventQueue) {
+    pub fn start_vblank(&mut self) {
         if !self.channel_active(DMAChannelIndex::DMA0)
             && self.channel(DMAChannelIndex::DMA0).control.start_timing() == DMAStartTiming::VBlank
         {
-            hw_events.push_dma_event(DMAChannelIndex::DMA0);
+            self.scheduler
+                .schedule(GbaEvent::DMA(DMAChannelIndex::DMA0), 0);
         }
 
         if !self.channel_active(DMAChannelIndex::DMA1)
             && self.channel(DMAChannelIndex::DMA1).control.start_timing() == DMAStartTiming::VBlank
         {
-            hw_events.push_dma_event(DMAChannelIndex::DMA1);
+            self.scheduler
+                .schedule(GbaEvent::DMA(DMAChannelIndex::DMA1), 0);
         }
 
         if !self.channel_active(DMAChannelIndex::DMA2)
             && self.channel(DMAChannelIndex::DMA2).control.start_timing() == DMAStartTiming::VBlank
         {
-            hw_events.push_dma_event(DMAChannelIndex::DMA2);
+            self.scheduler
+                .schedule(GbaEvent::DMA(DMAChannelIndex::DMA2), 0);
         }
 
         if !self.channel_active(DMAChannelIndex::DMA3)
             && self.channel(DMAChannelIndex::DMA3).control.start_timing() == DMAStartTiming::VBlank
         {
-            hw_events.push_dma_event(DMAChannelIndex::DMA3);
+            self.scheduler
+                .schedule(GbaEvent::DMA(DMAChannelIndex::DMA3), 0);
         }
     }
 
@@ -97,12 +108,7 @@ impl GbaDMA {
         }
     }
 
-    pub fn end_transfer(
-        &mut self,
-        channel_index: DMAChannelIndex,
-        hw_events: &mut HardwareEventQueue,
-        cpu: &mut ArmCpu,
-    ) {
+    pub fn end_transfer(&mut self, channel_index: DMAChannelIndex, cpu: &mut ArmCpu) {
         let remain_enabled = self.channel(channel_index).control.repeat()
             && (self.channel(channel_index).control.start_timing() != DMAStartTiming::Immediate);
         self.channel_mut(channel_index)
@@ -113,7 +119,8 @@ impl GbaDMA {
         }
         self.channel_mut(channel_index).first_transfer = true;
         if self.channel(channel_index).control.irq() {
-            hw_events.push_irq_event(crate::irq::Interrupt::dma(channel_index));
+            self.scheduler
+                .schedule(GbaEvent::IRQ(crate::irq::Interrupt::dma(channel_index)), 0);
         }
 
         self.active_channels &= !(1 << u8::from(channel_index));
@@ -193,7 +200,7 @@ impl GbaDMA {
         }
 
         if hw.dma.channel(channel_index).count == 0 {
-            hw.dma.end_transfer(channel_index, &mut hw.events, cpu);
+            hw.dma.end_transfer(channel_index, cpu);
         }
 
         return cycles;
@@ -329,7 +336,7 @@ impl DMAChannel {
         self.control.value
     }
 
-    pub fn set_control(&mut self, new_control: u16, hw_events: &mut HardwareEventQueue) {
+    pub fn set_control(&mut self, new_control: u16, scheduler: &SharedGbaScheduler) {
         let old_enabled = self.control.enabled();
         self.control.value = new_control;
 
@@ -343,7 +350,7 @@ impl DMAChannel {
         if self.control.enabled() && old_enabled != self.control.enabled() {
             self.reload(true);
             if self.control.start_timing() == DMAStartTiming::Immediate {
-                hw_events.push_dma_event(self.index);
+                scheduler.schedule(GbaEvent::DMA(self.index), 0);
             }
 
             if !self.valid_source {

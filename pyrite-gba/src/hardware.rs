@@ -51,6 +51,7 @@ pub struct GbaHardware {
     pub irq: GbaInterruptControl,
     pub dma: GbaDMA,
     pub timers: GbaTimers,
+    pub scheduler: SharedGbaScheduler,
 
     pub(crate) events: HardwareEventQueue,
 
@@ -84,7 +85,7 @@ impl GbaHardware {
             audio: GbaAudio::new(),
             keypad: GbaKeypad::new(),
             irq: GbaInterruptControl::new(),
-            dma: GbaDMA::new(),
+            dma: GbaDMA::new(scheduler.clone()),
             timers: GbaTimers::new(),
 
             events: HardwareEventQueue::new(),
@@ -94,6 +95,8 @@ impl GbaHardware {
 
             // @TODO implement
             allow_bios_access: true,
+
+            scheduler: scheduler,
         }
     }
 
@@ -728,7 +731,7 @@ impl GbaHardware {
             ioregs::DMA0CNT_H => self
                 .dma
                 .channel_mut(DMAChannelIndex::DMA0)
-                .set_control(data, &mut self.events),
+                .set_control(data, &self.scheduler),
 
             // DMA 1
             ioregs::DMA1SAD => self
@@ -751,7 +754,7 @@ impl GbaHardware {
             ioregs::DMA1CNT_H => self
                 .dma
                 .channel_mut(DMAChannelIndex::DMA1)
-                .set_control(data, &mut self.events),
+                .set_control(data, &self.scheduler),
 
             // DMA 2
             ioregs::DMA2SAD => self
@@ -774,7 +777,7 @@ impl GbaHardware {
             ioregs::DMA2CNT_H => self
                 .dma
                 .channel_mut(DMAChannelIndex::DMA2)
-                .set_control(data, &mut self.events),
+                .set_control(data, &self.scheduler),
 
             // DMA 3
             ioregs::DMA3SAD => self
@@ -797,7 +800,7 @@ impl GbaHardware {
             ioregs::DMA3CNT_H => self
                 .dma
                 .channel_mut(DMAChannelIndex::DMA3)
-                .set_control(data, &mut self.events),
+                .set_control(data, &self.scheduler),
 
             // TIMERS
             ioregs::TM0CNT_L => self.timers.write_timer_counter(TimerIndex::TM0, data),

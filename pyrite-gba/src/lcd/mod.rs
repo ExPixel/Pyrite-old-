@@ -8,7 +8,7 @@ pub const WINOBJ: u16 = 1;
 
 use self::palette::GbaPalette;
 use crate::dma::GbaDMA;
-use crate::hardware::{HardwareEventQueue, OAM, VRAM};
+use crate::hardware::{OAM, VRAM};
 use crate::irq::Interrupt;
 use crate::scheduler::{GbaEvent, SharedGbaScheduler};
 use crate::util::fixedpoint::{FixedPoint16, FixedPoint32};
@@ -37,7 +37,7 @@ impl GbaLCD {
         }
     }
 
-    pub fn hdraw(&mut self, dma: &mut GbaDMA, hw_events: &mut HardwareEventQueue) {
+    pub fn hdraw(&mut self, dma: &mut GbaDMA) {
         self.scheduler.schedule(GbaEvent::HBlank, HBLANK_CYCLES);
 
         self.registers.dispstat.set_hblank(false);
@@ -45,13 +45,14 @@ impl GbaLCD {
 
         match self.registers.line {
             160 => {
-                dma.start_vblank(hw_events);
+                dma.start_vblank();
                 self.registers.dispstat.set_vblank(true);
                 self.registers.bg2_affine_params.copy_reference_points();
                 self.registers.bg3_affine_params.copy_reference_points();
 
                 if self.registers.dispstat.vblank_irq_enable() {
-                    hw_events.push_irq_event(Interrupt::LCDVBlank);
+                    self.scheduler
+                        .schedule(GbaEvent::IRQ(Interrupt::LCDVBlank), 0);
                 }
             }
             227 => self.registers.dispstat.set_vblank(false),
@@ -63,7 +64,8 @@ impl GbaLCD {
         self.registers.dispstat.set_vcounter(vcounter_match);
 
         if vcounter_match && self.registers.dispstat.vcounter_irq_enable() {
-            hw_events.push_irq_event(Interrupt::LCDVCounterMatch);
+            self.scheduler
+                .schedule(GbaEvent::IRQ(Interrupt::LCDVCounterMatch), 0);
         }
     }
 
@@ -75,17 +77,17 @@ impl GbaLCD {
         palette: &GbaPalette,
         video: &mut dyn GbaVideoOutput,
         dma: &mut GbaDMA,
-        hw_events: &mut HardwareEventQueue,
     ) -> bool {
         self.scheduler.schedule(GbaEvent::HDraw, HDRAW_CYCLES);
 
         if self.registers.dispstat.hblank_irq_enable() {
-            hw_events.push_irq_event(Interrupt::LCDHBlank);
+            self.scheduler
+                .schedule(GbaEvent::IRQ(Interrupt::LCDHBlank), 0);
         }
         self.registers.dispstat.set_hblank(true);
 
         if self.registers.line < 160 {
-            dma.start_hblank(hw_events); // NOTE: this does not occure during VBLANK
+            dma.start_hblank(); // NOTE: this does not occure during VBLANK
             if self.registers.line == 0 {
                 video.pre_frame();
             }

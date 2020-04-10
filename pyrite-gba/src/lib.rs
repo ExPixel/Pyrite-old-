@@ -142,10 +142,6 @@ impl Gba {
         // `set_idle` and `override_execution` functions.
         let cycles = self.cpu.step(&mut self.hardware);
 
-        if self.hardware.timers.active() {
-            self.hardware.timers.step(cycles, &mut self.hardware.events);
-        }
-
         let video_frame = if self.scheduler.step(cycles) {
             self.process_scheduled_events(video, audio)
         } else {
@@ -172,7 +168,6 @@ impl Gba {
         video_frame
     }
 
-    #[inline]
     fn process_event(
         &mut self,
         event: GbaEvent,
@@ -190,14 +185,10 @@ impl Gba {
                     &self.hardware.pal,
                     video,
                     &mut self.hardware.dma,
-                    &mut self.hardware.events,
                 )
             }
 
-            GbaEvent::HDraw => self
-                .hardware
-                .lcd
-                .hdraw(&mut self.hardware.dma, &mut self.hardware.events),
+            GbaEvent::HDraw => self.hardware.lcd.hdraw(&mut self.hardware.dma),
 
             GbaEvent::IRQ(irq) => {
                 if self.cpu.exception_enabled(CpuException::IRQ) && self.hardware.irq.request(irq) {
@@ -239,14 +230,8 @@ impl Gba {
     }
 
     /// Steps the GBA until the end of a video frame.
-    #[inline]
+    #[inline(always)]
     pub fn video_frame(&mut self, video: &mut dyn GbaVideoOutput, audio: &mut dyn GbaAudioOutput) {
-        // #NOTE: this draws a blank frame without rendering:
-        // let mut cycles = 0;
-        // while cycles < 280896 {
-        //     cycles += self.cpu.step(&mut self.hardware);
-        // }
-
         while let (false, _) = self.step(video, audio) { /* NOP */ }
     }
 

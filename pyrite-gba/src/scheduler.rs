@@ -143,12 +143,12 @@ impl GbaScheduler {
         loop {
             // We've entered a loop in event pointers so we're done.
             if self.events[*ptr].next == *ptr {
-                return;
+                break;
             }
 
             // We've hit and empty event, so we're done.
             if self.events[*ptr].event == GbaEvent::None {
-                return;
+                break;
             }
 
             if self.events[*ptr].event == event {
