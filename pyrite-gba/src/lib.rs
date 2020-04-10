@@ -141,7 +141,7 @@ impl Gba {
         // somewhere else in the emulator. The destination of `decoded_fn` is changed via the
         // `set_idle` and `override_execution` functions.
         let cycles = self.cpu.step(&mut self.hardware);
-
+        self.hardware.timers.step(cycles);
         let video_frame = if self.scheduler.step(cycles) {
             self.process_scheduled_events(video, audio)
         } else {
@@ -221,6 +221,10 @@ impl Gba {
 
                 // we use big steps for stop because everything we need high fidelity for is off.
                 self.cpu.set_idle(true, 16);
+            }
+
+            GbaEvent::TimerOverflows => {
+                self.hardware.timers.process_overflows();
             }
 
             _ => { /* NOT YET HANDLED */ }

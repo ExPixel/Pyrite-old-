@@ -86,7 +86,7 @@ impl GbaHardware {
             keypad: GbaKeypad::new(),
             irq: GbaInterruptControl::new(),
             dma: GbaDMA::new(scheduler.clone()),
-            timers: GbaTimers::new(),
+            timers: GbaTimers::new(scheduler.clone()),
 
             events: HardwareEventQueue::new(),
 

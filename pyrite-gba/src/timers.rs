@@ -1,15 +1,15 @@
-use crate::hardware::HardwareEventQueue;
+use crate::scheduler::{GbaEvent, SharedGbaScheduler};
 
 pub struct GbaTimers {
     timers: [GbaTimer; 4],
     active_timers: u8,
-
     cycles_acc: u32,
-    next_overflow_at: u32,
+    scheduler: SharedGbaScheduler,
+    last_overflow_calc: u32,
 }
 
 impl GbaTimers {
-    pub fn new() -> GbaTimers {
+    pub fn new(scheduler: SharedGbaScheduler) -> GbaTimers {
         GbaTimers {
             timers: [
                 GbaTimer::new(TimerIndex::TM0),
@@ -19,7 +19,8 @@ impl GbaTimers {
             ],
             active_timers: 0,
             cycles_acc: 0,
-            next_overflow_at: 0,
+            scheduler: scheduler,
+            last_overflow_calc: std::u32::MAX,
         }
     }
 
@@ -74,87 +75,89 @@ impl GbaTimers {
     }
 
     #[inline]
-    pub fn step(&mut self, cycles: u32, hw_events: &mut HardwareEventQueue) {
-        self.cycles_acc += cycles;
-        if self.cycles_acc >= self.next_overflow_at {
-            self.step_fire(hw_events);
-        }
+    pub(crate) fn step(&mut self, cycles: u32) {
+        // I do a wrapping add because I don't really care if this overflows.
+        // If the value inside of it is being dependend on then `process_overflows` will
+        // be called long before the value wraps.
+        self.cycles_acc = self.cycles_acc.wrapping_add(cycles);
     }
 
-    #[cold]
-    fn step_fire(&mut self, hw_events: &mut HardwareEventQueue) {
-        self.internal_step(self.cycles_acc, hw_events);
-        self.calc_next_overflow();
+    pub(crate) fn process_overflows(&mut self) {
+        self.internal_step(self.cycles_acc);
         self.cycles_acc = 0;
+        self.last_overflow_calc = std::u32::MAX;
+        self.calc_next_overflow();
     }
 
     fn flush_acc_cycles(&mut self) {
-        let acc = self.cycles_acc;
+        let acc = std::mem::replace(&mut self.cycles_acc, 0);
         self.timers
             .iter_mut()
             .filter(|timer| timer.active())
             .for_each(|timer| timer.counter += acc);
-        self.cycles_acc = 0;
     }
 
     fn calc_next_overflow(&mut self) {
-        self.next_overflow_at = 0xFFFFFFFF;
         if self.active_timers != 0 {
-            for timer in self.timers.iter() {
-                if timer.active() {
-                    let c = timer.cycles_to_overflow();
-                    if c < self.next_overflow_at {
-                        self.next_overflow_at = c;
-                    }
-                }
+            let next_overflow_at = self
+                .timers
+                .iter()
+                .filter(|t| t.active())
+                .map(GbaTimer::cycles_to_overflow)
+                .min()
+                .unwrap_or(std::u32::MAX);
+
+            if next_overflow_at < self.last_overflow_calc.saturating_sub(self.cycles_acc) {
+                self.scheduler.purge(GbaEvent::TimerOverflows);
+                self.scheduler
+                    .schedule(GbaEvent::TimerOverflows, next_overflow_at);
+                self.last_overflow_calc = next_overflow_at;
             }
+        } else {
+            self.scheduler.purge(GbaEvent::TimerOverflows);
         }
     }
 
-    fn internal_step(&mut self, mut cycles: u32, hw_events: &mut HardwareEventQueue) {
+    fn internal_step(&mut self, mut cycles: u32) {
         if self.active_timers == 0 {
             return;
         }
 
         while cycles > 1024 {
-            self.safe_internal_step(1024, hw_events);
+            self.safe_internal_step(1024);
             cycles -= 1024;
         }
 
-        self.safe_internal_step(cycles, hw_events);
+        self.safe_internal_step(cycles);
     }
 
-    fn safe_internal_step(&mut self, cycles: u32, hw_events: &mut HardwareEventQueue) {
+    fn safe_internal_step(&mut self, cycles: u32) {
         if self.timers[0].active() {
-            self.safe_step_single_timer(TimerIndex::TM0, cycles, hw_events);
+            self.safe_step_single_timer(TimerIndex::TM0, cycles);
         }
 
         if self.timers[1].active() {
-            self.safe_step_single_timer(TimerIndex::TM1, cycles, hw_events);
+            self.safe_step_single_timer(TimerIndex::TM1, cycles);
         }
 
         if self.timers[2].active() {
-            self.safe_step_single_timer(TimerIndex::TM2, cycles, hw_events);
+            self.safe_step_single_timer(TimerIndex::TM2, cycles);
         }
 
         if self.timers[3].active() {
-            self.safe_step_single_timer(TimerIndex::TM3, cycles, hw_events);
+            self.safe_step_single_timer(TimerIndex::TM3, cycles);
         }
     }
 
-    fn safe_step_single_timer(
-        &mut self,
-        mut timer_index: TimerIndex,
-        mut cycles: u32,
-        hw_events: &mut HardwareEventQueue,
-    ) {
+    fn safe_step_single_timer(&mut self, mut timer_index: TimerIndex, mut cycles: u32) {
         let mut timer = usize::from(timer_index);
 
         loop {
             let overflow = self.timers[timer].increment(cycles);
             if overflow {
                 if self.timers[timer].control.irq() {
-                    hw_events.push_irq_event(crate::irq::Interrupt::timer(timer_index));
+                    self.scheduler
+                        .schedule(GbaEvent::IRQ(crate::irq::Interrupt::timer(timer_index)), 0)
                 }
 
                 if let Some(next_timer_index) = timer_index.next() {

@@ -4,7 +4,7 @@ use super::irq::Interrupt;
 use std::cell::UnsafeCell;
 use std::rc::Rc;
 
-pub const MAX_GBA_EVENTS: usize = 64;
+pub const MAX_GBA_EVENTS: usize = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GbaEvent {
@@ -15,6 +15,7 @@ pub enum GbaEvent {
     DMA(DMAChannelIndex),
     HBlank,
     HDraw,
+    TimerOverflows,
 }
 
 impl Default for GbaEvent {
@@ -24,7 +25,7 @@ impl Default for GbaEvent {
 }
 
 #[repr(transparent)]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct GbaEventIndex(u16);
 
 impl GbaEventIndex {
@@ -80,7 +81,7 @@ impl std::ops::IndexMut<GbaEventIndex> for GbaEventsArray {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 struct GbaEventNode {
     cycles: u32,
     event: GbaEvent,
@@ -126,12 +127,12 @@ impl GbaScheduler {
 
     #[inline]
     pub fn purge(&mut self, event: GbaEvent) {
-        unsafe { self.pruge_unsafe(event) }
+        unsafe { self.purge_unsafe(event) }
     }
 
     /// Removes all instances of an event from the queue and returns the number of events that were
     /// removed.
-    unsafe fn pruge_unsafe(&mut self, event: GbaEvent) {
+    unsafe fn purge_unsafe(&mut self, event: GbaEvent) {
         // We exit early if trying to purge none or if there are not valid events queued up.
         if event == GbaEvent::None || self.events[self.next_event].event == GbaEvent::None {
             return;
@@ -154,28 +155,29 @@ impl GbaScheduler {
             if self.events[*ptr].event == event {
                 self.events[*ptr].event = GbaEvent::None;
                 let cycles = self.events[*ptr].cycles;
+                *ptr = self.events[*ptr].next;
                 ptr = &mut self.events[*ptr].next as *mut GbaEventIndex;
                 self.events[*ptr].cycles += cycles;
             }
         }
 
-        if self.events[self.next_event].event == GbaEvent::None {
-            self.cycles_until_next_event = std::u32::MAX;
-        } else {
-            self.cycles_until_next_event = self.events[self.next_event].cycles;
-        }
+        self.ready();
     }
 
     #[inline(always)]
     pub fn step(&mut self, cycles: u32) -> bool {
         if cycles >= self.cycles_until_next_event {
             self.late = cycles - self.cycles_until_next_event;
-            self.cycles_until_next_event = std::u32::MAX;
+            self.cycles_until_next_event = 0;
             true
         } else {
             self.cycles_until_next_event -= cycles;
             false
         }
+    }
+
+    pub fn contains(&self, event: GbaEvent) -> bool {
+        self.events.iter().any(|node| node.event == event)
     }
 
     /// This will pop the last fired event from the event list (0 or less cycles remaining). The
@@ -198,7 +200,7 @@ impl GbaScheduler {
         self.events[self.next_event].event = GbaEvent::None;
         self.next_event = self.events[self.next_event].next;
 
-        if self.late >= self.events[self.next_event].cycles {
+        let ret = if self.late >= self.events[self.next_event].cycles {
             self.late -= self.events[self.next_event].cycles;
             self.events[self.next_event].cycles = 0;
             (ret_event, ret_late, true)
@@ -206,6 +208,18 @@ impl GbaScheduler {
             self.events[self.next_event].cycles -= self.late;
             self.late = 0;
             (ret_event, ret_late, false)
+        };
+        self.ready();
+        ret
+    }
+
+    /// Call after `pop_event` to put the scheduler back into a state where `step` can be called.
+    #[inline]
+    fn ready(&mut self) {
+        if self.events[self.next_event].event == GbaEvent::None {
+            self.cycles_until_next_event = std::u32::MAX;
+        } else {
+            self.cycles_until_next_event = self.events[self.next_event].cycles;
         }
     }
 
@@ -245,13 +259,15 @@ impl GbaScheduler {
             self.events[new_index] = GbaEventNode {
                 event: event,
                 cycles: cycles,
-                next: self.next_event as GbaEventIndex,
+                next: self.next_event,
             };
             self.next_event = new_index;
+            self.cycles_until_next_event = cycles;
             return;
         }
 
         self.push_event(new_index, event, cycles);
+        self.ready();
     }
 
     /// Called while scheduling to push an event some time after the next event.
@@ -265,7 +281,7 @@ impl GbaScheduler {
             // We're reached the end of the event chain if we reach a loop, or if the event type is
             // None, so we just append the event and exit.
             if next_index == prev_index || self.events[next_index].event == GbaEvent::None {
-                self.events[prev_index].next = new_index as GbaEventIndex;
+                self.events[prev_index].next = new_index;
                 self.events[new_index] = GbaEventNode {
                     event: event,
                     cycles: cycles - acc_cycles,
@@ -279,7 +295,7 @@ impl GbaScheduler {
             // After the next event, too many cycles would have passed, so we insert the new event
             // before it.
             if next_acc_cycles > cycles {
-                self.events[prev_index].next = new_index as GbaEventIndex;
+                self.events[prev_index].next = new_index;
                 self.events[new_index] = GbaEventNode {
                     event: event,
                     cycles: cycles - acc_cycles,
@@ -331,6 +347,11 @@ impl SharedGbaScheduler {
     #[inline]
     pub fn clear(&self) {
         unsafe { (*self.0.get()).clear() };
+    }
+
+    #[inline]
+    pub fn ready(&self) {
+        unsafe { (*self.0.get()).ready() };
     }
 }
 
