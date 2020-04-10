@@ -1,7 +1,7 @@
 use super::dma::DMAChannelIndex;
 use super::irq::Interrupt;
 
-use std::cell::RefCell;
+use std::cell::UnsafeCell;
 use std::rc::Rc;
 
 pub const MAX_GBA_EVENTS: usize = 64;
@@ -9,8 +9,10 @@ pub const MAX_GBA_EVENTS: usize = 64;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GbaEvent {
     None,
-    FireIRQ(Interrupt),
-    FireDMA(DMAChannelIndex),
+    Halt,
+    Stop,
+    IRQ(Interrupt),
+    DMA(DMAChannelIndex),
     HBlank,
     HDraw,
 }
@@ -21,11 +23,68 @@ impl Default for GbaEvent {
     }
 }
 
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct GbaEventIndex(u16);
+
+impl GbaEventIndex {
+    const ZERO: GbaEventIndex = GbaEventIndex(0);
+}
+
+impl Default for GbaEventIndex {
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
+struct GbaEventsArray([GbaEventNode; MAX_GBA_EVENTS]);
+
+impl GbaEventsArray {
+    fn new() -> GbaEventsArray {
+        GbaEventsArray(crate::util::array::new_array::<_, _>(
+            GbaEventNode::default(),
+        ))
+    }
+
+    fn iter<'r>(&'r self) -> impl 'r + Iterator<Item = &GbaEventNode> {
+        self.0.iter()
+    }
+
+    fn iter_mut<'r>(&'r mut self) -> impl 'r + Iterator<Item = &mut GbaEventNode> {
+        self.0.iter_mut()
+    }
+
+    /// Returns an empty slot for an event if one is found.
+    fn find_empty_slot(&mut self) -> Option<GbaEventIndex> {
+        for (idx, node) in self.iter().enumerate() {
+            if node.event == GbaEvent::None {
+                return Some(GbaEventIndex(idx as u16));
+            }
+        }
+        None
+    }
+}
+
+impl std::ops::Index<GbaEventIndex> for GbaEventsArray {
+    type Output = GbaEventNode;
+    fn index(&self, idx: GbaEventIndex) -> &Self::Output {
+        // I only every generate valid indices.
+        unsafe { self.0.get_unchecked(idx.0 as usize) }
+    }
+}
+
+impl std::ops::IndexMut<GbaEventIndex> for GbaEventsArray {
+    fn index_mut(&mut self, idx: GbaEventIndex) -> &mut Self::Output {
+        // I only every generate valid indices.
+        unsafe { self.0.get_unchecked_mut(idx.0 as usize) }
+    }
+}
+
 #[derive(Default, Clone)]
 struct GbaEventNode {
     cycles: u32,
     event: GbaEvent,
-    next: u16,
+    next: GbaEventIndex,
 }
 
 /// Used for scheduling tasks in the GBA after some number of cycles have passed.
@@ -35,13 +94,13 @@ pub struct GbaScheduler {
     cycles_until_next_event: u32,
 
     /// The index of the next event to be fired.
-    next_event: usize,
+    next_event: GbaEventIndex,
 
     /// The number of events that are currently queued.
     event_count: usize,
 
     /// Linked list of event nodes. GbaEvent::None means that an event slot is unoccupied.
-    events: [GbaEventNode; MAX_GBA_EVENTS],
+    events: GbaEventsArray,
 
     /// Set after `step` when the number of cycles that have passed is greater than
     /// `cycles_until_next_event`.
@@ -52,14 +111,62 @@ impl GbaScheduler {
     pub fn new() -> GbaScheduler {
         GbaScheduler {
             cycles_until_next_event: std::u32::MAX,
-            next_event: 0,
+            next_event: GbaEventIndex::ZERO,
             event_count: 0,
             late: 0,
-            events: crate::util::array::new_array::<_, _>(GbaEventNode::default()),
+            events: GbaEventsArray::new(),
         }
     }
 
+    pub fn clear(&mut self) {
+        self.events
+            .iter_mut()
+            .for_each(|e| e.event = GbaEvent::None);
+    }
+
     #[inline]
+    pub fn purge(&mut self, event: GbaEvent) {
+        unsafe { self.pruge_unsafe(event) }
+    }
+
+    /// Removes all instances of an event from the queue and returns the number of events that were
+    /// removed.
+    unsafe fn pruge_unsafe(&mut self, event: GbaEvent) {
+        // We exit early if trying to purge none or if there are not valid events queued up.
+        if event == GbaEvent::None || self.events[self.next_event].event == GbaEvent::None {
+            return;
+        }
+
+        self.flush_cycles();
+
+        let mut ptr = &mut self.next_event as *mut GbaEventIndex;
+        loop {
+            // We've entered a loop in event pointers so we're done.
+            if self.events[*ptr].next == *ptr {
+                return;
+            }
+
+            // We've hit and empty event, so we're done.
+            if self.events[*ptr].event == GbaEvent::None {
+                return;
+            }
+
+            if self.events[*ptr].event == event {
+                self.events[*ptr].event = GbaEvent::None;
+                let cycles = self.events[*ptr].cycles;
+                ptr = &mut self.events[*ptr].next as *mut GbaEventIndex;
+                self.events[*ptr].cycles += cycles;
+            }
+        }
+
+        if self.events[self.next_event].event == GbaEvent::None {
+            self.cycles_until_next_event = std::u32::MAX;
+        } else {
+            self.cycles_until_next_event = self.events[self.next_event].cycles;
+        }
+    }
+
+    #[inline(always)]
     pub fn step(&mut self, cycles: u32) -> bool {
         if cycles >= self.cycles_until_next_event {
             self.late = cycles - self.cycles_until_next_event;
@@ -78,25 +185,27 @@ impl GbaScheduler {
     /// in the tuple.
     pub fn pop_event(
         &mut self,
-    ) -> Option<(
+    ) -> (
         /* event */ GbaEvent,
         /* late */ u32,
         /* has next */ bool,
-    )> {
+    ) {
+        self.event_count -= 1;
+
         let ret_event = self.events[self.next_event].event;
         let ret_late = self.late;
 
         self.events[self.next_event].event = GbaEvent::None;
-        self.next_event = self.events[self.next_event].next as usize;
+        self.next_event = self.events[self.next_event].next;
 
         if self.late >= self.events[self.next_event].cycles {
             self.late -= self.events[self.next_event].cycles;
             self.events[self.next_event].cycles = 0;
-            Some((ret_event, ret_late, true))
+            (ret_event, ret_late, true)
         } else {
             self.events[self.next_event].cycles -= self.late;
             self.late = 0;
-            Some((ret_event, ret_late, false))
+            (ret_event, ret_late, false)
         }
     }
 
@@ -109,19 +218,23 @@ impl GbaScheduler {
     /// and it is zero cycles or scheduled in the past (because the previous event was late) it
     /// will be fired in the same event processing loop.
     pub fn schedule(&mut self, event: GbaEvent, cycles: u32) {
+        assert!(self.event_count < MAX_GBA_EVENTS, "too many GBA events");
+
+        self.event_count += 1;
+
         if self.events[self.next_event].event == GbaEvent::None {
-            self.next_event = 0;
-            self.events[0] = GbaEventNode {
+            self.next_event = GbaEventIndex::ZERO;
+            self.events[GbaEventIndex::ZERO] = GbaEventNode {
                 event: event,
                 cycles: cycles,
-                next: 0, // just points back at itself
+                next: GbaEventIndex::ZERO, // just points back at itself
             };
             self.cycles_until_next_event = cycles;
             return;
         }
 
-        assert!(self.event_count < MAX_GBA_EVENTS, "too many GBA events");
         let new_index = self
+            .events
             .find_empty_slot()
             .expect("failed to find empty event slot");
 
@@ -132,7 +245,7 @@ impl GbaScheduler {
             self.events[new_index] = GbaEventNode {
                 event: event,
                 cycles: cycles,
-                next: self.next_event as u16,
+                next: self.next_event as GbaEventIndex,
             };
             self.next_event = new_index;
             return;
@@ -142,21 +255,21 @@ impl GbaScheduler {
     }
 
     /// Called while scheduling to push an event some time after the next event.
-    fn push_event(&mut self, new_index: usize, event: GbaEvent, cycles: u32) {
+    fn push_event(&mut self, new_index: GbaEventIndex, event: GbaEvent, cycles: u32) {
         let mut prev_index = self.next_event;
         let mut acc_cycles = self.events[self.next_event].cycles;
 
         loop {
-            let next_index = self.events[prev_index].next as usize;
+            let next_index = self.events[prev_index].next;
 
             // We're reached the end of the event chain if we reach a loop, or if the event type is
             // None, so we just append the event and exit.
             if next_index == prev_index || self.events[next_index].event == GbaEvent::None {
-                self.events[prev_index].next = new_index as u16;
+                self.events[prev_index].next = new_index as GbaEventIndex;
                 self.events[new_index] = GbaEventNode {
                     event: event,
                     cycles: cycles - acc_cycles,
-                    next: new_index as u16,
+                    next: new_index,
                 };
                 return;
             }
@@ -166,11 +279,11 @@ impl GbaScheduler {
             // After the next event, too many cycles would have passed, so we insert the new event
             // before it.
             if next_acc_cycles > cycles {
-                self.events[prev_index].next = new_index as u16;
+                self.events[prev_index].next = new_index as GbaEventIndex;
                 self.events[new_index] = GbaEventNode {
                     event: event,
                     cycles: cycles - acc_cycles,
-                    next: next_index as u16,
+                    next: next_index,
                 };
                 return;
             }
@@ -180,41 +293,49 @@ impl GbaScheduler {
             prev_index = next_index;
         }
     }
-
-    /// Returns an empty slot for an event if one is found.
-    fn find_empty_slot(&mut self) -> Option<usize> {
-        for (idx, node) in self.events.iter().enumerate() {
-            if node.event == GbaEvent::None {
-                return Some(idx);
-            }
-        }
-        None
-    }
 }
 
-pub struct SharedGbaScheduler(Rc<RefCell<GbaScheduler>>);
+pub struct SharedGbaScheduler(Rc<UnsafeCell<GbaScheduler>>);
 
 impl SharedGbaScheduler {
     pub fn new() -> SharedGbaScheduler {
-        SharedGbaScheduler(Rc::new(RefCell::new(GbaScheduler::new())))
+        SharedGbaScheduler(Rc::new(UnsafeCell::new(GbaScheduler::new())))
     }
 
     #[inline]
     pub fn step(&self, cycles: u32) -> bool {
-        self.0.borrow_mut().step(cycles)
+        unsafe { (*self.0.get()).step(cycles) }
     }
 
+    #[inline]
     pub fn pop_event(
         &self,
-    ) -> Option<(
+    ) -> (
         /* event */ GbaEvent,
         /* late */ u32,
         /* has next */ bool,
-    )> {
-        self.0.borrow_mut().pop_event()
+    ) {
+        unsafe { (*self.0.get()).pop_event() }
     }
 
+    #[inline]
     pub fn schedule(&self, event: GbaEvent, cycles: u32) {
-        self.0.borrow_mut().schedule(event, cycles)
+        unsafe { (*self.0.get()).schedule(event, cycles) };
+    }
+
+    #[inline]
+    pub fn purge(&self, event: GbaEvent) {
+        unsafe { (*self.0.get()).purge(event) };
+    }
+
+    #[inline]
+    pub fn clear(&self) {
+        unsafe { (*self.0.get()).clear() };
+    }
+}
+
+impl Clone for SharedGbaScheduler {
+    fn clone(&self) -> SharedGbaScheduler {
+        SharedGbaScheduler(Rc::clone(&self.0))
     }
 }

@@ -5,6 +5,7 @@ use crate::irq::GbaInterruptControl;
 use crate::keypad::GbaKeypad;
 use crate::lcd::palette::GbaPalette;
 use crate::lcd::GbaLCD;
+use crate::scheduler::SharedGbaScheduler;
 use crate::sysctl::GbaSystemControl;
 use crate::timers::{GbaTimers, TimerIndex};
 use crate::util::memory::*;
@@ -67,7 +68,7 @@ pub struct GbaHardware {
 
 impl GbaHardware {
     #[inline]
-    pub fn new() -> GbaHardware {
+    pub fn new(scheduler: SharedGbaScheduler) -> GbaHardware {
         GbaHardware {
             bios: Box::new([0u8; 16 * 1024]),
             ewram: Box::new([0u8; 256 * 1024]),
@@ -79,7 +80,7 @@ impl GbaHardware {
             gamepak_mask: 0,
 
             sysctl: GbaSystemControl::new(),
-            lcd: GbaLCD::new(),
+            lcd: GbaLCD::new(scheduler.clone()),
             audio: GbaAudio::new(),
             keypad: GbaKeypad::new(),
             irq: GbaInterruptControl::new(),

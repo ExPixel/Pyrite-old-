@@ -10,6 +10,7 @@ use self::palette::GbaPalette;
 use crate::dma::GbaDMA;
 use crate::hardware::{HardwareEventQueue, OAM, VRAM};
 use crate::irq::Interrupt;
+use crate::scheduler::{GbaEvent, SharedGbaScheduler};
 use crate::util::fixedpoint::{FixedPoint16, FixedPoint32};
 use crate::util::CBool;
 use crate::GbaVideoOutput;
@@ -24,66 +25,21 @@ pub const HBLANK_CYCLES: u32 = 272;
 pub struct GbaLCD {
     pub(crate) registers: LCDRegisters,
     pub(crate) pixels: LCDLineBuffer,
-    hblank: bool,
-    next_state_cycles: u32,
-    next_state_cycles_acc: u32,
+    scheduler: SharedGbaScheduler,
 }
 
 impl GbaLCD {
-    pub fn new() -> GbaLCD {
+    pub fn new(scheduler: SharedGbaScheduler) -> GbaLCD {
         GbaLCD {
             registers: LCDRegisters::default(),
-            hblank: false,
-            next_state_cycles: HDRAW_CYCLES,
-            next_state_cycles_acc: 0,
             pixels: LCDLineBuffer::new(),
+            scheduler: scheduler,
         }
     }
 
-    /// Returns true if the end of this step was also the end of a video frame.
-    #[inline]
-    pub fn step(
-        &mut self,
-        cycles: u32,
-        vram: &VRAM,
-        oam: &OAM,
-        palette: &GbaPalette,
-        video: &mut dyn GbaVideoOutput,
-        dma: &mut GbaDMA,
-        hw_events: &mut HardwareEventQueue,
-    ) -> bool {
-        self.next_state_cycles_acc += cycles;
-        if self.next_state_cycles_acc >= self.next_state_cycles {
-            return self.step_fire(vram, oam, palette, video, dma, hw_events);
-        } else {
-            return false;
-        }
-    }
+    pub fn hdraw(&mut self, dma: &mut GbaDMA, hw_events: &mut HardwareEventQueue) {
+        self.scheduler.schedule(GbaEvent::HBlank, HBLANK_CYCLES);
 
-    #[cold]
-    fn step_fire(
-        &mut self,
-        vram: &VRAM,
-        oam: &OAM,
-        palette: &GbaPalette,
-        video: &mut dyn GbaVideoOutput,
-        dma: &mut GbaDMA,
-        hw_events: &mut HardwareEventQueue,
-    ) -> bool {
-        self.hblank = !self.hblank;
-        if self.hblank {
-            self.next_state_cycles_acc -= self.next_state_cycles;
-            self.next_state_cycles = HDRAW_CYCLES;
-            return self.hblank(vram, oam, palette, video, dma, hw_events);
-        } else {
-            self.next_state_cycles_acc -= self.next_state_cycles;
-            self.next_state_cycles = HBLANK_CYCLES;
-            self.hdraw(dma, hw_events);
-        }
-        return false;
-    }
-
-    fn hdraw(&mut self, dma: &mut GbaDMA, hw_events: &mut HardwareEventQueue) {
         self.registers.dispstat.set_hblank(false);
         self.registers.line += 1;
 
@@ -112,7 +68,7 @@ impl GbaLCD {
     }
 
     /// Returns true if this is the end of a frame.
-    fn hblank(
+    pub fn hblank(
         &mut self,
         vram: &VRAM,
         oam: &OAM,
@@ -121,6 +77,8 @@ impl GbaLCD {
         dma: &mut GbaDMA,
         hw_events: &mut HardwareEventQueue,
     ) -> bool {
+        self.scheduler.schedule(GbaEvent::HDraw, HDRAW_CYCLES);
+
         if self.registers.dispstat.hblank_irq_enable() {
             hw_events.push_irq_event(Interrupt::LCDHBlank);
         }

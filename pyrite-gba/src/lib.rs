@@ -15,7 +15,7 @@ pub mod timers;
 use hardware::GbaHardware;
 use pyrite_arm::cpu::CpuException;
 use pyrite_arm::ArmCpu;
-use scheduler::SharedGbaScheduler;
+use scheduler::{GbaEvent, SharedGbaScheduler};
 
 pub struct Gba {
     pub cpu: ArmCpu,
@@ -27,11 +27,13 @@ pub struct Gba {
 impl Gba {
     #[inline]
     pub fn new() -> Gba {
+        let scheduler = SharedGbaScheduler::new();
+        let hw_scheduler = scheduler.clone();
         let mut g = Gba {
             cpu: ArmCpu::new(),
-            hardware: GbaHardware::new(),
+            hardware: GbaHardware::new(hw_scheduler),
             state: GbaSystemState::Running,
-            scheduler: SharedGbaScheduler::new(),
+            scheduler: scheduler,
         };
         g.setup_handler();
         return g;
@@ -39,11 +41,13 @@ impl Gba {
 
     #[inline]
     pub fn alloc() -> Box<Gba> {
+        let scheduler = SharedGbaScheduler::new();
+        let hw_scheduler = scheduler.clone();
         let mut g = Box::new(Gba {
             cpu: ArmCpu::new(),
-            hardware: GbaHardware::new(),
+            hardware: GbaHardware::new(hw_scheduler),
             state: GbaSystemState::Running,
-            scheduler: SharedGbaScheduler::new(),
+            scheduler: scheduler,
         });
         g.setup_handler();
         return g;
@@ -105,6 +109,9 @@ impl Gba {
                 .registers
                 .write_mode(registers::CpuMode::Supervisor);
         }
+
+        self.scheduler.clear();
+        self.scheduler.schedule(GbaEvent::HDraw, lcd::HDRAW_CYCLES);
     }
 
     pub fn set_rom(&mut self, rom: Vec<u8>) {
@@ -123,10 +130,6 @@ impl Gba {
         video: &mut dyn GbaVideoOutput,
         audio: &mut dyn GbaAudioOutput,
     ) -> (bool, bool) {
-        if self.hardware.events.count() > 0 {
-            self.process_all_hardware_events();
-        }
-
         // NOTE the call to `cpu.step` here is kind of misleading.
         // Despite `step` being only one line:
         //
@@ -143,39 +146,60 @@ impl Gba {
             self.hardware.timers.step(cycles, &mut self.hardware.events);
         }
 
-        let video_frame = self.hardware.lcd.step(
-            cycles,
-            &self.hardware.vram,
-            &self.hardware.oam,
-            &self.hardware.pal,
-            video,
-            &mut self.hardware.dma,
-            &mut self.hardware.events,
-        );
+        let video_frame = if self.scheduler.step(cycles) {
+            self.process_scheduled_events(video, audio)
+        } else {
+            false
+        };
 
-        let audio_frame = self.hardware.audio.step(
-            cycles,
-            audio,
-            &mut self.hardware.dma,
-            &mut self.hardware.events,
-        );
-
-        return (video_frame, audio_frame);
+        return (video_frame, false);
     }
 
-    #[cold]
-    fn process_all_hardware_events(&mut self) {
-        while self.hardware.events.count() > 0 {
-            let event = self.hardware.events.pop();
-            self.process_hardware_event(event);
+    #[inline]
+    fn process_scheduled_events(
+        &mut self,
+        video: &mut dyn GbaVideoOutput,
+        audio: &mut dyn GbaAudioOutput,
+    ) -> bool {
+        let mut video_frame = false;
+        loop {
+            let (event, late, has_next) = self.scheduler.pop_event();
+            video_frame |= self.process_event(event, late, video, audio);
+            if !has_next {
+                break;
+            }
         }
+        video_frame
     }
 
-    fn process_hardware_event(&mut self, event: hardware::HardwareEvent) {
-        use hardware::HardwareEvent;
+    #[inline]
+    fn process_event(
+        &mut self,
+        event: GbaEvent,
+        _late: u32,
+        video: &mut dyn GbaVideoOutput,
+        audio: &mut dyn GbaAudioOutput,
+    ) -> bool {
+        let mut video_frame = false;
 
         match event {
-            HardwareEvent::IRQ(irq) => {
+            GbaEvent::HBlank => {
+                video_frame = self.hardware.lcd.hblank(
+                    &self.hardware.vram,
+                    &self.hardware.oam,
+                    &self.hardware.pal,
+                    video,
+                    &mut self.hardware.dma,
+                    &mut self.hardware.events,
+                )
+            }
+
+            GbaEvent::HDraw => self
+                .hardware
+                .lcd
+                .hdraw(&mut self.hardware.dma, &mut self.hardware.events),
+
+            GbaEvent::IRQ(irq) => {
                 if self.cpu.exception_enabled(CpuException::IRQ) && self.hardware.irq.request(irq) {
                     self.state = GbaSystemState::Running;
 
@@ -192,28 +216,26 @@ impl Gba {
                 }
             }
 
-            HardwareEvent::DMA(dma) => {
-                self.hardware.dma.begin_transfer(dma, &mut self.cpu);
-            }
+            GbaEvent::DMA(dma) => self.hardware.dma.begin_transfer(dma, &mut self.cpu),
 
-            HardwareEvent::Halt => {
+            GbaEvent::Halt => {
                 self.state = GbaSystemState::Halted;
 
                 // We don't want to be too fine grained here or performance is bad.
                 self.cpu.set_idle(true, 4);
             }
 
-            HardwareEvent::Stop => {
+            GbaEvent::Stop => {
                 self.state = GbaSystemState::Stopped;
 
                 // we use big steps for stop because everything we need high fidelity for is off.
                 self.cpu.set_idle(true, 16);
             }
 
-            HardwareEvent::None => {
-                unreachable!("HardwareEvent::None");
-            }
+            _ => { /* NOT YET HANDLED */ }
         }
+
+        video_frame
     }
 
     /// Steps the GBA until the end of a video frame.
