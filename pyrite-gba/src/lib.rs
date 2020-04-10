@@ -8,16 +8,19 @@ mod ioregs;
 pub mod irq;
 pub mod keypad;
 pub mod lcd;
+mod scheduler;
 mod sysctl;
 pub mod timers;
 
 use hardware::GbaHardware;
 use pyrite_arm::cpu::CpuException;
 use pyrite_arm::ArmCpu;
+use scheduler::SharedGbaScheduler;
 
 pub struct Gba {
     pub cpu: ArmCpu,
     pub hardware: GbaHardware,
+    pub scheduler: SharedGbaScheduler,
     state: GbaSystemState,
 }
 
@@ -28,6 +31,7 @@ impl Gba {
             cpu: ArmCpu::new(),
             hardware: GbaHardware::new(),
             state: GbaSystemState::Running,
+            scheduler: SharedGbaScheduler::new(),
         };
         g.setup_handler();
         return g;
@@ -39,6 +43,7 @@ impl Gba {
             cpu: ArmCpu::new(),
             hardware: GbaHardware::new(),
             state: GbaSystemState::Running,
+            scheduler: SharedGbaScheduler::new(),
         });
         g.setup_handler();
         return g;

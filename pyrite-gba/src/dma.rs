@@ -383,7 +383,8 @@ impl DMAChannel {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum DMAChannelIndex {
     DMA0 = 0,
     DMA1 = 1,

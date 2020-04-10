@@ -4,6 +4,7 @@ pub mod fixedpoint;
 pub mod memory;
 #[macro_use]
 pub mod bitfields;
+pub mod array;
 
 /// Constant boolean type used for compile time ifs.
 /// FIXME change this when const generics are stable.

@@ -115,7 +115,7 @@ impl GbaAudioPlayback {
     pub fn output_frames(&mut self, output: &mut FramesMut) {
         let channel0_state =
             SquareWaveState::wrap(self.control.channel0_state.load(Ordering::Acquire));
-        self.square_wave_0.set_frequency(channel0_state.frequency());
+        // self.square_wave_0.set_frequency(channel0_state.frequency());
         self.square_wave_0.read_pcm_frames(output);
     }
 }

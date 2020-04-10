@@ -48,7 +48,7 @@ impl GbaInterruptControl {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u16)]
+#[repr(u8)]
 pub enum Interrupt {
     LCDVBlank = 0,
     LCDHBlank = 1,
@@ -70,7 +70,7 @@ pub enum Interrupt {
 impl Interrupt {
     #[inline]
     pub const fn mask(self) -> u16 {
-        1 << (self as u16)
+        1 << (self as u8 as u16)
     }
 
     pub fn timer(timer_index: TimerIndex) -> Interrupt {
