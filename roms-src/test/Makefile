@@ -1,5 +1,5 @@
 DEST := ../../roms/test
-TARGETS := mode3 mode4
+TARGETS := mode3 mode4 timer-stress
 TARGETS_CLEAN := $(addsuffix .clean,$(TARGETS))
 
 .PHONY: all clean $(TARGETS) $(TARGETS_CLEAN)
