@@ -4,7 +4,7 @@ use super::irq::Interrupt;
 use std::cell::UnsafeCell;
 use std::rc::Rc;
 
-pub const MAX_GBA_EVENTS: usize = 16;
+pub const MAX_GBA_EVENTS: usize = 32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GbaEvent {
@@ -16,6 +16,7 @@ pub enum GbaEvent {
     HBlank,
     HDraw,
     TimerOverflows,
+    Padding,
 }
 
 impl Default for GbaEvent {
@@ -62,14 +63,21 @@ impl GbaScheduler {
     }
 
     #[inline]
-    pub fn purge(&mut self, event: GbaEvent) {
+    pub fn purge(&mut self, purge_event: GbaEvent) {
+        self.purge_by(|&event| event == purge_event);
+    }
+
+    #[inline]
+    pub fn purge_by<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&GbaEvent) -> bool,
+    {
         let mut idx = 0;
         while idx < self.event_count {
-            if self.events[idx].event == event {
+            if f(&self.events[idx].event) {
                 if idx != MAX_GBA_EVENTS {
                     self.events[idx + 1].cycles += self.events[idx].cycles;
-                    self.events
-                        .copy_within((idx + 1)..(idx + 1 + self.event_count), idx);
+                    self.events.copy_within((idx + 1)..self.event_count, idx);
                 } else {
                     self.events[idx].event = GbaEvent::None;
                 }
@@ -111,9 +119,9 @@ impl GbaScheduler {
         let ret_event = self.events[0].event;
         let ret_late = self.late;
 
-        self.event_count -= 1;
-        if self.event_count > 0 {
-            self.events.copy_within(1..(1 + self.event_count), 0);
+        if self.event_count > 1 {
+            self.events.copy_within(1..self.event_count, 0);
+            self.event_count -= 1;
             if self.late >= self.events[0].cycles {
                 self.late -= self.events[0].cycles;
                 self.events[0].cycles = 0;
@@ -124,6 +132,7 @@ impl GbaScheduler {
                 (ret_event, ret_late, false)
             }
         } else {
+            self.event_count = 0;
             self.events[0].cycles = std::u32::MAX;
             self.events[0].event = GbaEvent::None;
             (ret_event, ret_late, false)
@@ -136,6 +145,12 @@ impl GbaScheduler {
     pub fn schedule(&mut self, event: GbaEvent, cycles: u32) {
         assert!(self.event_count < MAX_GBA_EVENTS);
 
+        // if event != GbaEvent::Padding {
+        //     for x in 0..8 {
+        //         self.schedule(GbaEvent::Padding, cycles + 64 * x);
+        //     }
+        // }
+
         let mut cycles_acc = 0;
         let mut idx = 0;
 
@@ -144,11 +159,10 @@ impl GbaScheduler {
 
             // Too many cycles would have passed after the event so we insert
             // the new one before it and remove the new event's cycles from the
-            // old event at the position.
+            // old event at the position (and propogate the change to subsequent events).
             if cycles_acc_after > cycles {
-                self.events[idx].cycles -= cycles;
-                self.events
-                    .copy_within(idx..(idx + self.event_count), idx + 1);
+                self.propogate_cycle_decrease(idx, cycles);
+                self.events.copy_within(idx..self.event_count, idx + 1);
                 break;
             }
 
@@ -161,6 +175,18 @@ impl GbaScheduler {
             event: event,
         };
         self.event_count += 1;
+    }
+
+    fn propogate_cycle_decrease(&mut self, mut idx: usize, mut cycles: u32) {
+        while idx < self.event_count {
+            if self.events[idx].cycles >= cycles {
+                self.events[idx].cycles -= cycles;
+            } else {
+                cycles -= self.events[idx].cycles;
+                self.events[idx].cycles = 0;
+            }
+            idx += 1;
+        }
     }
 }
 
@@ -195,6 +221,14 @@ impl SharedGbaScheduler {
     #[inline]
     pub fn purge(&self, event: GbaEvent) {
         unsafe { (*self.0.get()).purge(event) };
+    }
+
+    #[inline]
+    pub fn purge_by<F>(&self, f: F)
+    where
+        F: FnMut(&GbaEvent) -> bool,
+    {
+        unsafe { (*self.0.get()).purge_by(f) };
     }
 
     #[inline]
