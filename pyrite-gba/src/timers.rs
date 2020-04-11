@@ -260,7 +260,7 @@ impl GbaTimer {
 
     /// Increments the timer and returns true if an overflow occurred.
     /// No more than 1024 cycles should be passed in at one time.
-    pub fn increment(&mut self) -> bool {
+    fn increment(&mut self) -> bool {
         match self.counter.overflowing_add(1) {
             (_, true) => {
                 self.set_counter(self.reload);
