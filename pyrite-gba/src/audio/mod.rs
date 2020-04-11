@@ -102,10 +102,10 @@ impl GbaAudio {
     pub(crate) fn set_sound1cnt_x(&mut self, value: u16) {
         self.registers.sound1cnt_x.value = value;
         self.channel1.freq_setting = self.registers.sound1cnt_x.freq_setting();
-        println!(
-            "FREQ SETTING: 0x{:04X}",
-            self.registers.sound1cnt_x.value & 0x3FF
-        );
+        // println!(
+        //     "FREQ SETTING: 0x{:04X}",
+        //     self.registers.sound1cnt_x.value & 0x3FF
+        // );
         if self.registers.sound1cnt_x.init() {
             self.channel1.enabled = true;
             self.registers.sound1cnt_x.set_init(false);
