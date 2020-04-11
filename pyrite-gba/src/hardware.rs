@@ -5,7 +5,7 @@ use crate::irq::GbaInterruptControl;
 use crate::keypad::GbaKeypad;
 use crate::lcd::palette::GbaPalette;
 use crate::lcd::GbaLCD;
-use crate::scheduler::SharedGbaScheduler;
+use crate::scheduler::{GbaEvent, SharedGbaScheduler};
 use crate::sysctl::GbaSystemControl;
 use crate::timers::{GbaTimers, TimerIndex};
 use crate::util::memory::*;
@@ -53,8 +53,6 @@ pub struct GbaHardware {
     pub timers: GbaTimers,
     pub scheduler: SharedGbaScheduler,
 
-    pub(crate) events: HardwareEventQueue,
-
     /// This singular purpose of this is to make 8bit writes to larger IO registers consistent by
     /// storing the values that were last written to them.
     ioreg_bytes: [u8; 0x20C],
@@ -87,8 +85,6 @@ impl GbaHardware {
             irq: GbaInterruptControl::new(),
             dma: GbaDMA::new(scheduler.clone()),
             timers: GbaTimers::new(scheduler.clone()),
-
-            events: HardwareEventQueue::new(),
 
             ioreg_bytes: [0u8; 0x20C],
             last_code_read: 0,
@@ -569,9 +565,9 @@ impl GbaHardware {
 
             ioregs::HALTCNT => {
                 if (data & 1) == 0 {
-                    self.events.push_halt_event();
+                    self.scheduler.schedule(GbaEvent::Halt, 0);
                 } else {
-                    self.events.push_stop_event();
+                    self.scheduler.schedule(GbaEvent::Stop, 0);
                 }
                 return true;
             }
@@ -1610,73 +1606,6 @@ const fn byte_of_word(word: u32, addr: u32) -> u8 {
 // const fn byte_of_halfword(halfword: u16, addr: u32) -> u8 {
 //     (halfword >> ((addr % 2) * 8)) as u8
 // }
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum HardwareEvent {
-    IRQ(crate::irq::Interrupt),
-    DMA(crate::dma::DMAChannelIndex),
-    Halt,
-    Stop,
-    None,
-}
-
-pub struct HardwareEventQueue {
-    count: usize,
-    pending: [HardwareEvent; 16],
-}
-
-impl HardwareEventQueue {
-    pub fn new() -> HardwareEventQueue {
-        HardwareEventQueue {
-            count: 0,
-            pending: [HardwareEvent::None; 16],
-        }
-    }
-
-    #[inline]
-    pub fn push_irq_event(&mut self, int: crate::irq::Interrupt) {
-        self.push(HardwareEvent::IRQ(int));
-    }
-
-    #[inline]
-    pub fn push_dma_event(&mut self, dma: crate::dma::DMAChannelIndex) {
-        self.push(HardwareEvent::DMA(dma));
-    }
-
-    #[inline]
-    pub fn push_halt_event(&mut self) {
-        self.push(HardwareEvent::Halt);
-    }
-
-    #[inline]
-    pub fn push_stop_event(&mut self) {
-        self.push(HardwareEvent::Stop);
-    }
-
-    /// Push an event into the hardware event queue.
-    #[inline]
-    pub fn push(&mut self, event: HardwareEvent) {
-        assert!(self.count < self.pending.len());
-        self.pending[self.count] = event;
-        self.count += 1;
-    }
-
-    /// @TODO: For now the return order for events is a bit weird and its expected that all events are
-    /// going to be processed at once and we just pray that while processing events we don't fire
-    /// enough to overfill the buffer. This would probably be solved if I could be bothered to use
-    /// the CircularBuffer here instead of writing this comment :|
-    #[inline]
-    pub fn pop(&mut self) -> HardwareEvent {
-        assert!(self.count > 0);
-        self.count -= 1;
-        std::mem::replace(&mut self.pending[self.count], HardwareEvent::None)
-    }
-
-    #[inline]
-    pub fn count(&self) -> usize {
-        self.count
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]

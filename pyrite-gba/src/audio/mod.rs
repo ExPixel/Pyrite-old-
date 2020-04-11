@@ -1,5 +1,4 @@
 use crate::dma::GbaDMA;
-use crate::hardware::HardwareEventQueue;
 use crate::irq::Interrupt;
 use crate::GbaAudioOutput;
 
@@ -38,7 +37,6 @@ impl GbaAudio {
         partial_cycles: u32,
         audio: &mut dyn GbaAudioOutput,
         dma: &mut GbaDMA,
-        hw_events: &mut HardwareEventQueue,
     ) -> bool {
         self.cycles_acc += partial_cycles;
 
@@ -49,7 +47,7 @@ impl GbaAudio {
 
         if self.dirty {
             self.dirty = false;
-            self.step_fire(self.cycles_acc, audio, dma, hw_events);
+            self.step_fire(self.cycles_acc, audio, dma);
             self.cycles_acc = 0;
         }
 
@@ -57,13 +55,7 @@ impl GbaAudio {
     }
 
     #[cold]
-    fn step_fire(
-        &mut self,
-        cycles: u32,
-        audio: &mut dyn GbaAudioOutput,
-        dma: &mut GbaDMA,
-        hw_events: &mut HardwareEventQueue,
-    ) -> bool {
+    fn step_fire(&mut self, cycles: u32, audio: &mut dyn GbaAudioOutput, dma: &mut GbaDMA) -> bool {
         audio.set_tone_sweep_state(self.channel1.state());
         false
     }
