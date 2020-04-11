@@ -123,56 +123,51 @@ impl GbaTimers {
             return;
         }
 
-        while cycles > 1024 {
-            self.safe_internal_step(1024);
-            cycles -= 1024;
+        while cycles > 0 {
+            self.increment_timers();
+            cycles -= 1;
         }
-
-        self.safe_internal_step(cycles);
     }
 
-    fn safe_internal_step(&mut self, cycles: u32) {
+    fn increment_timers(&mut self) {
         if self.timers[0].active() {
-            self.safe_step_single_timer(TimerIndex::TM0, cycles);
+            self.increment_timer(TimerIndex::TM0);
         }
 
         if self.timers[1].active() {
-            self.safe_step_single_timer(TimerIndex::TM1, cycles);
+            self.increment_timer(TimerIndex::TM1);
         }
 
         if self.timers[2].active() {
-            self.safe_step_single_timer(TimerIndex::TM2, cycles);
+            self.increment_timer(TimerIndex::TM2);
         }
 
         if self.timers[3].active() {
-            self.safe_step_single_timer(TimerIndex::TM3, cycles);
+            self.increment_timer(TimerIndex::TM3);
         }
     }
 
-    fn safe_step_single_timer(&mut self, mut timer_index: TimerIndex, mut cycles: u32) {
+    fn increment_timer(&mut self, mut timer_index: TimerIndex) {
         let mut timer = usize::from(timer_index);
-
         loop {
-            let overflow = self.timers[timer].increment(cycles);
-            if overflow {
-                if self.timers[timer].control.irq() {
-                    self.scheduler
-                        .schedule(GbaEvent::IRQ(crate::irq::Interrupt::timer(timer_index)), 0)
-                }
-
-                if let Some(next_timer_index) = timer_index.next() {
-                    timer_index = next_timer_index;
-                    timer = usize::from(timer_index);
-                    if self.timers[timer].passive() {
-                        cycles = 1;
-                        continue;
-                    }
-                }
-
-                break;
-            } else {
+            let overflow = self.timers[timer].increment();
+            if !overflow {
                 break;
             }
+            if self.timers[timer].control.irq() {
+                self.scheduler
+                    .schedule(GbaEvent::IRQ(crate::irq::Interrupt::timer(timer_index)), 0);
+            }
+
+            if let Some(next_timer_index) = timer_index.next() {
+                timer_index = next_timer_index;
+                timer = usize::from(timer_index);
+                if self.timers[timer].passive() {
+                    continue;
+                }
+            }
+
+            break;
         }
     }
 }
@@ -265,22 +260,16 @@ impl GbaTimer {
 
     /// Increments the timer and returns true if an overflow occurred.
     /// No more than 1024 cycles should be passed in at one time.
-    pub fn increment(&mut self, mut cycles: u32) -> bool {
-        debug_assert!(cycles <= 1024);
-
-        let mut overflow_occurred = false;
-        loop {
-            let (value, overflow) = self.counter.overflowing_add(cycles);
-            if !overflow {
-                self.counter = value;
-                return overflow_occurred;
+    pub fn increment(&mut self) -> bool {
+        match self.counter.overflowing_add(1) {
+            (_, true) => {
+                self.set_counter(self.reload);
+                true
             }
-            overflow_occurred = true;
-
-            // At this point `value` contains the number of cycles that the counter overflowed by.
-            // So we set cycles, reset the counter, and continue until no more overflows occur.
-            cycles = value;
-            self.set_counter(self.reload);
+            (value, false) => {
+                self.counter = value;
+                false
+            }
         }
     }
 }
