@@ -128,7 +128,7 @@ impl GbaTimers {
             cycles -= cycles % 1024;
         }
 
-        while cycles > 1024 {
+        while cycles >= 1024 {
             self.increment_timers(1024);
             cycles -= 1024;
         }
