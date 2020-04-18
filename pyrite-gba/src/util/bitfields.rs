@@ -92,7 +92,7 @@ macro_rules! bitfields {
             $FieldGet:ident, $FieldSet:ident: $FieldType:ty = [$FieldStart:expr, $FieldEnd:expr],
         )*
     }) => {
-        #[derive(Copy, Clone)]
+        #[derive(Debug, Copy, Clone)]
         pub struct $TypeName {
             pub value: $ValueType,
         }
