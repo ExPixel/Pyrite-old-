@@ -616,9 +616,10 @@ dependencies = [
 
 [[package]]
 name = "miniaudio"
-version = "0.4.0"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
+ "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "ep-miniaudio-sys 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -810,7 +811,7 @@ dependencies = [
  "gl 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "glutin 0.24.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "miniaudio 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "miniaudio 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "pyrite-arm 0.1.0",
  "pyrite-common 0.1.0",
  "pyrite-gba 0.1.0",
@@ -1398,7 +1399,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum memchr 2.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "3728d817d99e5ac407411fa471ff9800a778d88a24685968b36824eaf4bee400"
 "checksum memmap 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "6585fd95e7bb50d6cc31e20d4cf9afb4e2ba16c5846fc76793f11218da9c475b"
 "checksum memoffset 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)" = "b4fc2c02a7e374099d4ee95a193111f72d2110197fe200272371758f6c3643d8"
-"checksum miniaudio 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "654e6dd8b516f23a8f860dd93b61435d71173370530468ec0c3f200247f94c06"
+"checksum miniaudio 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "454e39ad061a75ce3f7a51ead9c22f46885286e8088a32162c8406e289fb7b20"
 "checksum mio 0.6.21 (registry+https://github.com/rust-lang/crates.io-index)" = "302dec22bcf6bae6dfb69c647187f4b4d0fb6f535521f7bc022430ce8e12008f"
 "checksum mio-extras 2.0.6 (registry+https://github.com/rust-lang/crates.io-index)" = "52403fe290012ce777c4626790c8951324a2b9e3316b3143779c72b029742f19"
 "checksum miow 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "8c1f2f3b1cf331de6896aabf6e9d55dca90356cc9960cca7eaaf408a355ae919"
