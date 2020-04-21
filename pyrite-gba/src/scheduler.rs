@@ -90,13 +90,13 @@ impl GbaScheduler {
 
     #[inline(always)]
     pub fn step(&mut self, cycles: u32) -> bool {
-        if cycles >= self.events[0].cycles {
+        if cycles < self.events[0].cycles {
+            self.events[0].cycles -= cycles;
+            false
+        } else {
             self.late = cycles - self.events[0].cycles;
             self.events[0].cycles = 0;
             true
-        } else {
-            self.events[0].cycles -= cycles;
-            false
         }
     }
 
