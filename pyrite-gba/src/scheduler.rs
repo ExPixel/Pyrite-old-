@@ -1,3 +1,4 @@
+use super::audio::PSGChannel;
 use super::dma::DMAChannelIndex;
 use super::irq::Interrupt;
 
@@ -16,6 +17,10 @@ pub enum GbaEvent {
     HBlank,
     HDraw,
     TimerOverflows,
+    AudioUpdate,
+    StopPSGChannel(PSGChannel),
+    PSGChannelStepEnvelope(PSGChannel),
+    PSGChannel0StepSweep,
     Padding,
 }
 
@@ -100,9 +105,9 @@ impl GbaScheduler {
         }
     }
 
-    pub fn contains(&self, event: GbaEvent) -> bool {
-        self.events.iter().any(|node| node.event == event)
-    }
+    // pub fn contains(&self, event: GbaEvent) -> bool {
+    //     self.events.iter().any(|node| node.event == event)
+    // }
 
     /// This will pop the last fired event from the event list (0 or less cycles remaining). The
     /// value returned is a type with the event, the number of cycles it was late by, and a boolean
@@ -137,6 +142,12 @@ impl GbaScheduler {
             self.events[0].event = GbaEvent::None;
             (ret_event, ret_late, false)
         }
+    }
+
+    /// The same as `schedule` but will purge all other occurences of the event first.
+    pub fn schedule_unique(&mut self, event: GbaEvent, cycles: u32) {
+        self.purge(event);
+        self.schedule(event, cycles);
     }
 
     /// Will add a new event to the scheduler. If an event is scheduled during event processing
@@ -221,6 +232,11 @@ impl SharedGbaScheduler {
     #[inline]
     pub fn purge(&self, event: GbaEvent) {
         unsafe { (*self.0.get()).purge(event) };
+    }
+
+    #[inline]
+    pub fn schedule_unique(&self, event: GbaEvent, cycles: u32) {
+        unsafe { (*self.0.get()).schedule_unique(event, cycles) };
     }
 
     #[inline]

@@ -1,15 +1,16 @@
 use miniaudio::{
-    Device, DeviceConfig, DeviceType, Format, FramesMut, Waveform, WaveformConfig, WaveformType,
+    Device, DeviceConfig, DeviceType, Format, FramesMut, RingBufferRecv, RingBufferSend,
 };
 use pyrite_gba::audio::{NoiseState, SquareWaveState, WaveOutputState};
 use pyrite_gba::GbaAudioOutput;
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
+
+const RB_SUBBUFFER_LEN: usize = 8;
+const RB_SUBBUFFER_COUNT: usize = 32;
 
 /// Abstraction used to output sound.
 pub struct PlatformAudio {
     device: Device,
-    control: Arc<GbaAudioPlaybackControl>,
+    messages: RingBufferSend<GbaAudioMessage>,
 }
 
 impl PlatformAudio {
@@ -25,8 +26,10 @@ impl PlatformAudio {
             .set_channels(Self::DEVICE_CHANNELS);
         device_config.set_sample_rate(Self::DEVICE_SAMPLE_RATE);
 
-        let mut gba_playback = GbaAudioPlayback::new();
-        let control = Arc::clone(&gba_playback.control);
+        let (msg_send, msg_recv) = miniaudio::ring_buffer(RB_SUBBUFFER_LEN, RB_SUBBUFFER_COUNT)
+            .expect("failed to create audio message ring buffer");
+
+        let mut gba_playback = GbaAudioPlayback::new(msg_recv);
         device_config.set_data_callback(move |_device, output, _input| {
             gba_playback.output_frames(output);
         });
@@ -39,10 +42,13 @@ impl PlatformAudio {
         device.start().expect("failed to start playback device");
 
         log::info!("started audio device");
+        log::info!("device playback format: {:?}", device.playback().format());
+        log::info!("device playback channels: {}", device.playback().channels());
+        log::info!("device sample rate: {}", device.sample_rate());
 
         PlatformAudio {
             device: device,
-            control: control,
+            messages: msg_send,
         }
     }
 
@@ -58,17 +64,28 @@ impl PlatformAudio {
     pub fn push_samples(&mut self, _samples: &[u16]) {
         // TODO
     }
+
+    fn try_send_message(&self, message: GbaAudioMessage) -> bool {
+        // This should usually just work on the first attempt.
+        for _ in 0..RB_SUBBUFFER_COUNT {
+            if self.messages.write(&[message]) > 0 {
+                return true;
+            }
+        }
+        log::error!("UH-OH, AUDIO EMERGENCY");
+        return false;
+    }
 }
 
 impl GbaAudioOutput for PlatformAudio {
     fn set_tone_sweep_state(&mut self, state: SquareWaveState) {
-        self.control
-            .channel0_state
-            .store(state.value, Ordering::Release);
+        self.try_send_message(GbaAudioMessage::Channel0(state));
     }
-    fn set_tone_state(&mut self, _state: SquareWaveState) {
-        /* NOP */
+
+    fn set_tone_state(&mut self, state: SquareWaveState) {
+        self.try_send_message(GbaAudioMessage::Channel1(state));
     }
+
     fn set_wave_output_state(&mut self, _state: WaveOutputState) {
         /* NOP */
     }
@@ -81,41 +98,135 @@ impl GbaAudioOutput for PlatformAudio {
     }
 }
 
-#[derive(Default)]
-pub struct GbaAudioPlaybackControl {
-    channel0_state: AtomicU32,
-    channel1_state: AtomicU32,
+#[derive(Debug, Clone, Copy)]
+pub enum GbaAudioMessage {
+    /// Request to change the state of channel0's square wave.
+    Channel0(SquareWaveState),
+
+    /// Request to change the state of channel1's square wave.
+    Channel1(SquareWaveState),
 }
 
 #[derive(Clone)]
 pub struct GbaAudioPlayback {
-    square_wave_0: Waveform,
-    square_wave_1: Waveform,
-    control: Arc<GbaAudioPlaybackControl>,
+    square_wave_0: SquareWave,
+    square_wave_1: SquareWave,
+    messages: Option<RingBufferRecv<GbaAudioMessage>>,
 }
 
 impl GbaAudioPlayback {
-    pub fn new() -> GbaAudioPlayback {
-        let square_wave_config = WaveformConfig::new(
-            PlatformAudio::DEVICE_FORMAT,
-            PlatformAudio::DEVICE_CHANNELS,
-            PlatformAudio::DEVICE_SAMPLE_RATE,
-            WaveformType::Square,
-            0.0,
-            0.1,
-        );
-
+    pub fn new(messages: RingBufferRecv<GbaAudioMessage>) -> GbaAudioPlayback {
         GbaAudioPlayback {
-            square_wave_0: Waveform::new(&square_wave_config),
-            square_wave_1: Waveform::new(&square_wave_config),
-            control: Arc::new(GbaAudioPlaybackControl::default()),
+            square_wave_0: SquareWave::new(PlatformAudio::DEVICE_SAMPLE_RATE, 64.0, 0.0, 0.5),
+            square_wave_1: SquareWave::new(PlatformAudio::DEVICE_SAMPLE_RATE, 64.0, 0.0, 0.5),
+            messages: Some(messages),
+        }
+    }
+
+    fn process_messages(&mut self) {
+        // I do all of this so I can read messages without copying into an intermediary buffer
+        // first. But basically I make the messages unavailable while they are being processed
+        // by using an Option like this.
+        let messages = self.messages.take().unwrap();
+        for _ in 0..(RB_SUBBUFFER_COUNT / 2) {
+            messages.read_with(RB_SUBBUFFER_LEN, |buf| {
+                buf.iter()
+                    .copied()
+                    .for_each(|msg| self.process_single_message(msg));
+            });
+        }
+        self.messages = Some(messages);
+    }
+
+    fn process_single_message(&mut self, message: GbaAudioMessage) {
+        match message {
+            GbaAudioMessage::Channel0(state) => {
+                if state.playing() {
+                    self.square_wave_0.amplitude = state.volume_setting().amplitude() as f32;
+                } else {
+                    self.square_wave_0.amplitude = 0.0;
+                }
+
+                self.square_wave_0.frequency = state.freq_setting().frequency();
+                self.square_wave_0.duty_cycle = state.duty_cycle().wave_duty();
+            }
+
+            GbaAudioMessage::Channel1(state) => {
+                if state.playing() {
+                    self.square_wave_1.amplitude = state.volume_setting().amplitude() as f32;
+                } else {
+                    self.square_wave_1.amplitude = 0.0;
+                }
+
+                self.square_wave_1.frequency = state.freq_setting().frequency();
+                self.square_wave_1.duty_cycle = state.duty_cycle().wave_duty();
+            }
         }
     }
 
     pub fn output_frames(&mut self, output: &mut FramesMut) {
-        let channel0_state =
-            SquareWaveState::wrap(self.control.channel0_state.load(Ordering::Acquire));
-        // self.square_wave_0.set_frequency(channel0_state.frequency());
-        self.square_wave_0.read_pcm_frames(output);
+        self.process_messages();
+
+        self.square_wave_0.add_pcm_frames(output);
+        self.square_wave_1.add_pcm_frames(output);
+
+        // Normalize the audio.
+        output
+            .as_samples_mut::<f32>()
+            .iter_mut()
+            .for_each(|s| *s *= 0.5);
+    }
+}
+
+#[derive(Clone)]
+pub struct SquareWave {
+    /// Number of seconds that have passed.
+    time: f64,
+
+    /// How many seconds (or fractions of a second usually) pass after each sample.
+    /// This is set based the sample rate that is used during construction.
+    advance: f64,
+
+    frequency: f64,
+
+    /// The value of the signal when it is high.
+    amplitude: f32,
+
+    /// How much of each period the signal is set high for.
+    /// e.g. If this is set to 75% (0.75) for a wave with a frequency of 1Hz,
+    /// The signal will be on for 3/4 of a second and then off for 1/4
+    /// of a second (this pattern will be repeated once a second).
+    /// A duty cycle of 100% or 1.0 just generates a signal
+    /// that is always on.
+    duty_cycle: f64,
+}
+
+impl SquareWave {
+    pub fn new(sample_rate: u32, frequency: f64, amplitude: f32, duty_cycle: f64) -> SquareWave {
+        SquareWave {
+            time: 0.0,
+            advance: 1.0 / (sample_rate as f64),
+            frequency,
+            amplitude,
+            duty_cycle,
+        }
+    }
+
+    /// Reads PCM frames from the square wave and adds them to `output_frames`.
+    /// This function expects that the format of `output_frames` is f32.
+    pub fn add_pcm_frames(&mut self, output_frames: &mut FramesMut) {
+        let d = 1.0 - self.duty_cycle;
+        for frame in output_frames.frames_mut::<f32>() {
+            let v = if (self.time * self.frequency).fract() < d {
+                -self.amplitude
+            } else {
+                self.amplitude
+            };
+            self.time += self.advance;
+
+            for sample in frame.iter_mut() {
+                *sample += v;
+            }
+        }
     }
 }

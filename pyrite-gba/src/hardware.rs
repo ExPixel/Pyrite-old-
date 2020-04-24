@@ -80,7 +80,7 @@ impl GbaHardware {
 
             sysctl: GbaSystemControl::new(),
             lcd: GbaLCD::new(scheduler.clone()),
-            audio: GbaAudio::new(),
+            audio: GbaAudio::new(scheduler.clone()),
             keypad: GbaKeypad::new(),
             irq: GbaInterruptControl::new(),
             dma: GbaDMA::new(scheduler.clone()),
@@ -445,7 +445,7 @@ impl GbaHardware {
                 }
             }
 
-            0x090..=0x09E => self.audio.read_wave_ram_byte(offset - 0x090),
+            0x090..=0x09E => self.audio.wave_ram_byte(offset - 0x090),
 
             offset => {
                 let halfword_offset = offset & 0xFFFE;
@@ -556,6 +556,13 @@ impl GbaHardware {
     }
 
     fn io_write8(&mut self, addr: u32, data: u8, display_error: bool) -> bool {
+        macro_rules! write_nr {
+            ($SetFn:ident) => {{
+                self.audio.$SetFn(data);
+                true
+            }};
+        }
+
         let offset = Self::io_off(addr);
         match offset {
             ioregs::POSTFLG => {
@@ -571,6 +578,28 @@ impl GbaHardware {
                 }
                 return true;
             }
+
+            ioregs::NR10 => write_nr!(set_nr10),
+            ioregs::NR11 => write_nr!(set_nr11),
+            ioregs::NR12 => write_nr!(set_nr12),
+            ioregs::NR13 => write_nr!(set_nr13),
+            ioregs::NR14 => write_nr!(set_nr14),
+            ioregs::NR21 => write_nr!(set_nr21),
+            ioregs::NR22 => write_nr!(set_nr22),
+            ioregs::NR23 => write_nr!(set_nr23),
+            ioregs::NR24 => write_nr!(set_nr24),
+            ioregs::NR30 => write_nr!(set_nr30),
+            ioregs::NR31 => write_nr!(set_nr31),
+            ioregs::NR32 => write_nr!(set_nr32),
+            ioregs::NR33 => write_nr!(set_nr33),
+            ioregs::NR34 => write_nr!(set_nr34),
+            ioregs::NR41 => write_nr!(set_nr41),
+            ioregs::NR42 => write_nr!(set_nr42),
+            ioregs::NR43 => write_nr!(set_nr43),
+            ioregs::NR44 => write_nr!(set_nr44),
+            ioregs::NR50 => write_nr!(set_nr50),
+            ioregs::NR51 => write_nr!(set_nr51),
+            ioregs::NR52 => write_nr!(set_nr52),
 
             0x090..=0x09E => {
                 self.audio.set_wave_ram_byte(offset - 0x090, data as u8);
@@ -612,6 +641,17 @@ impl GbaHardware {
         //         ($Word & !(0xFFFF << shift)) | ((data as u32) << shift)
         //     }};
         // }
+
+        macro_rules! write_nr16 {
+            ($SetLo:ident, $SetHi:ident) => {{
+                self.audio.$SetLo(data as u8);
+                self.audio.$SetHi((data >> 8) as u8);
+            }};
+
+            ($SetLo:ident) => {
+                self.audio.$SetLo(data as u8);
+            };
+        }
 
         match offset {
             // LCD
@@ -809,20 +849,20 @@ impl GbaHardware {
             ioregs::TM3CNT_H => self.timers.write_timer_control(TimerIndex::TM3, data),
 
             // SOUND
-            ioregs::SOUNDCNT_L => self.audio.set_soundcnt_l(data),
+            ioregs::SOUNDCNT_L => write_nr16!(set_nr50, set_nr51),
             ioregs::SOUNDCNT_H => self.audio.set_soundcnt_h(data),
-            ioregs::SOUNDCNT_X => self.audio.set_soundcnt_x(data),
+            ioregs::SOUNDCNT_X => write_nr16!(set_nr52),
             ioregs::SOUNDCNT_X_H => { /* NOT USED */ }
-            ioregs::SOUND1CNT_L => self.audio.set_sound1cnt_l(data),
-            ioregs::SOUND1CNT_H => self.audio.set_sound1cnt_h(data),
-            ioregs::SOUND1CNT_X => self.audio.set_sound1cnt_x(data),
-            ioregs::SOUND2CNT_L => self.audio.set_sound2cnt_l(data),
-            ioregs::SOUND2CNT_H => self.audio.set_sound2cnt_h(data),
-            ioregs::SOUND3CNT_L => self.audio.set_sound3cnt_l(data),
-            ioregs::SOUND3CNT_H => self.audio.set_sound3cnt_h(data),
-            ioregs::SOUND3CNT_X => self.audio.set_sound3cnt_x(data),
-            ioregs::SOUND4CNT_L => self.audio.set_sound4cnt_l(data),
-            ioregs::SOUND4CNT_H => self.audio.set_sound4cnt_h(data),
+            ioregs::SOUND1CNT_L => write_nr16!(set_nr10),
+            ioregs::SOUND1CNT_H => write_nr16!(set_nr11, set_nr12),
+            ioregs::SOUND1CNT_X => write_nr16!(set_nr13, set_nr14),
+            ioregs::SOUND2CNT_L => write_nr16!(set_nr21, set_nr22),
+            ioregs::SOUND2CNT_H => write_nr16!(set_nr23, set_nr24),
+            ioregs::SOUND3CNT_L => write_nr16!(set_nr30),
+            ioregs::SOUND3CNT_H => write_nr16!(set_nr31, set_nr32),
+            ioregs::SOUND3CNT_X => write_nr16!(set_nr33, set_nr34),
+            ioregs::SOUND4CNT_L => write_nr16!(set_nr41, set_nr42),
+            ioregs::SOUND4CNT_H => write_nr16!(set_nr43, set_nr44),
             0x090..=0x09E => {
                 self.audio.set_wave_ram_byte(offset - 0x090, data as u8);
                 self.audio
@@ -944,9 +984,9 @@ impl GbaHardware {
             ioregs::SOUND4CNT_H => Some(self.audio.registers.sound4cnt_h.value),
 
             0x090..=0x09E => {
-                let lo = self.audio.read_wave_ram_byte(offset - 0x090) as u16;
+                let lo = self.audio.wave_ram_byte(offset - 0x090) as u16;
                 let hi = if offset < 0x09E {
-                    self.audio.read_wave_ram_byte(offset - 0x090 + 1)
+                    self.audio.wave_ram_byte(offset - 0x090 + 1)
                 } else {
                     log::warn!("need the first byte of FIFA_A for wave ram read");
                     0

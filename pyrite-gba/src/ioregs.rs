@@ -63,6 +63,33 @@ pub const SOUNDBIAS_H: u16 = 0x008A;
 pub const FIFO_A: u16 = 0x00A0;
 pub const FIFO_B: u16 = 0x00A4;
 
+// Sound Registers (Using NR names)
+pub const NR10: u16 = 0x0060;
+pub const NR11: u16 = 0x0062;
+pub const NR12: u16 = 0x0063;
+pub const NR13: u16 = 0x0064;
+pub const NR14: u16 = 0x0065;
+
+pub const NR21: u16 = 0x0068;
+pub const NR22: u16 = 0x0069;
+pub const NR23: u16 = 0x006C;
+pub const NR24: u16 = 0x006D;
+
+pub const NR30: u16 = 0x0070;
+pub const NR31: u16 = 0x0072;
+pub const NR32: u16 = 0x0073;
+pub const NR33: u16 = 0x0074;
+pub const NR34: u16 = 0x0075;
+
+pub const NR41: u16 = 0x0078;
+pub const NR42: u16 = 0x0079;
+pub const NR43: u16 = 0x007C;
+pub const NR44: u16 = 0x007D;
+
+pub const NR50: u16 = 0x0080;
+pub const NR51: u16 = 0x0081;
+pub const NR52: u16 = 0x0084;
+
 // DMA Transfer Channels
 pub const DMA0SAD: u16 = 0x00B0;
 pub const DMA0SAD_H: u16 = 0x00B2;

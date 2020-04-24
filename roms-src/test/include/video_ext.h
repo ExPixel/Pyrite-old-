@@ -1,6 +1,8 @@
 #ifndef _video_ext_
 #define _video_ext_
 
+#include <gba_video.h>
+
 typedef u16 MODE4_LINE[120];
 
 #define MODE4_FB ((MODE4_LINE *)0x06000000)
@@ -47,6 +49,24 @@ static void busy_render_wait() {
     }
     busy_vdraw_wait();
     busy_vblank_wait();
+}
+
+/**
+ * Waits for the given number of frames to be FULLY (go through a full vdraw cycle) drawn.
+ */
+void wait_for_frames(u32 frames) {
+    if (frames == 0) { return; }
+
+    // If we're starting in the middle of VDraw, wait for vblank.
+    if (!(REG_DISPSTAT & LCDC_VBL_FLAG)) {
+        busy_vblank_wait();
+    }
+
+    while (frames > 0) {
+        frames -= 1;
+        busy_vdraw_wait();
+        busy_vblank_wait();
+    }
 }
 
 #endif /* _video_ext_ */

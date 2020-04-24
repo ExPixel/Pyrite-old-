@@ -1,5 +1,5 @@
 DEST := ../../roms/test
-TARGETS := mode3 mode4 timer-stress
+TARGETS := mode3 mode4 timer-stress sound_test
 TARGETS_CLEAN := $(addsuffix .clean,$(TARGETS))
 
 .PHONY: all clean $(TARGETS) $(TARGETS_CLEAN)
@@ -14,3 +14,4 @@ $(TARGETS):
 
 $(TARGETS_CLEAN):
 	cd $(basename $@); make clean
+	rm -f $(DEST)/$(basename $@).gba

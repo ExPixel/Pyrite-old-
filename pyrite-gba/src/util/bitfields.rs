@@ -39,6 +39,22 @@ macro_rules! as_conversion {
     };
 }
 
+macro_rules! impl_unit_struct_field_convert {
+    ($StructType:ident, $ConversionType:ty) => {
+        impl crate::util::bitfields::FieldConvert<$ConversionType> for $StructType {
+            fn convert(self) -> $ConversionType {
+                self.0 as $ConversionType
+            }
+        }
+
+        impl crate::util::bitfields::FieldConvert<$StructType> for $ConversionType {
+            fn convert(self) -> $StructType {
+                $StructType(self as _)
+            }
+        }
+    };
+}
+
 impl FieldConvert<bool> for u8 {
     fn convert(self) -> bool {
         self != 0

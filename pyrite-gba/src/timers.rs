@@ -281,7 +281,7 @@ impl GbaTimer {
                     break 'ov_loop;
                 }
 
-                (overflow_value, true) => {
+                (_overflow_value, true) => {
                     cycles = cycles - (std::u32::MAX - self.counter) - 1;
                     self.reload_counter();
                     overflows += 1;

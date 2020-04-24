@@ -71,6 +71,12 @@ impl Gba {
 
     pub fn reset(&mut self, skip_bios: bool) {
         use pyrite_arm::registers;
+
+        log::debug!(
+            "GBA event size in bytes: {}",
+            std::mem::size_of::<GbaEvent>()
+        );
+
         self.cpu.registers.setf_f(); // Disables FIQ interrupts (always high on the GBA)
 
         // Initialized by hardware to this value:
@@ -225,6 +231,15 @@ impl Gba {
 
             GbaEvent::TimerOverflows => {
                 self.hardware.timers.process_overflows();
+            }
+
+            GbaEvent::AudioUpdate => self.hardware.audio.update(audio),
+            GbaEvent::StopPSGChannel(channel) => {
+                self.hardware.audio.psg_stop_channel(audio, channel)
+            }
+            GbaEvent::PSGChannel0StepSweep => self.hardware.audio.psg_sweep_shift(audio),
+            GbaEvent::PSGChannelStepEnvelope(channel) => {
+                self.hardware.audio.psg_envelope_step(audio, channel)
             }
 
             _ => { /* NOT YET HANDLED */ }

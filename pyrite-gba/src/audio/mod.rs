@@ -1,145 +1,405 @@
-use crate::dma::GbaDMA;
-use crate::irq::Interrupt;
+// use crate::dma::GbaDMA;
+// use crate::irq::Interrupt;
+use crate::scheduler::{GbaEvent, SharedGbaScheduler};
 use crate::GbaAudioOutput;
+use pyrite_common::bits_set;
 
 const CYCLES_PER_SECOND: u32 = 16 * 1024 * 1024;
 
 pub struct GbaAudio {
+    scheduler: SharedGbaScheduler,
     pub registers: GbaAudioRegisters,
-
     /// Cycles accumulated while GbaAudio is idling.
-    cycles_acc: u32,
-
-    /// Cycles until GbaAudio needs to do something (sweeps, envelope, sound length ect.)
-    cycles_to_next_event: u32,
-
-    dirty: bool,
-
+    dirty: u8,
     channel1: SquareWave,
+    channel2: SquareWave,
 }
 
 impl GbaAudio {
-    pub fn new() -> GbaAudio {
+    pub fn new(scheduler: SharedGbaScheduler) -> GbaAudio {
         GbaAudio {
+            scheduler: scheduler,
             registers: GbaAudioRegisters::default(),
-            cycles_acc: 0,
-            cycles_to_next_event: std::u32::MAX >> 1,
-            dirty: false,
+            dirty: 0,
             channel1: SquareWave::new(),
+            channel2: SquareWave::new(),
         }
     }
 
-    // FIXME What the fuck is an audio frame? I don't remember what I was thinking about.
-    /// Returns true if this step was also the end of an audio frame.
-    #[inline]
-    pub fn step(
-        &mut self,
-        partial_cycles: u32,
-        audio: &mut dyn GbaAudioOutput,
-        dma: &mut GbaDMA,
-    ) -> bool {
-        self.cycles_acc += partial_cycles;
-
-        if self.cycles_acc >= self.cycles_to_next_event {
-            self.dirty = true;
-            self.cycles_to_next_event = std::u32::MAX;
+    pub fn update(&mut self, audio: &mut dyn GbaAudioOutput) {
+        if self.psg_channel_dirty(PSGChannel::ToneSweep) {
+            audio.set_tone_sweep_state(self.channel1.state());
         }
 
-        if self.dirty {
-            self.dirty = false;
-            self.step_fire(self.cycles_acc, audio, dma);
-            self.cycles_acc = 0;
+        if self.psg_channel_dirty(PSGChannel::Tone) {
+            audio.set_tone_state(self.channel2.state());
         }
-
-        false
+        self.dirty = 0;
     }
 
-    #[cold]
-    fn step_fire(&mut self, cycles: u32, audio: &mut dyn GbaAudioOutput, dma: &mut GbaDMA) -> bool {
+    fn set_psg_channel_dirty(&mut self, channel: PSGChannel) {
+        if self.dirty == 0 {
+            self.scheduler.schedule(GbaEvent::AudioUpdate, 0);
+        }
+        self.dirty |= 1 << channel.index8();
+    }
+
+    fn clear_psg_channel_dirty(&mut self, channel: PSGChannel) {
+        self.dirty &= !(1 << channel.index8());
+    }
+
+    fn psg_channel_dirty(&self, channel: PSGChannel) -> bool {
+        ((self.dirty >> channel.index8()) & 1) != 0
+    }
+
+    /// Sweep shift for channel 1.
+    pub(crate) fn psg_sweep_shift(&mut self, audio: &mut dyn GbaAudioOutput) {
+        // If channel 1 was stopped before we got here then we can stop scheduling and bail.
+        if !self.channel1.playing {
+            return;
+        }
+
+        let continue_shifting = self.channel1.freq_setting.sweep_shift(
+            self.registers.sound1cnt_l.sweep_direction(),
+            self.registers.sound1cnt_l.sweep_shifts(),
+        );
+
+        if continue_shifting {
+            self.scheduler.schedule(
+                GbaEvent::PSGChannel0StepSweep,
+                self.registers.sound1cnt_l.sweep_time().cycles(),
+            );
+        } else if self.registers.sound1cnt_l.sweep_direction() == SweepDirection::Increase {
+            // When we reach the limit on sweep increase sound is just stopped.
+            self.channel1.playing = false;
+        }
+        // When we reach the limit on sweep decrease, the last frequency is retained.
+        // So we don't have to do anything :P
+
         audio.set_tone_sweep_state(self.channel1.state());
-        false
+        self.clear_psg_channel_dirty(PSGChannel::ToneSweep);
     }
 
-    pub(crate) fn set_soundcnt_l(&mut self, value: u16) {
-        self.registers.soundcnt_l.value = value;
+    pub(crate) fn psg_stop_channel(&mut self, audio: &mut dyn GbaAudioOutput, channel: PSGChannel) {
+        match channel {
+            PSGChannel::ToneSweep => {
+                self.channel1.playing = false;
+                audio.set_tone_sweep_state(self.channel1.state());
+                self.clear_psg_channel_dirty(PSGChannel::ToneSweep);
+            }
+            PSGChannel::Tone => {
+                self.channel2.playing = false;
+                audio.set_tone_state(self.channel2.state());
+                self.clear_psg_channel_dirty(PSGChannel::Tone);
+            }
+            PSGChannel::WaveOutput => { /* FIXME implement this */ }
+            PSGChannel::Noise => { /* FIXME implement this */ }
+        }
+    }
+
+    pub(crate) fn psg_envelope_step(
+        &mut self,
+        audio: &mut dyn GbaAudioOutput,
+        channel: PSGChannel,
+    ) {
+        let mut continue_stepping = false;
+        let mut step_cycles = 0;
+
+        match channel {
+            PSGChannel::ToneSweep => {
+                if self.channel1.playing {
+                    if self.registers.sound1cnt_h.envelope_direction()
+                        == EnvelopeDirection::Increase
+                    {
+                        continue_stepping = self.channel1.volume.increase();
+                    } else {
+                        continue_stepping = self.channel1.volume.decrease();
+                    }
+
+                    self.channel1.playing = self.channel1.volume.0 > 0;
+
+                    step_cycles = self.registers.sound1cnt_h.envelope_step_time().cycles();
+                    audio.set_tone_sweep_state(self.channel1.state());
+                    self.clear_psg_channel_dirty(PSGChannel::ToneSweep);
+                }
+            }
+            PSGChannel::Tone => {
+                if self.channel2.playing {
+                    if self.registers.sound2cnt_l.envelope_direction()
+                        == EnvelopeDirection::Increase
+                    {
+                        continue_stepping = self.channel2.volume.increase();
+                    } else {
+                        continue_stepping = self.channel2.volume.decrease();
+                    }
+
+                    self.channel2.playing = self.channel2.volume.0 > 0;
+
+                    step_cycles = self.registers.sound2cnt_l.envelope_step_time().cycles();
+                    audio.set_tone_state(self.channel2.state());
+                    self.clear_psg_channel_dirty(PSGChannel::Tone);
+                }
+            }
+            PSGChannel::WaveOutput => { /* FIXME implement this */ }
+            PSGChannel::Noise => { /* FIXME implement this */ }
+        }
+
+        if continue_stepping {
+            self.scheduler
+                .schedule(GbaEvent::PSGChannelStepEnvelope(channel), step_cycles);
+        }
+    }
+
+    pub(crate) fn set_nr10(&mut self, value: u8) {
+        self.registers.sound1cnt_l.value =
+            bits_set!(self.registers.sound1cnt_l.value, value as u16, 0, 7);
+
+        if self.channel1.playing {
+            self.scheduler.purge(GbaEvent::PSGChannel0StepSweep);
+
+            if self.registers.sound1cnt_l.sweep_shifts() > 0 {
+                self.scheduler.schedule(
+                    GbaEvent::PSGChannel0StepSweep,
+                    self.registers.sound1cnt_l.sweep_time().cycles(),
+                );
+            }
+        }
+    }
+
+    pub(crate) fn set_nr11(&mut self, value: u8) {
+        self.registers.sound1cnt_h.value =
+            bits_set!(self.registers.sound1cnt_h.value, value as u16, 0, 7);
+
+        if self.channel1.playing {
+            // FIXME implement sound length
+            self.channel1.duty_cycle = self.registers.sound1cnt_h.wave_pattern_duty();
+            self.set_psg_channel_dirty(PSGChannel::ToneSweep);
+        }
+    }
+
+    pub(crate) fn set_nr12(&mut self, value: u8) {
+        self.registers.sound1cnt_h.value =
+            bits_set!(self.registers.sound1cnt_h.value, value as u16, 8, 15);
+
+        if self.channel1.playing {
+            self.scheduler
+                .purge(GbaEvent::PSGChannelStepEnvelope(PSGChannel::ToneSweep));
+
+            // If it's a step time of 0, we just want to stop the envelope and skip scheduling
+            // another step.
+            if self.registers.sound1cnt_h.envelope_step_time().0 > 0 {
+                self.scheduler.schedule(
+                    GbaEvent::PSGChannelStepEnvelope(PSGChannel::ToneSweep),
+                    self.registers.sound1cnt_h.envelope_step_time().cycles(),
+                );
+            }
+
+            self.set_psg_channel_dirty(PSGChannel::ToneSweep);
+        } else {
+            // Envelope initial volume is only used when sound is first initialized, unless the
+            // value is set to 0, in which case the sound will be stopped. So here we only change
+            // the volume on the channel while it is disabled.
+            self.channel1.volume = self.registers.sound1cnt_h.envelope_initial_volume();
+        }
+    }
+
+    pub(crate) fn set_nr13(&mut self, value: u8) {
+        self.registers.sound1cnt_x.value =
+            bits_set!(self.registers.sound1cnt_x.value, value as u16, 0, 7);
+    }
+
+    pub(crate) fn set_nr14(&mut self, value: u8) {
+        self.registers.sound1cnt_x.value =
+            bits_set!(self.registers.sound1cnt_x.value, value as u16, 8, 15);
+
+        self.channel1.freq_setting = self.registers.sound1cnt_x.freq_setting();
+        if self.registers.sound1cnt_x.init() {
+            self.channel1.duty_cycle = self.registers.sound1cnt_h.wave_pattern_duty();
+            self.channel1.volume = self.registers.sound1cnt_h.envelope_initial_volume();
+
+            self.channel1.playing = true;
+
+            if self.registers.sound1cnt_h.envelope_step_time().0 > 0 {
+                self.scheduler.schedule_unique(
+                    GbaEvent::PSGChannelStepEnvelope(PSGChannel::ToneSweep),
+                    self.registers.sound1cnt_h.envelope_step_time().cycles(),
+                );
+            }
+
+            if self.registers.sound1cnt_x.length_flag() {
+                self.scheduler.schedule_unique(
+                    GbaEvent::StopPSGChannel(PSGChannel::ToneSweep),
+                    self.registers.sound1cnt_h.length().cycles(),
+                );
+            }
+
+            if self.registers.sound1cnt_l.sweep_shifts() > 0 {
+                self.scheduler.schedule_unique(
+                    GbaEvent::PSGChannel0StepSweep,
+                    self.registers.sound1cnt_l.sweep_time().cycles(),
+                );
+            }
+
+            self.registers.sound1cnt_x.set_init(false);
+        }
+        self.set_psg_channel_dirty(PSGChannel::ToneSweep);
+    }
+
+    pub fn set_nr21(&mut self, value: u8) {
+        self.registers.sound2cnt_l.value =
+            bits_set!(self.registers.sound2cnt_l.value, value as u16, 0, 7);
+
+        if self.channel2.playing {
+            // FIXME implement sound length
+            self.channel2.duty_cycle = self.registers.sound2cnt_l.wave_pattern_duty();
+            self.set_psg_channel_dirty(PSGChannel::Tone);
+        }
+    }
+
+    pub fn set_nr22(&mut self, value: u8) {
+        let prev_sound2cnt_l = self.registers.sound2cnt_l;
+
+        self.registers.sound2cnt_l.value =
+            bits_set!(self.registers.sound2cnt_l.value, value as u16, 8, 15);
+
+        if self.channel2.playing {
+            // If envelope step time was changed while sound is playing, reschedule the envelope
+            // steps.
+            if prev_sound2cnt_l.envelope_step_time()
+                != self.registers.sound2cnt_l.envelope_step_time()
+            {
+                self.scheduler
+                    .purge(GbaEvent::PSGChannelStepEnvelope(PSGChannel::Tone));
+
+                // If it's a step time of 0, we just want to stop the envelope and skip scheduling
+                // another step.
+                if self.registers.sound2cnt_l.envelope_step_time().0 > 0 {
+                    self.scheduler.schedule(
+                        GbaEvent::PSGChannelStepEnvelope(PSGChannel::Tone),
+                        self.registers.sound2cnt_l.envelope_step_time().cycles(),
+                    );
+                }
+            }
+
+            self.set_psg_channel_dirty(PSGChannel::Tone);
+        } else {
+            // Envelope initial volume is only used when sound is first initialized, unless the
+            // value is set to 0, in which case the sound will be stopped. So here we only change
+            // the volume on the channel while it is disabled.
+            self.channel2.volume = self.registers.sound2cnt_l.envelope_initial_volume();
+        }
+    }
+
+    pub fn set_nr23(&mut self, value: u8) {
+        self.registers.sound2cnt_h.value =
+            bits_set!(self.registers.sound2cnt_h.value, value as u16, 0, 7);
+        self.channel2.freq_setting = self.registers.sound2cnt_h.freq_setting();
+
+        if self.channel2.playing {
+            self.set_psg_channel_dirty(PSGChannel::Tone);
+        }
+    }
+
+    pub fn set_nr24(&mut self, value: u8) {
+        self.registers.sound2cnt_h.value =
+            bits_set!(self.registers.sound2cnt_h.value, value as u16, 8, 15);
+
+        self.channel2.freq_setting = self.registers.sound2cnt_h.freq_setting();
+        if self.registers.sound2cnt_h.init() {
+            self.channel2.duty_cycle = self.registers.sound2cnt_l.wave_pattern_duty();
+            self.channel2.volume = self.registers.sound2cnt_l.envelope_initial_volume();
+
+            self.channel2.playing = true;
+
+            if self.registers.sound2cnt_l.envelope_step_time().0 > 0 {
+                self.scheduler.schedule_unique(
+                    GbaEvent::PSGChannelStepEnvelope(PSGChannel::Tone),
+                    self.registers.sound2cnt_l.envelope_step_time().cycles(),
+                );
+            }
+
+            if self.registers.sound2cnt_h.length_flag() {
+                self.scheduler.schedule_unique(
+                    GbaEvent::StopPSGChannel(PSGChannel::Tone),
+                    self.registers.sound2cnt_l.length().cycles(),
+                );
+            }
+
+            self.registers.sound2cnt_h.set_init(false);
+        }
+
+        if self.channel2.playing {
+            self.set_psg_channel_dirty(PSGChannel::Tone);
+        }
+    }
+
+    pub fn set_nr30(&mut self, _value: u8) {
+        // FIXME todo
+    }
+
+    pub fn set_nr31(&mut self, _value: u8) {
+        // FIXME todo
+    }
+
+    pub fn set_nr32(&mut self, _value: u8) {
+        // FIXME todo
+    }
+
+    pub fn set_nr33(&mut self, _value: u8) {
+        // FIXME todo
+    }
+
+    pub fn set_nr34(&mut self, _value: u8) {
+        // FIXME todo
+    }
+
+    pub fn set_nr41(&mut self, _value: u8) {
+        // FIXME todo
+    }
+
+    pub fn set_nr42(&mut self, _value: u8) {
+        // FIXME todo
+    }
+
+    pub fn set_nr43(&mut self, _value: u8) {
+        // FIXME todo
+    }
+
+    pub fn set_nr44(&mut self, _value: u8) {
+        // FIXME todo
+    }
+
+    pub fn set_nr50(&mut self, _value: u8) {
+        // FIXME todo
+    }
+
+    pub fn set_nr51(&mut self, _value: u8) {
+        // FIXME todo
+    }
+
+    pub fn set_nr52(&mut self, value: u8) {
+        let enable = (value & 0x80) != 0;
+
+        // If sound is being turned off: zero all of the registers and
+        // mark all of the sound outputs as dirty.
+        if !enable && self.registers.soundcnt_x.master_enable() {
+            self.registers.zero_sound_registers();
+            self.dirty = 0xFF;
+        }
+
+        self.registers.soundcnt_x.set_master_enable(enable);
+    }
+
+    pub fn set_wave_ram_byte(&mut self, _offset: u16, _data: u8) {
+        // TODO
+    }
+
+    pub fn wave_ram_byte(&self, _offset: u16) -> u8 {
+        0
     }
 
     pub(crate) fn set_soundcnt_h(&mut self, value: u16) {
         self.registers.soundcnt_h.value = value;
-    }
-
-    pub(crate) fn set_soundcnt_x(&mut self, value: u16) {
-        let last_enable = self.registers.soundcnt_x.master_enable();
-        self.registers.soundcnt_x.value &= 0x7F;
-        self.registers.soundcnt_x.value |= value & 0x80;
-
-        if last_enable == self.registers.soundcnt_x.master_enable() {
-            return;
-        }
-
-        if !self.registers.soundcnt_x.master_enable() {
-            self.registers.zero_sound_registers();
-            self.dirty = true;
-        }
-    }
-
-    pub(crate) fn set_sound1cnt_l(&mut self, value: u16) {
-        self.registers.sound1cnt_l.value = value;
-    }
-
-    pub(crate) fn set_sound1cnt_h(&mut self, value: u16) {
-        self.registers.sound1cnt_h.value = value;
-    }
-
-    pub(crate) fn set_sound1cnt_x(&mut self, value: u16) {
-        self.registers.sound1cnt_x.value = value;
-        self.channel1.freq_setting = self.registers.sound1cnt_x.freq_setting();
-        // println!(
-        //     "FREQ SETTING: 0x{:04X}",
-        //     self.registers.sound1cnt_x.value & 0x3FF
-        // );
-        if self.registers.sound1cnt_x.init() {
-            self.channel1.enabled = true;
-            self.registers.sound1cnt_x.set_init(false);
-        }
-        self.dirty = true;
-    }
-
-    pub(crate) fn set_sound2cnt_l(&mut self, value: u16) {
-        self.registers.sound2cnt_l.value = value;
-    }
-
-    pub(crate) fn set_sound2cnt_h(&mut self, value: u16) {
-        self.registers.sound2cnt_h.value = value;
-    }
-
-    pub(crate) fn set_sound3cnt_l(&mut self, value: u16) {
-        // TODO
-    }
-
-    pub(crate) fn set_sound3cnt_h(&mut self, value: u16) {
-        // TODO
-    }
-
-    pub(crate) fn set_sound3cnt_x(&mut self, value: u16) {
-        // TODO
-    }
-
-    pub(crate) fn set_wave_ram_byte(&mut self, index: u16, value: u8) {
-        // TODO
-    }
-
-    pub(crate) fn read_wave_ram_byte(&self, index: u16) -> u8 {
-        // TODO
-        0
-    }
-
-    pub(crate) fn set_sound4cnt_l(&mut self, value: u16) {
-        // TODO
-    }
-
-    pub(crate) fn set_sound4cnt_h(&mut self, value: u16) {
-        // TODO
     }
 
     pub(crate) fn set_sound_bias(&mut self, value: u16) {
@@ -149,24 +409,30 @@ impl GbaAudio {
 
 pub struct SquareWave {
     freq_setting: SquareFreqSetting,
-    enabled: bool,
+    duty_cycle: SquareWaveDutyCycle,
+    volume: PSGVolume,
+    playing: bool,
 }
 
 impl SquareWave {
     pub fn new() -> SquareWave {
         SquareWave {
             freq_setting: SquareFreqSetting(0),
-            enabled: false,
+            volume: PSGVolume(0),
+            playing: false,
+            duty_cycle: SquareWaveDutyCycle(2),
         }
     }
 
     pub fn state(&self) -> SquareWaveState {
         let mut state = SquareWaveState::default();
-        if self.enabled {
-            state.set_enabled(true);
+        if self.playing {
+            state.set_playing(true);
             state.set_freq_setting(self.freq_setting);
+            state.set_duty_cycle(self.duty_cycle);
+            state.set_volume_setting(self.volume);
         } else {
-            state.set_enabled(false);
+            state.set_playing(false);
         }
         state
     }
@@ -220,29 +486,12 @@ bitfields! (UnimplementedSound: u16 {
     // TODO find these and implement them.
 });
 
-#[derive(Default)]
-struct GbaSquareWave {
-    /// Frequency setting: 131072/(2048-n)Hz  (0-2047)
-    frequency: u16,
-
-    /// Volume setting: 1-15 (0 = no sound)
-    volume: u16,
-}
-
 bitfields! (SquareWaveState: u32 {
-    enabled, set_enabled: bool = [0, 0],
+    playing, set_playing: bool = [0, 0],
     freq_setting, set_freq_setting: SquareFreqSetting = [1, 11],
-    volume_setting, set_volume_setting: u16 = [12, 15],
-    duty_cycle, set_duty_cycle: u16 = [16, 17],
+    volume_setting, set_volume_setting: PSGVolume = [12, 15],
+    duty_cycle, set_duty_cycle: SquareWaveDutyCycle = [16, 17],
 });
-
-impl SquareWaveState {
-    const VOLUME_STEP: f64 = 1.0f64 / 15.0f64;
-
-    pub fn amplitude(&self) -> f64 {
-        Self::VOLUME_STEP * self.volume_setting() as f64
-    }
-}
 
 bitfields! (WaveOutputState: u32 {
 });
@@ -310,7 +559,7 @@ bitfields! (SoundBias: u16 {
 // Sound Sweep Register
 // SOUND1CNT_L (NR10)
 bitfields! (SquarePSGSweep: u16 {
-    shifts, set_shifts: u16 = [0, 2],
+    sweep_shifts, set_sweep_shifts: u16 = [0, 2],
     sweep_direction, set_sweep_direction: SweepDirection = [3, 3],
     sweep_time, set_sweep_time: SweepTime = [4, 6],
 });
@@ -319,10 +568,11 @@ bitfields! (SquarePSGSweep: u16 {
 // SOUND1CNT_H (NR11, NR12)
 // SOUND2CNT_L (NR21, NR22)
 bitfields! (SquarePSGControlLo: u16 {
-    length, set_length: PSGSoundLength = [0, 5],
-    wave_pattern_duty, set_wave_pattern_duty: u32 = [0, 3],
+    length, set_length: SoundLength = [0, 5],
+    wave_pattern_duty, set_wave_pattern_duty: SquareWaveDutyCycle = [6, 7],
     envelope_step_time, set_envelope_step_time: EnvelopeStepTime = [8, 10],
-    envelope_direction, set_sweep_direction: EnvelopeDirection = [11, 11],
+    envelope_direction, set_envelope_direction: EnvelopeDirection = [11, 11],
+    envelope_initial_volume, set_envelope_initial_volume: PSGVolume = [12, 15],
 });
 
 // Hi sound control registers.
@@ -352,40 +602,20 @@ impl SweepTime {
     }
 }
 
-impl crate::util::bitfields::FieldConvert<u16> for SweepTime {
-    fn convert(self) -> u16 {
-        self.0 as u16
-    }
-}
-
-impl crate::util::bitfields::FieldConvert<SweepTime> for u16 {
-    fn convert(self) -> SweepTime {
-        SweepTime(self as u8)
-    }
-}
+impl_unit_struct_field_convert!(SweepTime, u16);
 
 /// Sound length (units of (64-n)/256s)
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct PSGSoundLength(u8);
+pub struct SoundLength(u8);
 
-impl PSGSoundLength {
+impl SoundLength {
     /// The number of cycles that this this length represents.
     pub fn cycles(self) -> u32 {
-        (64 - self.0 as u32) * (CYCLES_PER_SECOND / 256)
+        ((64 - self.0 as u32) * CYCLES_PER_SECOND) / 256
     }
 }
 
-impl crate::util::bitfields::FieldConvert<u16> for PSGSoundLength {
-    fn convert(self) -> u16 {
-        self.0 as u16
-    }
-}
-
-impl crate::util::bitfields::FieldConvert<PSGSoundLength> for u16 {
-    fn convert(self) -> PSGSoundLength {
-        PSGSoundLength(self as u8)
-    }
-}
+impl_unit_struct_field_convert!(SoundLength, u16);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum EnvelopeDirection {
@@ -401,24 +631,14 @@ pub struct EnvelopeStepTime(u8);
 impl EnvelopeStepTime {
     /// The number of cycles that this this length represents.
     pub fn cycles(self) -> u32 {
-        (self.0 as u32) * (CYCLES_PER_SECOND / 64)
+        (self.0 as u32 * CYCLES_PER_SECOND) / 64
     }
 }
 
-impl crate::util::bitfields::FieldConvert<u16> for EnvelopeStepTime {
-    fn convert(self) -> u16 {
-        self.0 as u16
-    }
-}
-
-impl crate::util::bitfields::FieldConvert<EnvelopeStepTime> for u16 {
-    fn convert(self) -> EnvelopeStepTime {
-        EnvelopeStepTime(self as u8)
-    }
-}
+impl_unit_struct_field_convert!(EnvelopeStepTime, u16);
 
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PSGChannel {
     ToneSweep = 0,
     Tone = 1,
@@ -456,34 +676,85 @@ impl PSGChannel {
 
 /// Sound length (units of n/64s)
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct SquareFreqSetting(u8);
+pub struct SquareFreqSetting(u16);
 
 impl SquareFreqSetting {
     pub fn frequency(&self) -> f64 {
         131072.0f64 / (2048.0f64 - self.0 as f64)
     }
-}
 
-impl crate::util::bitfields::FieldConvert<u16> for SquareFreqSetting {
-    fn convert(self) -> u16 {
-        self.0 as u16
+    pub fn sweep_shift(&mut self, direction: SweepDirection, shifts: u16) -> bool {
+        let freq = self.0 as u32;
+        let change = (freq as u32) / (1 << shifts as u32);
+
+        if direction == SweepDirection::Increase {
+            if freq + change > 0x7FF {
+                false
+            } else {
+                self.0 = (freq + change) as u16;
+                true
+            }
+        } else {
+            if change > freq {
+                false
+            } else {
+                self.0 = (freq - change) as u16;
+                true
+            }
+        }
+    }
+}
+impl_unit_struct_field_convert!(SquareFreqSetting, u16);
+impl_unit_struct_field_convert!(SquareFreqSetting, u32);
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct SquareWaveDutyCycle(u8);
+
+impl SquareWaveDutyCycle {
+    pub fn wave_duty(self) -> f64 {
+        match self.0 {
+            0 => 0.125,
+            1 => 0.25,
+            2 => 0.5,
+            3 => 0.75,
+
+            // FIXME maybe I should just error here, idk.
+            _ => 1.0,
+        }
     }
 }
 
-impl crate::util::bitfields::FieldConvert<SquareFreqSetting> for u16 {
-    fn convert(self) -> SquareFreqSetting {
-        SquareFreqSetting(self as u8)
+impl_unit_struct_field_convert!(SquareWaveDutyCycle, u16);
+impl_unit_struct_field_convert!(SquareWaveDutyCycle, u32);
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct PSGVolume(u8);
+
+impl PSGVolume {
+    const VOLUME_STEP: f64 = 1.0 / 15.0;
+
+    pub fn amplitude(&mut self) -> f64 {
+        self.0 as f64 * Self::VOLUME_STEP
+    }
+
+    pub fn increase(&mut self) -> bool {
+        if self.0 < 15 {
+            self.0 += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn decrease(&mut self) -> bool {
+        if self.0 > 0 {
+            self.0 -= 1;
+            true
+        } else {
+            false
+        }
     }
 }
 
-impl crate::util::bitfields::FieldConvert<u32> for SquareFreqSetting {
-    fn convert(self) -> u32 {
-        self.0 as u32
-    }
-}
-
-impl crate::util::bitfields::FieldConvert<SquareFreqSetting> for u32 {
-    fn convert(self) -> SquareFreqSetting {
-        SquareFreqSetting(self as u8)
-    }
-}
+impl_unit_struct_field_convert!(PSGVolume, u16);
+impl_unit_struct_field_convert!(PSGVolume, u32);
