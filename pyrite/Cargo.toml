@@ -14,4 +14,4 @@ gl = { version = "0.14.0" }
 glutin = { version = "0.24" }
 log = { version = "0.4", features = ["std"] }
 termcolor = { version = "1.1" }
-miniaudio = { version = "0.6" }
+miniaudio = { version = "0.9" }
